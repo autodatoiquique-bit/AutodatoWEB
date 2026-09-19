@@ -338,8 +338,14 @@ function armarCarruselPortada(nReal) {
   };
   const irA = (i, suave) => {
     const w = ancho();
+    if (!w) return;
     if (suave) pista.scrollTo({ left: i * w, behavior: "smooth" });
-    else pista.scrollLeft = i * w;
+    else {
+      const prev = pista.style.scrollBehavior;
+      pista.style.scrollBehavior = "auto";
+      pista.scrollLeft = i * w;
+      pista.style.scrollBehavior = prev;
+    }
     pintarDots(realDe(i));
   };
   const acomodar = () => {
@@ -354,8 +360,19 @@ function armarCarruselPortada(nReal) {
     }
     irA(i, true);
   };
-  medir();
-  irA(loop ? 1 : 0, false);
+  const irAlPrimero = () => {
+    medir();
+    if (ancho() < 20) return false;
+    irA(loop ? 1 : 0, false);
+    return true;
+  };
+  if (!irAlPrimero()) {
+    let n = 0;
+    const t = setInterval(() => {
+      n += 1;
+      if (irAlPrimero() || n > 40) clearInterval(t);
+    }, 50);
+  }
   let tope;
   pista.addEventListener("scroll", () => {
     pintarDots(realDe(crudo()));
@@ -1417,6 +1434,7 @@ window.addEventListener("focus", async () => {
 });
 
 async function arrancar() {
+  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   await cargarCatalogo();
   await cargarPortada();
   aplicarLogos();

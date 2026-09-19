@@ -394,6 +394,7 @@ function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {
 }
 
 async function cargarPortada() {
+  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {
       const remoto = await nubeLeerPortada();
@@ -426,9 +427,12 @@ async function guardarPortada(lista) {
   portadaUi = ui;
   portadaSlides = lista.map((s, i) => normalizarSlide({ ...s, ...ui, orden: i }, i));
   localStorage.setItem(PORTADA_KEY, JSON.stringify(portadaSlides));
+  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     await nubeGuardarPortada(portadaSlides);
+    return "nube";
   }
+  throw new Error("Este panel no está conectado a autodato.cl. Abre https://autodato.cl/admin.html y guarda ahí.");
 }
 
 function guardarTaller(data) {

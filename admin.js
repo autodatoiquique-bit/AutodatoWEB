@@ -670,7 +670,7 @@ async function guardarEditorPortada() {
   try {
     await guardarPortada(portadaSlides);
     renderEditorPortada();
-    alert("Portada guardada. Ya se ve en autodato.cl.");
+    alert("Portada publicada en autodato.cl. Recarga esa página para verla.");
   } catch (e) {
     alert(
       (e && e.message) ||
@@ -910,6 +910,7 @@ $("acceso-email")?.addEventListener("keydown", (e) => {
 });
 
 async function arrancarAdmin() {
+  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   try {
     await cargarPortada();
     aplicarLogos();

@@ -11,6 +11,23 @@ function nubeActiva() {
   return Boolean(nubeUrl() && nubeClave() && window.supabase);
 }
 
+function nubeCargarConfigRemota() {
+  return new Promise((resolve) => {
+    if (nubeUrl() && nubeClave()) {
+      resolve(true);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = "https://autodato.cl/config.js";
+    s.onload = () => {
+      window._sb = null;
+      resolve(Boolean(nubeUrl() && nubeClave()));
+    };
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
 function clienteNube() {
   if (!nubeActiva()) return null;
   if (!window._sb) {
@@ -155,13 +172,20 @@ async function nubeGuardarPortadaMeta(lista) {
   const { error } = await sb.storage.from("servicios").upload(
     "portada-config.json",
     new Blob([cuerpo], { type: "application/json" }),
-    { contentType: "application/json", upsert: true }
+    { contentType: "application/json", upsert: true, cacheControl: "0" }
   );
   if (error) throw error;
 }
 
 async function nubeLeerPortadaMeta() {
   const sb = clienteNube();
+  const publico = sb.storage.from("servicios").getPublicUrl("portada-config.json").data.publicUrl;
+  try {
+    const res = await fetch(`${publico}?t=${Date.now()}`, { cache: "no-store" });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    /* fallback */
+  }
   const { data, error } = await sb.storage.from("servicios").download("portada-config.json");
   if (error || !data) return null;
   return JSON.parse(await data.text());
