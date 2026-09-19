@@ -1078,10 +1078,10 @@ function abrirTicket(payload) {
   const nodo = $("ticket-qr");
   nodo.innerHTML = "";
   new QRCode(nodo, {
-    text: JSON.stringify(payload),
-    width: 160,
-    height: 160,
-    correctLevel: QRCode.CorrectLevel.M,
+    text: String(payload.code || "").trim(),
+    width: 240,
+    height: 240,
+    correctLevel: QRCode.CorrectLevel.L,
   });
 }
 
