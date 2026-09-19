@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoDato — Panel interno</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <div id="acceso" class="acceso">
+    <div class="acceso-card">
+      <img src="imagenes/logo.jpg" alt="AutoDato" />
+      <h1>Panel interno</h1>
+      <p id="acceso-texto" class="muted"></p>
+      <label class="field">
+        <span id="acceso-label">Clave</span>
+        <input id="acceso-pin" type="password" autocomplete="current-password" />
+      </label>
+      <label class="field" id="acceso-confirma-wrap" hidden>
+        <span>Repite la clave</span>
+        <input id="acceso-pin2" type="password" autocomplete="new-password" />
+      </label>
+      <button class="btn-primary btn-block" type="button" id="btn-acceso">Entrar</button>
+      <p id="acceso-error" class="error" hidden></p>
+    </div>
+  </div>
+
+  <div id="panel" class="split" hidden>
+    <aside class="sidebar">
+      <div class="logo-btn"><img src="imagenes/logo.jpg" alt="AutoDato" /></div>
+      <p class="sidebar-kicker">Solo taller</p>
+      <button class="btn-yellow" type="button" id="btn-nuevo">Nuevo servicio</button>
+      <div id="lista-servicios" class="lista"></div>
+      <button class="btn-soft" type="button" id="btn-salir">Cerrar sesión</button>
+    </aside>
+    <main class="stage" id="stage">
+      <p class="vacio">Elige un servicio o crea uno nuevo.</p>
+    </main>
+  </div>
+
+  <div id="modal-combo" class="modal" hidden>
+    <div class="modal-card">
+      <button class="x" type="button" id="cerrar-combo">×</button>
+      <h3>Servicio asociado</h3>
+      <p class="muted" id="combo-ayuda"></p>
+      <label class="field">
+        <span>Qué servicio se suma</span>
+        <select id="combo-id"></select>
+      </label>
+      <p class="muted" id="combo-lista"></p>
+      <label class="field">
+        <span>Precio si se suma a este trabajo</span>
+        <input id="combo-precio" type="number" min="0" step="1000" />
+      </label>
+      <div class="combo-preview" id="combo-preview"></div>
+      <button class="btn-primary btn-block" type="button" id="btn-guardar-combo">Guardar complemento</button>
+    </div>
+  </div>
+
+  <script src="catalogo.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "autodatoweb",
+  "private": true,
+  "description": "Sitio público AutoDato: catálogo, carrito y ticket",
+  "scripts": {
+    "start": "npx --yes serve -l 5173"
+  }
+}
