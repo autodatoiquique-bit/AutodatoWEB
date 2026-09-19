@@ -19,10 +19,6 @@ const BLOQUES = [
 const INFORME_BASE = "https://app.autonexus.cl/";
 
 const PAGINAS = {
-  mantencion: {
-    titulo: "Mantención preventiva",
-    texto: "Las mantenciones con precio de combo están en Ofertas. El cambio de aceite puntual se agenda en Agendamiento.",
-  },
   flotas: {
     titulo: "Flotas",
     texto: "Atención de flotas con los mismos modelos que recibe el taller (2010 en adelante). Escríbenos o agenda unidad por unidad.",
@@ -42,6 +38,7 @@ const state = {
   cita: { fecha: "", hora: "" },
   cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
   vistaAnterior: "ofertas",
+  origenLista: "ofertas",
   agregarTrasFiltro: false,
 };
 
@@ -226,7 +223,7 @@ function marcarMenu() {
   document.querySelectorAll(".menu [data-vista]").forEach((btn) => {
     const on =
       btn.dataset.vista === state.vista ||
-      (state.vista === "oferta-detalle" && btn.dataset.vista === "ofertas") ||
+      ((state.vista === "oferta-detalle" || state.vista === "filtro-oferta") && btn.dataset.vista === state.origenLista) ||
       (state.vista === "carrito-agenda" && btn.dataset.vista === "agendamiento");
     btn.classList.toggle("is-on", on);
   });
@@ -436,21 +433,33 @@ function htmlTarjetaOferta(s) {
   `;
 }
 
-function renderOfertas() {
+function htmlListaCotizacion(titulo, lead, lista) {
   const hayCarro = state.carrito.some((x) => x.tipo === "oferta");
-  $("stage").innerHTML = `
+  return `
     <section class="panel claro">
-      <h2>Ofertas</h2>
-      <p class="lead">${
-        hayCarro
-          ? "Los servicios con etiqueta En carrito ya están seleccionados. En el resto ves el descuento de combo si aplica."
-          : "Precios de lista. Los descuentos se ven solo después de elegir un servicio y armar combo."
-      }</p>
+      <h2>${titulo}</h2>
+      <p class="lead">${hayCarro ? "Los servicios con etiqueta En carrito ya están seleccionados. En el resto ves el descuento de combo si aplica." : lead}</p>
       <div class="grid">
-        ${serviciosOferta().map(htmlTarjetaOferta).join("")}
+        ${lista.length ? lista.map(htmlTarjetaOferta).join("") : `<p class="muted">Aún no hay servicios en esta sección.</p>`}
       </div>
     </section>
   `;
+}
+
+function renderOfertas() {
+  $("stage").innerHTML = htmlListaCotizacion(
+    "Ofertas",
+    "Promociones de ocasión. Las mantenciones regulares están en Mantención preventiva.",
+    serviciosOferta()
+  );
+}
+
+function renderMantencion() {
+  $("stage").innerHTML = htmlListaCotizacion(
+    "Mantención preventiva",
+    "Listado de mantenciones. Si hay combo, el descuento aparece al armar la cotización.",
+    serviciosMantencion()
+  );
 }
 
 function renderFiltroOferta() {
@@ -468,7 +477,7 @@ function renderDetalleOferta() {
   const p = precioPagado(s, ids.filter((id) => id !== s.id));
   const mostrarDesc = state.carrito.length > 0 && p.ahorro > 0;
   const idsComp = (s.complementos || []).map((c) => c.id);
-  const extras = serviciosOferta().filter((x) => x.id !== s.id);
+  const extras = serviciosCotizacion().filter((x) => x.id !== s.id);
   const minisHtml = [
     ...(s.complementos || []).map((c) => {
       const extra = oferta(c.id);
@@ -587,31 +596,11 @@ function renderAgendamiento() {
 }
 
 function renderDiagnostico() {
-  $("stage").innerHTML = `
-    <section class="panel claro">
-      <h2>Diagnóstico automotriz</h2>
-      <p class="lead">Elige el tipo de diagnóstico. Si ya tienes servicios en el carrito, se suma. Si no, queda como único servicio.</p>
-      <div class="grid">
-        ${serviciosDiagnostico().map((s) => {
-          const enCarro = state.carrito.some((x) => x.id === s.id);
-          return `
-            <button class="card ${enCarro ? "card-en-carro" : ""}" type="button" data-add-diag="${s.id}">
-              <div class="card-photo" style="background-image:url('${s.foto}')">
-                <div class="card-tags">
-                  ${enCarro ? `<span class="tag tag-carrito">En carrito</span>` : ""}
-                </div>
-              </div>
-              <div class="card-body">
-                <h3>${s.nombre}</h3>
-                <p>${s.resumen}</p>
-                <div class="precio">${clp(s.precio)}</div>
-              </div>
-            </button>
-          `;
-        }).join("")}
-      </div>
-    </section>
-  `;
+  $("stage").innerHTML = htmlListaCotizacion(
+    "Diagnóstico automotriz",
+    "Elige el diagnóstico. Se suma a la misma cotización que mantención y ofertas.",
+    serviciosDiagnostico()
+  );
 }
 
 function renderServicioAgenda() {
@@ -743,7 +732,7 @@ function seguirExplorandoOfertas() {
   if (state.vistaAnterior === "oferta-detalle" && state.ofertaAbierta) {
     state.vista = "oferta-detalle";
   } else {
-    state.vista = "ofertas";
+    state.vista = state.origenLista || "ofertas";
   }
   renderVista();
 }
@@ -857,6 +846,7 @@ function renderVista(opts = {}) {
   syncSeguirKpi();
   if (state.vista === "portada") renderPortada();
   else if (state.vista === "ofertas") renderOfertas();
+  else if (state.vista === "mantencion") renderMantencion();
   else if (state.vista === "filtro-oferta") renderFiltroOferta();
   else if (state.vista === "oferta-detalle") renderDetalleOferta();
   else if (state.vista === "diagnostico") renderDiagnostico();
@@ -933,17 +923,18 @@ function agregarOferta(id) {
   state.origenAgenda = "ofertas";
   persistir();
   renderTotales(true);
+  refrescarListasCotizacion();
+}
+
+function refrescarListasCotizacion() {
   if (state.vista === "oferta-detalle") renderDetalleOferta();
   if (state.vista === "ofertas") renderOfertas();
+  if (state.vista === "mantencion") renderMantencion();
+  if (state.vista === "diagnostico") renderDiagnostico();
 }
 
 function agregarDiagnostico(id) {
-  if (state.carrito.some((x) => x.id === id)) return;
-  state.carrito.push({ tipo: "agenda", id });
-  state.servicioAgenda = id;
-  persistir();
-  renderTotales(true);
-  if (state.vista === "diagnostico") renderDiagnostico();
+  intentarAbrirOferta(id);
 }
 
 function impactoQuitar(id) {
@@ -1022,7 +1013,7 @@ function quitarItem(id) {
   persistir();
   renderTotales(true);
   if (!state.carrito.length && (state.vista === "carrito-agenda" || state.vista === "agendamiento")) {
-    if (state.origenAgenda === "ofertas") state.vista = "ofertas";
+    if (state.origenAgenda === "ofertas") state.vista = state.origenLista || "ofertas";
     else {
       state.pasoAgenda = vehiculoOk() ? "servicio" : "filtro";
       state.vista = "agendamiento";
@@ -1030,9 +1021,7 @@ function quitarItem(id) {
     renderVista();
     return;
   }
-  if (state.vista === "oferta-detalle") renderDetalleOferta();
-  if (state.vista === "ofertas") renderOfertas();
-  if (state.vista === "diagnostico") renderDiagnostico();
+  refrescarListasCotizacion();
   if (state.vista === "carrito-agenda" || state.vista === "agendamiento") renderVista();
 }
 
@@ -1320,6 +1309,9 @@ document.addEventListener("click", (e) => {
   if (t.dataset.vista || t.dataset.open) cerrar();
 
   if (t.dataset.vista) {
+    if (t.dataset.vista === "ofertas" || t.dataset.vista === "mantencion" || t.dataset.vista === "diagnostico") {
+      state.origenLista = t.dataset.vista;
+    }
     if (t.dataset.vista === "agendamiento") {
       state.vista = "agendamiento";
       if (state.carrito.length) {

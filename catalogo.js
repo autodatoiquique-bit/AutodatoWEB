@@ -138,19 +138,65 @@ function hidratarCatalogo() {
   return semilla;
 }
 
+function normalizarCanales(c, tipo) {
+  if (c && (c.ofertas != null || c.mantencion != null || c.diagnostico != null)) {
+    return {
+      ofertas: Boolean(c.ofertas),
+      mantencion: Boolean(c.mantencion),
+      diagnostico: Boolean(c.diagnostico),
+    };
+  }
+  if (tipo === "diagnostico") return { ofertas: false, mantencion: false, diagnostico: true };
+  return { ofertas: false, mantencion: true, diagnostico: false };
+}
+
+function tipoDesdeCanales(canales) {
+  if (canales.diagnostico && !canales.ofertas && !canales.mantencion) return "diagnostico";
+  return "oferta";
+}
+
+function normalizarServicio(s) {
+  const canales = normalizarCanales(s && s.canales, s && s.tipo);
+  return {
+    ...s,
+    canales,
+    tipo: (s && s.tipo) || tipoDesdeCanales(canales),
+  };
+}
+
+function serviciosEn(canal) {
+  return catalogo.filter((s) => s.activo !== false && s.canales && s.canales[canal]);
+}
+
+function serviciosCotizacion() {
+  return catalogo.filter(
+    (s) => s.activo !== false && s.canales && (s.canales.ofertas || s.canales.mantencion || s.canales.diagnostico)
+  );
+}
+
+function etiquetaCanales(s) {
+  const c = (s && s.canales) || {};
+  const partes = [];
+  if (c.ofertas) partes.push("Ofertas");
+  if (c.mantencion) partes.push("Mantención");
+  if (c.diagnostico) partes.push("Diagnóstico");
+  return partes.join(" · ") || "Sin menú";
+}
+
 async function cargarCatalogo() {
+  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {
       const remoto = await nubeLeerCatalogo();
       if (remoto.length) {
-        catalogo = remoto;
+        catalogo = remoto.map(normalizarServicio);
         return catalogo;
       }
     } catch (e) {
       console.warn("No se pudo leer el catálogo en la nube.", e);
     }
   }
-  catalogo = hidratarCatalogo();
+  catalogo = hidratarCatalogo().map(normalizarServicio);
   return catalogo;
 }
 
@@ -167,11 +213,15 @@ function servicioPorId(id) {
 }
 
 function serviciosOferta() {
-  return catalogo.filter((s) => s.tipo === "oferta" && s.activo !== false);
+  return serviciosEn("ofertas");
+}
+
+function serviciosMantencion() {
+  return serviciosEn("mantencion");
 }
 
 function serviciosDiagnostico() {
-  return catalogo.filter((s) => s.tipo === "diagnostico" && s.activo !== false);
+  return serviciosEn("diagnostico");
 }
 
 function serviciosAgendaLista() {

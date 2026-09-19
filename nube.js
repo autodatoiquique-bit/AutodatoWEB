@@ -48,6 +48,7 @@ function filaAServicio(row, comps) {
     videos: row.videos || [],
     precio: row.precio,
     activo: row.activo !== false,
+    canales: row.canales || null,
     complementos: (comps || [])
       .filter((c) => c.servicio_id === row.id)
       .map((c) => ({
@@ -58,13 +59,51 @@ function filaAServicio(row, comps) {
   };
 }
 
+async function nubeGuardarCatalogoCanales(lista) {
+  const sb = clienteNube();
+  const mapa = {};
+  (lista || []).forEach((s) => {
+    mapa[s.id] = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
+  });
+  const { error } = await sb.storage.from("servicios").upload(
+    "catalogo-canales.json",
+    new Blob([JSON.stringify(mapa)], { type: "application/json" }),
+    { contentType: "application/json", upsert: true, cacheControl: "0" }
+  );
+  if (error) throw error;
+}
+
+async function nubeLeerCatalogoCanales() {
+  const sb = clienteNube();
+  const publico = sb.storage.from("servicios").getPublicUrl("catalogo-canales.json").data.publicUrl;
+  try {
+    const res = await fetch(`${publico}?t=${Date.now()}`, { cache: "no-store" });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    /* fallback */
+  }
+  const { data, error } = await sb.storage.from("servicios").download("catalogo-canales.json");
+  if (error || !data) return null;
+  return JSON.parse(await data.text());
+}
+
 async function nubeLeerCatalogo() {
   const sb = clienteNube();
   const { data: rows, error } = await sb.from("servicios").select("*").order("nombre");
   if (error) throw error;
   const { data: comps, error: errorC } = await sb.from("complementos").select("*");
   if (errorC) throw errorC;
-  return (rows || []).map((row) => filaAServicio(row, comps || []));
+  let extra = null;
+  try {
+    extra = await nubeLeerCatalogoCanales();
+  } catch (e) {
+    extra = null;
+  }
+  return (rows || []).map((row) => {
+    const s = filaAServicio(row, comps || []);
+    if (extra && extra[s.id]) s.canales = extra[s.id];
+    return s;
+  });
 }
 
 async function nubeGuardarCatalogo(lista) {
@@ -91,6 +130,12 @@ async function nubeGuardarCatalogo(lista) {
   }));
   const { error: errorU } = await sb.from("servicios").upsert(rows);
   if (errorU) throw errorU;
+  try {
+    await nubeGuardarCatalogoCanales(lista);
+  } catch (e) {
+    console.warn("No se pudieron guardar los menús del catálogo.", e);
+    throw e;
+  }
   const { error: errorD } = await sb.from("complementos").delete().neq("servicio_id", "__none__");
   if (errorD) throw errorD;
   const comps = [];

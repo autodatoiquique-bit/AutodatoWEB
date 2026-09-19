@@ -122,6 +122,7 @@ function servicioVacio() {
   return {
     id: "",
     tipo: "oferta",
+    canales: { ofertas: false, mantencion: true, diagnostico: false },
     nombre: "",
     resumen: "",
     detalle: "",
@@ -146,7 +147,7 @@ function renderLista() {
           ${foto}
           <div>
             <strong>${s.nombre || "Sin nombre"}</strong>
-            <span>${s.tipo === "diagnostico" ? "Diagnóstico" : "Oferta"} · ${clp(s.precio)} · ${(s.complementos || []).length} complementos</span>
+            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${(s.complementos || []).length} complementos</span>
           </div>
         </button>
       `;
@@ -157,7 +158,12 @@ function renderLista() {
 function leerEditor() {
   if (!editando) return;
   editando.nombre = $("e-nombre").value.trim();
-  editando.tipo = $("e-tipo").value;
+  editando.canales = {
+    ofertas: Boolean($("e-canal-ofertas") && $("e-canal-ofertas").checked),
+    mantencion: Boolean($("e-canal-mantencion") && $("e-canal-mantencion").checked),
+    diagnostico: Boolean($("e-canal-diagnostico") && $("e-canal-diagnostico").checked),
+  };
+  editando.tipo = tipoDesdeCanales(editando.canales);
   editando.resumen = $("e-resumen").value.trim();
   editando.detalle = $("e-detalle").value.trim();
   const precio = $("e-precio").value;
@@ -169,17 +175,14 @@ function renderEditor() {
   $("stage").innerHTML = `
     <article class="editor">
       <h2>${s.id ? "Editar servicio" : "Nuevo servicio"}</h2>
-      <p class="muted">Los cambios se ven en Ofertas y Diagnóstico del sitio público.</p>
-      <div class="grid-2">
-        <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
-        <label class="field">
-          <span>Tipo</span>
-          <select id="e-tipo">
-            <option value="oferta" ${s.tipo === "oferta" ? "selected" : ""}>Oferta / mantención</option>
-            <option value="diagnostico" ${s.tipo === "diagnostico" ? "selected" : ""}>Diagnóstico</option>
-          </select>
-        </label>
-      </div>
+      <fieldset class="canales">
+        <legend>Dónde aparece este servicio</legend>
+        <p class="hint">Los tres menús arman una cotización. Marca uno o más. Ofertas es solo para promociones de ocasión. Mantención preventiva es el listado largo. Diagnóstico automotriz es para diagnósticos.</p>
+        <label class="check"><input id="e-canal-ofertas" type="checkbox" ${s.canales && s.canales.ofertas ? "checked" : ""} /> Ofertas</label>
+        <label class="check"><input id="e-canal-mantencion" type="checkbox" ${s.canales && s.canales.mantencion ? "checked" : ""} /> Mantención preventiva</label>
+        <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
+      </fieldset>
+      <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
       <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
       <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
       <label class="field"><span>Valor de lista</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
@@ -267,7 +270,7 @@ function escapeText(v) {
 function abrirServicio(id) {
   const s = servicioPorId(id);
   if (!s) return;
-  editando = JSON.parse(JSON.stringify(s));
+  editando = normalizarServicio(JSON.parse(JSON.stringify(s)));
   renderEditor();
 }
 
@@ -280,6 +283,10 @@ async function guardarServicio() {
   leerEditor();
   if (!editando.nombre) {
     alert("Escribe el nombre del servicio.");
+    return;
+  }
+  if (!editando.canales.ofertas && !editando.canales.mantencion && !editando.canales.diagnostico) {
+    alert("Marca al menos un menú: Ofertas, Mantención preventiva o Diagnóstico automotriz.");
     return;
   }
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
@@ -424,7 +431,7 @@ function pintarFotoPortada() {
 
 function renderEditorPortada() {
   const s = slideActual();
-  const ofertas = serviciosOferta();
+  const ofertas = serviciosCotizacion();
   $("stage").innerHTML = `
     <article class="editor editor-portada">
       <h2>Configurar portada</h2>
