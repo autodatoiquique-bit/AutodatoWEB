@@ -225,6 +225,46 @@ function reglasComboDe(itemId) {
   return reglas;
 }
 
+const TALLER_KEY = "autodato_taller";
+const TALLER_DEFECTO = {
+  whatsapp: "56961346945",
+  direccion: "Cerro Hermoso 4042, Iquique",
+  maps: "https://maps.app.goo.gl/3YEmuLBW2yQpt1N36?g_st=aw",
+};
+
+function leerTaller() {
+  try {
+    return { ...TALLER_DEFECTO, ...JSON.parse(localStorage.getItem(TALLER_KEY) || "{}") };
+  } catch (e) {
+    return { ...TALLER_DEFECTO };
+  }
+}
+
+function guardarTaller(data) {
+  const prev = leerTaller();
+  const actual = {
+    whatsapp: String(data.whatsapp || "").replace(/\D/g, "") || TALLER_DEFECTO.whatsapp,
+    direccion: String(data.direccion || "").trim() || TALLER_DEFECTO.direccion,
+    maps: String(data.maps || prev.maps || "").trim() || TALLER_DEFECTO.maps,
+  };
+  localStorage.setItem(TALLER_KEY, JSON.stringify(actual));
+  return actual;
+}
+
+function mapsHref() {
+  return leerTaller().maps || TALLER_DEFECTO.maps;
+}
+
+function waHref() {
+  return `https://wa.me/${leerTaller().whatsapp.replace(/\D/g, "")}`;
+}
+
+function waMostrar() {
+  const d = leerTaller().whatsapp.replace(/\D/g, "");
+  if (d.startsWith("56") && d.length >= 11) return `+56 ${d.slice(2, 3)} ${d.slice(3, 7)} ${d.slice(7)}`;
+  return `+${d}`;
+}
+
 function precioPagado(item, idsCarrito) {
   if (!item || item.precio == null) return { lista: null, pagado: null, ahorro: 0, regla: null };
   let pagado = item.precio;

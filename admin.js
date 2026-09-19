@@ -51,10 +51,18 @@ function mostrarAcceso() {
   $("acceso-error").hidden = true;
 }
 
+function pintarTaller() {
+  const t = leerTaller();
+  if ($("taller-dir")) $("taller-dir").value = t.direccion;
+  if ($("taller-wa")) $("taller-wa").value = t.whatsapp;
+  if ($("taller-maps")) $("taller-maps").value = t.maps || "";
+}
+
 async function mostrarPanel() {
   $("acceso").hidden = true;
   $("panel").hidden = false;
   await cargarCatalogo();
+  pintarTaller();
   renderLista();
   if (editando) renderEditor();
   else $("stage").innerHTML = `<p class="vacio">Elige un servicio o crea uno nuevo.</p>`;
@@ -393,6 +401,15 @@ $("acceso-pin2").addEventListener("keydown", (e) => {
 });
 
 $("btn-nuevo").addEventListener("click", nuevoServicio);
+$("btn-taller").addEventListener("click", () => {
+  guardarTaller({
+    direccion: $("taller-dir").value,
+    whatsapp: $("taller-wa").value,
+    maps: $("taller-maps").value,
+  });
+  pintarTaller();
+  alert("Contacto guardado. Ya se ve en la portada.");
+});
 $("btn-salir").addEventListener("click", async () => {
   sessionStorage.removeItem(SESION_KEY);
   if (typeof nubeActiva === "function" && nubeActiva()) {

@@ -112,6 +112,30 @@ function opciones(lista, valor, placeholder) {
     .join("")}`;
 }
 
+function htmlDrop(id, label, lista, valor, placeholder, disabled) {
+  const texto = valor || placeholder;
+  return `
+    <div class="dd">
+      <span class="dd-label">${label}</span>
+      <input type="hidden" id="f-${id}" value="${valor || ""}" />
+      <button type="button" class="dd-btn" data-dd-toggle="${id}" ${disabled ? "disabled" : ""}>
+        <span data-dd-texto>${texto}</span>
+        <b aria-hidden="true">▾</b>
+      </button>
+      <ul class="dd-list" id="dd-list-${id}" hidden>
+        ${lista
+          .map(
+            (v) =>
+              `<li><button type="button" data-dd-pick="${id}" data-value="${v}" class="${
+                String(valor) === String(v) ? "is-on" : ""
+              }">${v}</button></li>`
+          )
+          .join("")}
+      </ul>
+    </div>
+  `;
+}
+
 function htmlFiltro(contexto) {
   const marca = state.vehiculo?.marca || "";
   const modelo = state.vehiculo?.modelo || "";
@@ -121,32 +145,75 @@ function htmlFiltro(contexto) {
     <div class="filtro">
       <h2>¿Qué vehículo tienes?</h2>
       <p class="lead">Marca, modelo y año. Si no aparece, no se puede abrir el servicio.</p>
-      <label class="field"><span>Marca</span><select id="f-marca">${opciones(MARCAS, marca, "Elige la marca")}</select></label>
-      <label class="field"><span>Modelo</span><select id="f-modelo" ${marca ? "" : "disabled"}>${
-        marca ? opciones(modelos, modelo, "Elige el modelo") : '<option value="">Primero elige la marca</option>'
-      }</select></label>
-      <label class="field"><span>Año</span><select id="f-ano">${opciones(anios(), ano, "Elige el año")}</select></label>
+      ${htmlDrop("marca", "Marca", MARCAS, marca, "Elige la marca", false)}
+      ${htmlDrop("modelo", "Modelo", modelos, modelo, marca ? "Elige el modelo" : "Primero elige la marca", !marca)}
+      ${htmlDrop("ano", "Año", anios(), ano, "Elige el año", false)}
       <button class="btn-primary btn-block" type="button" data-filtrar="${contexto}">Continuar</button>
     </div>
   `;
 }
 
-function enlazarFiltro() {
-  const marca = $("f-marca");
-  if (!marca) return;
-  marca.addEventListener("change", () => {
-    const valor = marca.value;
-    state.vehiculo = { ...(state.vehiculo || {}), marca: valor, modelo: "" };
-    const sel = $("f-modelo");
-    if (!sel) return;
-    if (!valor) {
-      sel.innerHTML = '<option value="">Primero elige la marca</option>';
-      sel.disabled = true;
-      return;
-    }
-    sel.disabled = false;
-    sel.innerHTML = opciones(modelosDe(valor), "", "Elige el modelo");
+function cerrarDrops(salvo) {
+  document.querySelectorAll(".dd-list").forEach((el) => {
+    if (el.id !== `dd-list-${salvo}`) el.hidden = true;
   });
+}
+
+function resetModeloDrop() {
+  const marca = $("f-marca")?.value;
+  const hidden = $("f-modelo");
+  const btn = document.querySelector('[data-dd-toggle="modelo"]');
+  const list = $("dd-list-modelo");
+  if (!hidden || !btn || !list) return;
+  hidden.value = "";
+  const span = btn.querySelector("[data-dd-texto]");
+  if (!marca) {
+    btn.disabled = true;
+    if (span) span.textContent = "Primero elige la marca";
+    list.innerHTML = "";
+    return;
+  }
+  btn.disabled = false;
+  if (span) span.textContent = "Elige el modelo";
+  list.innerHTML = modelosDe(marca)
+    .map((v) => `<li><button type="button" data-dd-pick="modelo" data-value="${v}">${v}</button></li>`)
+    .join("");
+}
+
+function elegirDrop(id, valor) {
+  const hidden = $(`f-${id}`);
+  const btn = document.querySelector(`[data-dd-toggle="${id}"]`);
+  const list = $(`dd-list-${id}`);
+  if (hidden) hidden.value = valor;
+  if (btn) {
+    const span = btn.querySelector("[data-dd-texto]");
+    if (span) span.textContent = valor;
+  }
+  if (list) {
+    list.hidden = true;
+    list.querySelectorAll("[data-dd-pick]").forEach((b) => b.classList.toggle("is-on", b.dataset.value === String(valor)));
+  }
+  if (id === "marca") {
+    state.vehiculo = { ...(state.vehiculo || {}), marca: valor, modelo: "" };
+    resetModeloDrop();
+  } else if (id === "modelo") {
+    state.vehiculo = { ...(state.vehiculo || {}), modelo: valor };
+  } else if (id === "ano") {
+    state.vehiculo = { ...(state.vehiculo || {}), ano: Number(valor) };
+  }
+}
+
+function esMovil() {
+  return window.matchMedia("(max-width: 860px)").matches;
+}
+
+function irAContenido() {
+  if (!esMovil()) return;
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+function syncCromo() {
+  document.body.classList.toggle("en-portada", state.vista === "portada");
 }
 
 function marcarMenu() {
@@ -161,16 +228,22 @@ function marcarMenu() {
   if (inf) inf.classList.toggle("is-on", Boolean($("modal-informe") && !$("modal-informe").hidden));
 }
 
+function ticketAbierto() {
+  return Boolean($("drawer-ticket") && !$("drawer-ticket").hidden);
+}
+
 function syncSeguirKpi() {
   const historial = Boolean($("modal-informe") && !$("modal-informe").hidden);
+  const enPortada = state.vista === "portada";
+  const ticket = ticketAbierto();
   const stack = document.querySelector(".kpi-stack");
   const home = document.querySelector(".home-float");
-  if (stack) stack.hidden = historial;
-  if (home) home.hidden = historial;
+  if (stack) stack.hidden = historial || enPortada || ticket;
+  if (home) home.hidden = historial || enPortada || ticket;
   const btn = $("btn-seguir-kpi");
   if (!btn) return;
   const enAgenda = state.vista === "agendamiento" || state.vista === "carrito-agenda";
-  btn.hidden = historial || !enAgenda;
+  btn.hidden = historial || ticket || !enAgenda;
 }
 
 function renderTotales(animar) {
@@ -215,10 +288,29 @@ function hidratar() {
 }
 
 function renderPortada() {
+  const t = leerTaller();
   $("stage").innerHTML = `
-    <figure class="hero">
-      <img src="imagenes/portada.jpg" alt="Felices Fiestas Patrias — AutoDato" />
-    </figure>
+    <section class="home-screen">
+      <header class="home-logo">
+        <img src="imagenes/logo.jpg" alt="AutoDato" />
+      </header>
+      <img class="home-foto" src="imagenes/portada.jpg" alt="Felices Fiestas Patrias — AutoDato" />
+      <div class="home-contacto">
+        <a class="home-dir" href="${mapsHref()}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="#111"/></svg>
+          ${t.direccion}
+        </a>
+        <a class="home-wa" href="${waHref()}" target="_blank" rel="noopener">
+          <span class="wa-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path fill="#25D366" d="M12 2a10 10 0 0 0-8.7 14.8L2 22l5.3-1.3A10 10 0 1 0 12 2z"/>
+              <path fill="#fff" d="M16.4 14.1c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.6c-.1-.2 0-.4.1-.5l.4-.4.1-.3c0-.1 0-.3 0-.4s-.5-1.3-.7-1.8-.4-.4-.5-.4h-.4c-.1 0-.4.1-.6.3s-.8.8-.8 1.9.8 2.2.9 2.4 1.6 2.6 4 3.5c.6.2 1 .4 1.4.5.6.2 1.1.2 1.5.1.5-.1 1.4-.6 1.6-1.1s.2-1 .1-1.1-.2-.2-.4-.3z"/>
+            </svg>
+          </span>
+          WhatsApp ${waMostrar()}
+        </a>
+      </div>
+    </section>
   `;
 }
 
@@ -273,7 +365,6 @@ function renderOfertas() {
 
 function renderFiltroOferta() {
   $("stage").innerHTML = `<section class="panel claro">${htmlFiltro("oferta")}</section>`;
-  enlazarFiltro();
 }
 
 function renderDetalleOferta() {
@@ -286,7 +377,15 @@ function renderDetalleOferta() {
   const ids = state.carrito.map((x) => x.id);
   const p = precioPagado(s, ids.filter((id) => id !== s.id));
   const mostrarDesc = state.carrito.length > 0 && p.ahorro > 0;
+  const idsComp = (s.complementos || []).map((c) => c.id);
   const extras = serviciosOferta().filter((x) => x.id !== s.id);
+  const minisHtml = [
+    ...(s.complementos || []).map((c) => {
+      const extra = oferta(c.id);
+      return extra ? htmlMini(extra, c) : "";
+    }),
+    ...extras.filter((x) => !idsComp.includes(x.id)).map((x) => htmlMini(x)),
+  ].join("");
 
   $("stage").innerHTML = `
     <article class="detalle-full">
@@ -303,24 +402,26 @@ function renderDetalleOferta() {
               </div>`
             : ""
         }
-        <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(s.precio)}</div>
+        <div class="precio-fila">
+          <div class="precio-col">
+            <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(s.precio)}</div>
+            ${
+              mostrarDesc
+                ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla ? p.regla.etiqueta : ""}</div>`
+                : ""
+            }
+          </div>
+          ${
+            enCarro
+              ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En carrito</button>`
+              : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
+          }
+        </div>
         ${
-          mostrarDesc
-            ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla ? p.regla.etiqueta : ""}</div>`
-            : ""
-        }
-        ${
-          enCarro
-            ? `<p class="muted">Ya está en tu selección.</p>
-               <button class="btn-soft btn-block" type="button" data-quitar-oferta="${s.id}">Quitar del carrito</button>`
-            : `<button class="btn-primary btn-block" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
-        }
-        ${state.carrito.length ? `<button class="btn-line btn-block" type="button" data-vista="carrito-agenda">Continuar a agendar</button>` : ""}
-        ${
-          state.carrito.length
-            ? `<section>
-                <h3>Suma y activa precio de oferta</h3>
-                <div class="minis">${extras.map(htmlMini).join("")}</div>
+          enCarro && extras.length
+            ? `<section class="suma-ofertas">
+                <h3>Suma estos servicios y activa la oferta</h3>
+                <div class="minis">${minisHtml}</div>
               </section>`
             : ""
         }
@@ -329,10 +430,14 @@ function renderDetalleOferta() {
   `;
 }
 
-function htmlMini(s) {
+function htmlMini(s, combo) {
   const enCarro = state.carrito.some((x) => x.id === s.id);
   const p = precioPagado(s, idsComboPara(s.id));
-  const hayOferta = p.ahorro > 0;
+  const precioCombo = combo && combo.precioCombo != null ? combo.precioCombo : null;
+  const hayOferta = precioCombo != null ? precioCombo < s.precio : p.ahorro > 0;
+  const pagado = precioCombo != null ? precioCombo : p.pagado;
+  const ahorro = precioCombo != null ? s.precio - precioCombo : p.ahorro;
+  const etiqueta = combo?.etiqueta || p.regla?.etiqueta || "";
   return `
     <div class="mini">
       <div class="mini-foto" style="background-image:url('${s.foto}')"></div>
@@ -341,7 +446,7 @@ function htmlMini(s) {
         <strong>${s.nombre}</strong>
         ${
           hayOferta
-            ? `<div class="lista">${clp(s.precio)}</div><div class="nuevo">${clp(p.pagado)}</div><div class="ahorro-tag">− ${clp(p.ahorro)} ${p.regla ? p.regla.etiqueta : ""}</div>`
+            ? `<div class="lista">${clp(s.precio)}</div><div class="nuevo">${clp(pagado)}</div><div class="ahorro-tag">− ${clp(ahorro)} ${etiqueta}</div>`
             : `<div class="precio">${clp(s.precio)}</div>`
         }
         <div class="btn-row">
@@ -372,7 +477,6 @@ function renderAgendamiento() {
   if (state.carrito.length) {
     if (!vehiculoOk()) {
       $("stage").innerHTML = `<section class="panel claro">${htmlFiltro("agenda-oferta")}</section>`;
-      enlazarFiltro();
       return;
     }
     renderDatosAgenda();
@@ -381,7 +485,6 @@ function renderAgendamiento() {
 
   if (state.pasoAgenda === "filtro" || !vehiculoOk()) {
     $("stage").innerHTML = `<section class="panel claro">${htmlFiltro("agenda")}</section>`;
-    enlazarFiltro();
     return;
   }
 
@@ -658,7 +761,8 @@ function faltantesTicket() {
   return falta;
 }
 
-function renderVista() {
+function renderVista(opts = {}) {
+  syncCromo();
   marcarMenu();
   syncSeguirKpi();
   if (state.vista === "portada") renderPortada();
@@ -668,6 +772,7 @@ function renderVista() {
   else if (state.vista === "diagnostico") renderDiagnostico();
   else if (state.vista === "agendamiento" || state.vista === "carrito-agenda") renderAgendamiento();
   else renderInfo(state.vista);
+  if (!opts.quedarse) irAContenido();
 }
 
 function aplicarFiltro(contexto) {
@@ -881,7 +986,23 @@ async function generarTicket() {
     }
   }
 
+  vaciarCarritoTrasTicket();
   abrirTicket(payload);
+}
+
+function vaciarCarritoTrasTicket() {
+  state.carrito = [];
+  state.servicioAgenda = null;
+  state.ofertaAbierta = null;
+  state.ofertaPendiente = null;
+  state.cita = { fecha: "", hora: "" };
+  state.pasoAgenda = "filtro";
+  state.origenAgenda = "menu";
+  state.cliente = { nombre: "", telefono: "", patente: "", correo: "" };
+  state.vista = "ofertas";
+  persistir();
+  renderTotales(false);
+  renderVista({ quedarse: true });
 }
 
 function abrirTicket(payload) {
@@ -919,9 +1040,13 @@ function abrirTicket(payload) {
         </table>
       </div>
     </div>
-    <button class="btn-green btn-block" type="button" id="btn-descargar-ticket">Descargar ticket</button>
+    <div class="ticket-acciones">
+      <button class="btn-green btn-block" type="button" id="btn-descargar-ticket" data-guardar-ticket>Guardar foto del ticket</button>
+      <button class="btn-soft btn-block" type="button" data-close>Cerrar</button>
+    </div>
   `;
   abrir("ticket");
+  syncSeguirKpi();
   const nodo = $("ticket-qr");
   nodo.innerHTML = "";
   new QRCode(nodo, {
@@ -930,21 +1055,62 @@ function abrirTicket(payload) {
     height: 160,
     correctLevel: QRCode.CorrectLevel.M,
   });
-  $("btn-descargar-ticket").addEventListener("click", descargarTicket);
 }
 
-function descargarTicket() {
+async function descargarTicket() {
   const hoja = $("ticket-sheet");
-  if (!hoja || !window.html2canvas) {
-    window.print();
-    return;
+  const btn = $("btn-descargar-ticket");
+  if (!hoja) return;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Preparando foto…";
   }
-  html2canvas(hoja, { scale: 2, backgroundColor: "#ffffff" }).then((canvas) => {
-    const a = document.createElement("a");
-    a.href = canvas.toDataURL("image/png");
-    a.download = `ticket-autodato.png`;
-    a.click();
-  });
+  try {
+    if (!window.html2canvas) throw new Error("sin html2canvas");
+    const canvas = await html2canvas(hoja, {
+      scale: esMovil() ? 1.5 : 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      logging: false,
+    });
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("sin imagen"))), "image/png");
+    });
+    const nombre = `ticket-autodato-${Date.now()}.png`;
+    const file = new File([blob], nombre, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: "Ticket AutoDato",
+        text: "Ticket de visita AutoDato",
+      });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    if (!esMovil()) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nombre;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      return;
+    }
+    const abierta = window.open(url, "_blank");
+    if (!abierta) window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 20000);
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+    console.warn("No se pudo guardar el ticket.", e);
+    window.print();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Guardar foto del ticket";
+    }
+  }
 }
 
 function abrir(id) {
@@ -973,10 +1139,27 @@ function guardarClienteDesdeForma() {
 }
 
 document.addEventListener("click", (e) => {
+  if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], #btn-ticket"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], #btn-ticket"
   );
   if (!t) return;
+
+  if (t.dataset.ddToggle) {
+    const id = t.dataset.ddToggle;
+    const list = $(`dd-list-${id}`);
+    if (!list) return;
+    const abrir = list.hidden;
+    cerrarDrops();
+    list.hidden = !abrir;
+    return;
+  }
+  if (t.dataset.ddPick) {
+    elegirDrop(t.dataset.ddPick, t.dataset.value);
+    return;
+  }
+
+  if (t.dataset.vista || t.dataset.open) cerrar();
 
   if (t.dataset.vista) {
     if (t.dataset.vista === "agendamiento") {
@@ -999,7 +1182,7 @@ document.addEventListener("click", (e) => {
     if (t.dataset.vista !== "portada") cerrarModalHoras();
   }
 
-  if (t.hasAttribute("data-abrir-kpi")) abrirModalKpi();
+  if (t.hasAttribute("data-abrir-kpi")) irAAgendaDesdeKpi();
   if (t.hasAttribute("data-cerrar-kpi")) cerrarModalKpi();
   if (t.dataset.kpi === "ticket") irAAgendaDesdeKpi();
   if (t.dataset.kpi === "explorar") seguirExplorandoOfertas();
@@ -1007,6 +1190,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.open === "informe") abrirModalInforme();
   if (t.hasAttribute("data-cerrar-informe")) cerrarModalInforme();
   if (t.hasAttribute("data-close")) cerrar();
+  if (t.hasAttribute("data-guardar-ticket")) descargarTicket();
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
@@ -1083,14 +1267,14 @@ $("btn-abrir-informe").addEventListener("click", async () => {
 
 window.addEventListener("focus", async () => {
   await cargarCatalogo();
-  renderVista();
+  renderVista({ quedarse: true });
   renderTotales(false);
 });
 
 async function arrancar() {
   await cargarCatalogo();
   hidratar();
-  renderVista();
+  renderVista({ quedarse: true });
   renderTotales(false);
 }
 

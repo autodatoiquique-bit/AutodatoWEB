@@ -67,6 +67,18 @@ button { font-family: inherit; cursor: pointer; }
 .logo-btn img { width: 100%; display: block; }
 .sidebar-kicker { margin: 0; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #cfcfcf; }
 
+.taller-box {
+  background: #3a3a3a;
+  border-radius: 14px;
+  padding: 10px 10px 12px;
+}
+.taller-box .field { margin-top: 8px; }
+.taller-box .field span { color: #f3f3f3; }
+.taller-box input {
+  background: #fff;
+  color: #111;
+}
+
 .lista { display: flex; flex-direction: column; gap: 8px; overflow: auto; flex: 1; }
 
 .item {
