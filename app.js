@@ -944,9 +944,13 @@ async function enviarTicketAutonexus(payload) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!r.ok) console.warn("AutoNexus no recibió el ticket.", r.status);
+    if (r.ok) return true;
+    const j = await r.json().catch(() => ({}));
+    console.warn("AutoNexus no recibió el ticket.", r.status, j.error || "");
+    return false;
   } catch (e) {
     console.warn("No se pudo avisar a AutoNexus.", e);
+    return false;
   }
 }
 
@@ -999,9 +1003,12 @@ async function generarTicket() {
     }
   }
 
-  await enviarTicketAutonexus(payload);
+  const llegoAgenda = await enviarTicketAutonexus(payload);
   vaciarCarritoTrasTicket();
   abrirTicket(payload);
+  if (!llegoAgenda) {
+    alert("El ticket se generó, pero no llegó a la agenda de AutoNexus. Revisa el CODE y reintenta o avisa en el taller.");
+  }
 }
 
 function vaciarCarritoTrasTicket() {
