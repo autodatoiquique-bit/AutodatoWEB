@@ -636,6 +636,17 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 8px;
   font-size: 0.85rem;
 }
+.combo-hint {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #7dffa3;
+}
+.card .combo-hint,
+.panel .combo-hint {
+  color: #0a7a3c;
+}
 
 .minis {
   display: grid;

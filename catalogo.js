@@ -387,6 +387,22 @@ function reglasComboDe(itemId) {
   return reglas;
 }
 
+function combosEntrantesDe(itemId) {
+  return reglasComboDe(itemId).filter((r) => r.si && r.precio > 0);
+}
+
+function mejorComboEntrante(item, pagadoActual) {
+  const tope = pagadoActual == null ? Infinity : Number(pagadoActual);
+  return combosEntrantesDe(item && item.id)
+    .filter((r) => r.precio < tope)
+    .sort((a, b) => a.precio - b.precio)[0] || null;
+}
+
+function nombreServicioDe(id) {
+  const s = typeof servicioPorId === "function" ? servicioPorId(id) : (catalogo || []).find((x) => x.id === id);
+  return (s && s.nombre) || id || "";
+}
+
 const TALLER_KEY = "autodato_taller";
 const TALLER_DEFECTO = {
   whatsapp: "56961346945",

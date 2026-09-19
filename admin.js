@@ -286,10 +286,27 @@ function pintarPrecioPreview() {
 
 function htmlPrecioPreview(s) {
   const p = typeof precioPagado === "function" ? precioPagado(s, []) : { lista: s.precio, pagado: s.precio, ahorro: 0 };
+  const mejor = typeof mejorComboEntrante === "function" ? mejorComboEntrante(s, p.pagado) : null;
+  const combo = mejor
+    ? `<p class="combo-hint">Si también llevas ${nombreServicioDe(mejor.si)}, baja a <strong>${clp(mejor.precio)}</strong></p>`
+    : "";
   if (p.ahorro > 0) {
-    return `<div class="precio-lista tachado">${clp(p.lista)}</div><div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)}</div>`;
+    return `<div class="precio-lista tachado">${clp(p.lista)}</div><div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)}</div>${combo}`;
   }
-  return `<div class="precio">${clp(s.precio)}</div>`;
+  return `<div class="precio">${clp(s.precio)}</div>${combo}`;
+}
+
+function htmlCombosEntrantes(s) {
+  if (!s || !s.id || typeof combosEntrantesDe !== "function") {
+    return `<p class="hint">Para que este filtro baje aún más si el cliente lleva el aceite, no lo armes aquí. Ábrelo en <strong>Cambio de aceite</strong> → Servicios asociados → agrega este servicio y pon el precio combo (ej. $55.990).</p>`;
+  }
+  const reglas = combosEntrantesDe(s.id);
+  if (!reglas.length) {
+    return `<p class="hint">Este servicio todavía no baja de precio por llevar otro. Eso se define en el otro servicio. Ejemplo: abre el <strong>cambio de aceite</strong>, agrega este filtro como asociado y pon $55.990. Aquí solo dejas la oferta fija ($59.990).</p>`;
+  }
+  return `<div class="hint">${reglas
+    .map((r) => `Si el cliente lleva <strong>${nombreServicioDe(r.si)}</strong>, este servicio queda en <strong>${clp(r.precio)}</strong>.`)
+    .join("<br />")}<br />Eso se edita en el servicio que da el descuento, no aquí.</div>`;
 }
 
 function pintarFotoServicio() {
@@ -377,8 +394,10 @@ function renderEditor() {
                   ? `<p class="hint">Video corto dentro de la ficha. El cliente lo reproduce ahí mismo, sin YouTube.</p>`
                   : ""
             }
-            <h3>Servicios asociados</h3>
-            <p class="hint">Si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo que se hace en el mismo ingreso.</p>
+            <h3>Este servicio baja si llevan otro</h3>
+            ${htmlCombosEntrantes(s)}
+            <h3>Servicios que este hace más baratos</h3>
+            <p class="hint">Al revés: si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo del mismo ingreso.</p>
             <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
             <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
             <div class="btn-row">
@@ -514,7 +533,7 @@ function abrirCombo(index) {
     alert("No hay otro servicio disponible. Crea primero el servicio que quieres asociar.");
     return;
   }
-  $("combo-ayuda").textContent = `Si el cliente ya lleva “${editando.nombre || "este servicio"}”, el otro trabajo puede bajar de precio.`;
+  $("combo-ayuda").textContent = `Si el cliente ya lleva “${editando.nombre || "este servicio"}”, elige qué otro trabajo baja de precio y a cuánto. Ejemplo: en el cambio de aceite, eliges el filtro diésel y pones $55.990.`;
   $("combo-id").innerHTML = opciones
     .map((s) => `<option value="${s.id}">${s.nombre} · lista ${clp(s.precio)}</option>`)
     .join("");
@@ -538,16 +557,20 @@ function pintarPreviewCombo() {
   }
   const lista = otro.precio;
   const combo = Number($("combo-precio").value);
-  $("combo-lista").textContent = `${otro.nombre} vale ${clp(lista)} si se pide solo.`;
+  const ofertaOtro = typeof precioOfertaDe === "function" ? precioOfertaDe(otro) : null;
+  $("combo-lista").textContent = ofertaOtro
+    ? `${otro.nombre} vale ${clp(lista)} y su oferta fija es ${clp(ofertaOtro)}. El combo tiene que ser más bajo que esa oferta.`
+    : `${otro.nombre} vale ${clp(lista)} si se pide solo.`;
   if (lista == null || Number.isNaN(combo)) {
     $("combo-preview").textContent = "Escribe el precio de combo.";
     return;
   }
-  const ahorro = lista - combo;
+  const tope = ofertaOtro != null ? ofertaOtro : lista;
+  const ahorro = tope == null ? 0 : tope - combo;
   $("combo-preview").innerHTML =
     ahorro > 0
-      ? `Queda en <span style="color:var(--green)">${clp(combo)}</span>. El cliente ahorra ${clp(ahorro)} por llevarlo junto con ${editando.nombre || "este servicio"}.`
-      : "El precio de combo debería ser menor que el de lista.";
+      ? `Queda en <span style="color:var(--green)">${clp(combo)}</span>. El cliente ve la oferta fija y, si suma ${editando.nombre || "este servicio"}, baja a ${clp(combo)}.`
+      : "El precio de combo tiene que ser menor que la oferta fija (o el valor normal si no tiene oferta).";
 }
 
 function guardarCombo() {
@@ -556,6 +579,11 @@ function guardarCombo() {
   const otro = servicioPorId(id);
   if (!otro || Number.isNaN(precioCombo) || precioCombo <= 0) {
     alert("Elige el servicio y un precio mayor a 0.");
+    return;
+  }
+  const tope = (typeof precioOfertaDe === "function" && precioOfertaDe(otro)) || otro.precio;
+  if (tope != null && precioCombo >= Number(tope)) {
+    alert("El precio combo tiene que ser menor que la oferta fija del otro servicio (o su valor normal).");
     return;
   }
   const etiqueta = `con ${editando.nombre || "este servicio"}`;

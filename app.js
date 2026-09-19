@@ -390,6 +390,40 @@ function idsComboPara(id) {
   return state.carrito.filter((x) => x.tipo === "oferta" && x.id !== id).map((x) => x.id);
 }
 
+function htmlHintCombo(s, pagado) {
+  const mejor = mejorComboEntrante(s, pagado);
+  if (!mejor) return "";
+  return `<p class="combo-hint">Si también llevas ${nombreServicioDe(mejor.si)}, baja a <strong>${clp(mejor.precio)}</strong></p>`;
+}
+
+function htmlSumaRelacionados(s, enCarro) {
+  const padres = combosEntrantesDe(s.id)
+    .map((r) => ({ regla: r, servicio: oferta(r.si) }))
+    .filter((x) => x.servicio && servicioAplicaAVehiculo(x.servicio, state.vehiculo));
+  const hijos = (s.complementos || [])
+    .map((c) => ({ combo: c, servicio: oferta(c.id) }))
+    .filter((x) => x.servicio && servicioAplicaAVehiculo(x.servicio, state.vehiculo));
+  const bloques = [];
+  if (padres.length) {
+    const mejor = padres.reduce((a, b) => (a.regla.precio <= b.regla.precio ? a : b));
+    bloques.push(`
+      <section class="suma-ofertas">
+        <h3>Suma ${mejor.servicio.nombre} y este servicio queda en ${clp(mejor.regla.precio)}</h3>
+        <div class="minis">${padres.map((x) => htmlMini(x.servicio)).join("")}</div>
+      </section>
+    `);
+  }
+  if (enCarro && hijos.length) {
+    bloques.push(`
+      <section class="suma-ofertas">
+        <h3>Suma estos servicios y activa la oferta</h3>
+        <div class="minis">${hijos.map((x) => htmlMini(x.servicio, x.combo)).join("")}</div>
+      </section>
+    `);
+  }
+  return bloques.join("");
+}
+
 function htmlTarjetaOferta(s) {
   const enCarro = state.carrito.some((x) => x.id === s.id);
   const p = precioPagado(s, idsComboPara(s.id));
@@ -413,6 +447,7 @@ function htmlTarjetaOferta(s) {
                ${p.regla && p.regla.si ? `<p class="card-combo">${p.regla.etiqueta}</p>` : ""}`
             : `<div class="precio">${clp(s.precio)}</div>`
         }
+        ${htmlHintCombo(s, p.pagado)}
       </div>
     </button>
   `;
@@ -468,15 +503,6 @@ function renderDetalleOferta() {
   const ids = state.carrito.map((x) => x.id);
   const p = precioPagado(s, ids.filter((id) => id !== s.id));
   const mostrarDesc = p.ahorro > 0;
-  const idsComp = (s.complementos || []).map((c) => c.id);
-  const extras = serviciosParaVehiculo(serviciosCotizacion()).filter((x) => x.id !== s.id);
-  const minisHtml = [
-    ...(s.complementos || []).map((c) => {
-      const extra = oferta(c.id);
-      return extra && servicioAplicaAVehiculo(extra, state.vehiculo) ? htmlMini(extra, c) : "";
-    }),
-    ...extras.filter((x) => !idsComp.includes(x.id)).map((x) => htmlMini(x)),
-  ].join("");
 
   $("stage").innerHTML = `
     <article class="detalle-full">
@@ -490,9 +516,10 @@ function renderDetalleOferta() {
             <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(s.precio)}</div>
             ${
               mostrarDesc
-                ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla ? p.regla.etiqueta : ""}</div>`
+                ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla && p.regla.si ? p.regla.etiqueta : ""}</div>`
                 : ""
             }
+            ${htmlHintCombo(s, p.pagado)}
           </div>
           ${
             enCarro
@@ -500,14 +527,7 @@ function renderDetalleOferta() {
               : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
           }
         </div>
-        ${
-          enCarro && extras.length
-            ? `<section class="suma-ofertas">
-                <h3>Suma estos servicios y activa la oferta</h3>
-                <div class="minis">${minisHtml}</div>
-              </section>`
-            : ""
-        }
+        ${htmlSumaRelacionados(s, enCarro)}
       </div>
     </article>
   `;

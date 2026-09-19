@@ -460,6 +460,12 @@ button { font-family: inherit; cursor: pointer; }
 .servicio-preview .precio { color: #fff; font-weight: 800; }
 .servicio-preview .precio-lista { color: #bbb; }
 .servicio-preview .precio-oferta { color: #7dffa3; font-weight: 800; font-size: 1.05rem; }
+.servicio-preview .combo-hint {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #7dffa3;
+}
 .servicio-dots {
   z-index: 6;
   pointer-events: auto;
