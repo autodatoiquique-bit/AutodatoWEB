@@ -32,20 +32,29 @@ function sesionOk() {
 function mostrarAcceso() {
   $("acceso").hidden = false;
   $("panel").hidden = true;
-  const setup = !hayClave();
-  $("acceso-texto").textContent = setup
-    ? "Primera vez: crea una clave. Queda en este navegador y solo quien la sepa entra al panel."
-    : "Escribe tu clave para abrir el panel interno.";
-  $("acceso-label").textContent = setup ? "Nueva clave" : "Clave";
-  $("acceso-confirma-wrap").hidden = !setup;
-  $("btn-acceso").textContent = setup ? "Crear clave y entrar" : "Entrar";
+  const nube = typeof nubeActiva === "function" && nubeActiva();
+  $("acceso-email-wrap").hidden = !nube;
+  if (nube) {
+    $("acceso-texto").textContent = "Entra con el correo y la clave de Supabase.";
+    $("acceso-label").textContent = "Clave";
+    $("acceso-confirma-wrap").hidden = true;
+    $("btn-acceso").textContent = "Entrar";
+  } else {
+    const setup = !hayClave();
+    $("acceso-texto").textContent = setup
+      ? "Primera vez: crea una clave. Queda en este navegador y solo quien la sepa entra al panel."
+      : "Escribe tu clave para abrir el panel interno.";
+    $("acceso-label").textContent = setup ? "Nueva clave" : "Clave";
+    $("acceso-confirma-wrap").hidden = !setup;
+    $("btn-acceso").textContent = setup ? "Crear clave y entrar" : "Entrar";
+  }
   $("acceso-error").hidden = true;
 }
 
-function mostrarPanel() {
+async function mostrarPanel() {
   $("acceso").hidden = true;
   $("panel").hidden = false;
-  cargarCatalogo();
+  await cargarCatalogo();
   renderLista();
   if (editando) renderEditor();
   else $("stage").innerHTML = `<p class="vacio">Elige un servicio o crea uno nuevo.</p>`;
@@ -53,9 +62,25 @@ function mostrarPanel() {
 
 async function intentarAcceso() {
   const pin = $("acceso-pin").value.trim();
-  const pin2 = $("acceso-pin2").value.trim();
   const err = $("acceso-error");
   err.hidden = true;
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    const email = $("acceso-email").value.trim();
+    if (!email || !pin) {
+      err.textContent = "Escribe correo y clave.";
+      err.hidden = false;
+      return;
+    }
+    try {
+      await nubeLogin(email, pin);
+      await mostrarPanel();
+    } catch (e) {
+      err.textContent = e.message || "No se pudo entrar. Revisa correo, clave y que el usuario esté confirmado.";
+      err.hidden = false;
+    }
+    return;
+  }
+  const pin2 = $("acceso-pin2").value.trim();
   if (pin.length < 4) {
     err.textContent = "La clave debe tener al menos 4 caracteres.";
     err.hidden = false;
@@ -69,7 +94,7 @@ async function intentarAcceso() {
     }
     localStorage.setItem(PIN_KEY, await hashPin(pin));
     sessionStorage.setItem(SESION_KEY, "1");
-    mostrarPanel();
+    await mostrarPanel();
     return;
   }
   const ok = (await hashPin(pin)) === localStorage.getItem(PIN_KEY);
@@ -79,7 +104,7 @@ async function intentarAcceso() {
     return;
   }
   sessionStorage.setItem(SESION_KEY, "1");
-  mostrarPanel();
+  await mostrarPanel();
 }
 
 function servicioVacio() {
@@ -240,7 +265,7 @@ function nuevoServicio() {
   renderEditor();
 }
 
-function guardarServicio() {
+async function guardarServicio() {
   leerEditor();
   if (!editando.nombre) {
     alert("Escribe el nombre del servicio.");
@@ -251,23 +276,31 @@ function guardarServicio() {
   const idx = catalogo.findIndex((s) => s.id === copia.id);
   if (idx >= 0) catalogo[idx] = copia;
   else catalogo.push(copia);
-  guardarCatalogo(catalogo);
-  editando = copia;
-  renderLista();
-  renderEditor();
-  alert("Servicio guardado. Ya se ve en el sitio público.");
+  try {
+    await guardarCatalogo(catalogo);
+    editando = copia;
+    renderLista();
+    renderEditor();
+    alert("Servicio guardado. Ya se ve en el sitio público.");
+  } catch (e) {
+    alert(e.message || "No se pudo guardar en la nube.");
+  }
 }
 
-function borrarServicio() {
+async function borrarServicio() {
   if (!editando || !editando.id) return;
   if (!confirm(`¿Eliminar ${editando.nombre}?`)) return;
   catalogo = catalogo.filter((s) => s.id !== editando.id);
   catalogo.forEach((s) => {
     s.complementos = (s.complementos || []).filter((c) => c.id !== editando.id);
   });
-  guardarCatalogo(catalogo);
-  editando = null;
-  mostrarPanel();
+  try {
+    await guardarCatalogo(catalogo);
+    editando = null;
+    await mostrarPanel();
+  } catch (e) {
+    alert(e.message || "No se pudo eliminar en la nube.");
+  }
 }
 
 function leerImagen(file, max = 1400) {
@@ -360,8 +393,15 @@ $("acceso-pin2").addEventListener("keydown", (e) => {
 });
 
 $("btn-nuevo").addEventListener("click", nuevoServicio);
-$("btn-salir").addEventListener("click", () => {
+$("btn-salir").addEventListener("click", async () => {
   sessionStorage.removeItem(SESION_KEY);
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    try {
+      await nubeSalir();
+    } catch (e) {
+      /* ignore */
+    }
+  }
   editando = null;
   mostrarAcceso();
 });
@@ -406,14 +446,18 @@ $("stage").addEventListener("click", (e) => {
 $("stage").addEventListener("change", async (e) => {
   if (e.target.id === "e-foto" && e.target.files[0]) {
     leerEditor();
-    editando.foto = await leerImagen(e.target.files[0]);
+    let src = await leerImagen(e.target.files[0]);
+    if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+    editando.foto = src;
     renderEditor();
   }
   if (e.target.id === "e-galeria" && e.target.files.length) {
     leerEditor();
     editando.galeria = editando.galeria || [];
     for (const file of e.target.files) {
-      editando.galeria.push(await leerImagen(file, 1100));
+      let src = await leerImagen(file, 1100);
+      if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+      editando.galeria.push(src);
     }
     renderEditor();
   }
@@ -429,5 +473,18 @@ $("modal-combo").addEventListener("click", (e) => {
   if (e.target.id === "modal-combo") $("modal-combo").hidden = true;
 });
 
-if (sesionOk()) mostrarPanel();
-else mostrarAcceso();
+$("acceso-email")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") intentarAcceso();
+});
+
+async function arrancarAdmin() {
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    if (await nubeSesion()) await mostrarPanel();
+    else mostrarAcceso();
+    return;
+  }
+  if (sesionOk()) await mostrarPanel();
+  else mostrarAcceso();
+}
+
+arrancarAdmin();

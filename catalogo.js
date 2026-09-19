@@ -138,14 +138,28 @@ function hidratarCatalogo() {
   return semilla;
 }
 
-function cargarCatalogo() {
+async function cargarCatalogo() {
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    try {
+      const remoto = await nubeLeerCatalogo();
+      if (remoto.length) {
+        catalogo = remoto;
+        return catalogo;
+      }
+    } catch (e) {
+      console.warn("No se pudo leer el catálogo en la nube.", e);
+    }
+  }
   catalogo = hidratarCatalogo();
   return catalogo;
 }
 
-function guardarCatalogo(lista) {
+async function guardarCatalogo(lista) {
   catalogo = lista;
   localStorage.setItem(CATALOGO_KEY, JSON.stringify(lista));
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    await nubeGuardarCatalogo(lista);
+  }
 }
 
 function servicioPorId(id) {
@@ -224,4 +238,3 @@ function precioPagado(item, idsCarrito) {
   return { lista: item.precio, pagado, ahorro: item.precio - pagado, regla };
 }
 
-cargarCatalogo();

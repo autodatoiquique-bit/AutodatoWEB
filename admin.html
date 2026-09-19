@@ -15,6 +15,10 @@
       <img src="imagenes/logo.jpg" alt="AutoDato" />
       <h1>Panel interno</h1>
       <p id="acceso-texto" class="muted"></p>
+      <label class="field" id="acceso-email-wrap" hidden>
+        <span>Correo</span>
+        <input id="acceso-email" type="email" autocomplete="username" />
+      </label>
       <label class="field">
         <span id="acceso-label">Clave</span>
         <input id="acceso-pin" type="password" autocomplete="current-password" />
@@ -60,6 +64,9 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="nube.js"></script>
   <script src="catalogo.js"></script>
   <script src="admin.js"></script>
 </body>

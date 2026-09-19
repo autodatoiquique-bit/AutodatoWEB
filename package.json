@@ -3,6 +3,10 @@
   "private": true,
   "description": "Sitio público AutoDato: catálogo, carrito y ticket",
   "scripts": {
-    "start": "npx --yes serve -l 5173"
+    "start": "node server.js",
+    "dev": "npx --yes serve -l 5173"
+  },
+  "dependencies": {
+    "express": "^4.22.3"
   }
 }

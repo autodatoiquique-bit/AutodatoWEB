@@ -589,7 +589,15 @@ function normalizarFono(v) {
   return String(v || "").replace(/\D/g, "").replace(/^56/, "");
 }
 
-function buscarTicketVisita(patente, telefono) {
+async function buscarTicketVisita(patente, telefono) {
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    try {
+      const remoto = await nubeBuscarTicket(patente, telefono);
+      if (remoto) return remoto;
+    } catch (e) {
+      console.warn("No se pudo buscar el ticket en la nube.", e);
+    }
+  }
   const tickets = JSON.parse(localStorage.getItem("autodato_tickets") || "[]");
   return tickets.find(
     (t) => normalizarPatente(t.patente) === patente && normalizarFono(t.telefono) === telefono
@@ -824,7 +832,7 @@ function nuevoCodeTicket() {
   return `AD${n.slice(-12)}`;
 }
 
-function generarTicket() {
+async function generarTicket() {
   guardarClienteDesdeForma();
   const falta = faltantesTicket();
   if (falta.length) {
@@ -865,6 +873,13 @@ function generarTicket() {
   const tickets = JSON.parse(localStorage.getItem("autodato_tickets") || "[]");
   tickets.unshift(payload);
   localStorage.setItem("autodato_tickets", JSON.stringify(tickets));
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    try {
+      await nubeGuardarTicket(payload);
+    } catch (e) {
+      console.warn("El ticket quedó en este navegador, pero no en la nube.", e);
+    }
+  }
 
   abrirTicket(payload);
 }
@@ -1049,14 +1064,14 @@ $("modal-informe").addEventListener("click", (e) => {
   if (e.target.id === "modal-informe") cerrarModalInforme();
 });
 
-$("btn-abrir-informe").addEventListener("click", () => {
+$("btn-abrir-informe").addEventListener("click", async () => {
   const patente = normalizarPatente($("informe-patente").value);
   const telefono = normalizarFono($("informe-telefono").value);
   if (!patente || !telefono) {
     alert("Escribe la patente y el celular de tu visita.");
     return;
   }
-  const ticket = buscarTicketVisita(patente, telefono);
+  const ticket = await buscarTicketVisita(patente, telefono);
   if (!ticket) {
     alert("No encontramos una visita con esa patente y ese celular. Tienen que ser los mismos que informaste al agendar.");
     return;
@@ -1066,12 +1081,17 @@ $("btn-abrir-informe").addEventListener("click", () => {
   window.open(`${INFORME_BASE}?entrada=${encodeURIComponent(ticket.patente || ticket.code)}`, "_blank", "noopener");
 });
 
-window.addEventListener("focus", () => {
-  cargarCatalogo();
+window.addEventListener("focus", async () => {
+  await cargarCatalogo();
   renderVista();
   renderTotales(false);
 });
 
-hidratar();
-renderVista();
-renderTotales(false);
+async function arrancar() {
+  await cargarCatalogo();
+  hidratar();
+  renderVista();
+  renderTotales(false);
+}
+
+arrancar();
