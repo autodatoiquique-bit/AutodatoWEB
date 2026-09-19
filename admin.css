@@ -334,11 +334,58 @@ button { font-family: inherit; cursor: pointer; }
   padding: 8px 0;
 }
 .veh-modelos {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .veh-marca .check { margin-top: 6px; font-weight: 600; }
+.veh-ayuda {
+  margin: 8px 0 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.veh-fila {
+  border-top: 1px solid #eee;
+  padding-top: 6px;
+}
+.veh-anios {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 6px 0 2px 26px;
+}
+.veh-anios label span {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #555;
+  margin-bottom: 4px;
+}
+.veh-anios select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+}
+.veh-adelante {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+.veh-add {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+.veh-add input {
+  padding: 10px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 12px;
+  font: inherit;
+}
 .portada-thumbs {
   display: flex;
   flex-wrap: wrap;

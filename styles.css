@@ -436,6 +436,7 @@ button { font-family: inherit; cursor: pointer; }
 .tag-dto { background: var(--green); color: #042; }
 .card-body { padding: 14px 16px 16px; }
 .card-body p { margin: 0 0 10px; color: var(--muted); font-size: 0.88rem; }
+.card-veh { margin: -4px 0 10px !important; font-size: 0.75rem !important; font-weight: 700; color: #333 !important; }
 .card-combo { margin: 6px 0 0 !important; font-size: 0.78rem !important; font-weight: 700; }
 .precio { font-weight: 800; }
 .precio-card-oferta { color: var(--green); font-weight: 800; font-size: 1.15rem; }

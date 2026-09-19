@@ -190,12 +190,37 @@ function leerEditor() {
   editando.vehiculos = leerVehiculosEditor();
 }
 
+function leerAnioCampo(sel) {
+  if (!sel || sel.value === "") return null;
+  const n = Number(sel.value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function leerRangoVeh(clave) {
+  const adelante = document.querySelector(`[data-veh-adelante="${clave}"]`);
+  const desde = document.querySelector(`[data-veh-desde="${clave}"]`);
+  const hasta = document.querySelector(`[data-veh-hasta="${clave}"]`);
+  return {
+    ano_desde: leerAnioCampo(desde),
+    ano_hasta: adelante && adelante.checked ? null : leerAnioCampo(hasta),
+  };
+}
+
 function leerVehiculosEditor() {
   if ($("e-veh-todos") && $("e-veh-todos").checked) return [];
-  return [...document.querySelectorAll("[data-veh]:checked")].map((el) => {
+  const out = [];
+  const marcasTodas = new Set();
+  document.querySelectorAll("[data-veh-marca]:checked").forEach((el) => {
+    const marca = el.dataset.vehMarca;
+    marcasTodas.add(marca);
+    out.push({ marca, modelo: "*", ...leerRangoVeh(`${marca}|*`) });
+  });
+  document.querySelectorAll("[data-veh]:checked").forEach((el) => {
     const [marca, modelo] = String(el.dataset.veh || "").split("|");
-    return marca && modelo ? { marca, modelo } : null;
-  }).filter(Boolean);
+    if (!marca || !modelo || marcasTodas.has(marca)) return;
+    out.push({ marca, modelo, ...leerRangoVeh(el.dataset.veh) });
+  });
+  return normalizarVehiculos(out);
 }
 
 function mediaEditando() {
@@ -240,25 +265,58 @@ function htmlDotsMedia(n, on, s) {
   return `<div class="home-dots servicio-dots" data-drag="dots" style="left:${x}%;top:${y}%">${Array.from({ length: n }, (_, i) => `<i class="${i === on ? "on" : ""}"></i>`).join("")}</div>`;
 }
 
+function htmlOpcionesAnio(sel) {
+  return anios()
+    .map((y) => `<option value="${y}" ${Number(sel) === y ? "selected" : ""}>${y}</option>`)
+    .join("");
+}
+
+function htmlAniosVeh(clave, dest, visible) {
+  const desde = dest && dest.ano_desde != null ? dest.ano_desde : ANIO_MIN;
+  const adelante = !dest || dest.ano_hasta == null;
+  const hasta = dest && dest.ano_hasta != null ? dest.ano_hasta : ANIO_MAX;
+  return `
+    <div class="veh-anios" data-veh-anios="${escapeAttr(clave)}" ${visible ? "" : "hidden"}>
+      <label><span>Desde el año</span><select data-veh-desde="${escapeAttr(clave)}">${htmlOpcionesAnio(desde)}</select></label>
+      <label><span>Hasta el año</span><select data-veh-hasta="${escapeAttr(clave)}" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta)}</select></label>
+      <label class="check veh-adelante"><input type="checkbox" data-veh-adelante="${escapeAttr(clave)}" ${adelante ? "checked" : ""} /> En adelante (sin tope)</label>
+    </div>
+  `;
+}
+
 function htmlVehiculosEditor(s) {
-  const sel = new Set(normalizarVehiculos(s && s.vehiculos).map((v) => claveVehiculo(v.marca, v.modelo)));
-  const todos = sel.size === 0;
+  const destinos = normalizarVehiculos(s && s.vehiculos);
+  const porClave = {};
+  destinos.forEach((v) => {
+    porClave[claveVehiculo(v.marca, v.modelo)] = v;
+  });
+  const todos = destinos.length === 0;
   const marcas = MARCAS.map((marca) => {
     const modelos = modelosDe(marca);
-    const n = modelos.filter((m) => sel.has(claveVehiculo(marca, m))).length;
+    const toda = Boolean(porClave[claveVehiculo(marca, "*")]);
+    const n = modelos.filter((m) => porClave[claveVehiculo(marca, m)]).length;
     return `
-      <details class="veh-marca" ${todos ? "" : "open"}>
-        <summary>${marca}${n ? ` · ${n}` : ""}</summary>
-        <label class="check"><input type="checkbox" data-veh-marca="${marca}" ${n === modelos.length && modelos.length ? "checked" : ""} /> Toda la marca</label>
+      <details class="veh-marca" ${todos || (!toda && !n) ? "" : "open"}>
+        <summary>${marca}${toda ? " · toda la marca" : n ? ` · ${n} modelos` : ""}</summary>
+        <label class="check"><input type="checkbox" data-veh-marca="${marca}" ${toda ? "checked" : ""} /> Toda la marca, en este rango de años</label>
+        ${htmlAniosVeh(claveVehiculo(marca, "*"), porClave[claveVehiculo(marca, "*")], toda)}
+        <p class="veh-ayuda">O elige modelos uno a uno. Cada modelo tiene su propio rango: por ejemplo Santa Fe hasta 2021, y otro servicio Santa Fe 2022 en adelante.</p>
         <div class="veh-modelos">
           ${modelos
-            .map(
-              (m) =>
-                `<label class="check"><input type="checkbox" data-veh="${escapeAttr(claveVehiculo(marca, m))}" ${
-                  sel.has(claveVehiculo(marca, m)) ? "checked" : ""
-                } /> ${m}</label>`
-            )
+            .map((m) => {
+              const clave = claveVehiculo(marca, m);
+              const dest = porClave[clave];
+              const on = Boolean(dest) && !toda;
+              return `<div class="veh-fila">
+                <label class="check"><input type="checkbox" data-veh="${escapeAttr(clave)}" ${on ? "checked" : ""} /> ${m}</label>
+                ${htmlAniosVeh(clave, dest, on)}
+              </div>`;
+            })
             .join("")}
+        </div>
+        <div class="veh-add">
+          <input type="text" data-nuevo-modelo="${marca}" placeholder="Agregar modelo de ${marca}" />
+          <button class="btn-line" type="button" data-add-modelo="${marca}">Agregar modelo</button>
         </div>
       </details>
     `;
@@ -266,8 +324,8 @@ function htmlVehiculosEditor(s) {
   return `
     <fieldset class="canales">
       <legend>Para qué vehículos</legend>
-      <p class="hint">Este precio vale solo para los modelos que marques. Ejemplo: aceite 8 L para ciertos Hyundai y Kia. Si dejas todos, aparece para cualquier vehículo del taller.</p>
-      <label class="check"><input id="e-veh-todos" type="checkbox" ${todos ? "checked" : ""} /> Todos los vehículos que atiende el taller</label>
+      <p class="hint">Hay que indicar marca, modelo y años. El año cambia el producto: un filtro diésel hasta 2021 no es el de 2022 en adelante, y tiene otro precio. Si no aparece un modelo, agrégalo en esa marca.</p>
+      <label class="check"><input id="e-veh-todos" type="checkbox" ${todos ? "checked" : ""} /> Todos los vehículos que atiende el taller (cualquier año)</label>
       <div id="e-veh-lista" ${todos ? "hidden" : ""}>${marcas}</div>
     </fieldset>
   `;
@@ -471,6 +529,10 @@ async function guardarServicio() {
   }
   if (editando.tiene_oferta && editando.precio != null && editando.precio_oferta >= editando.precio) {
     alert("El precio oferta tiene que ser menor que el valor normal.");
+    return;
+  }
+  if ((editando.vehiculos || []).some((v) => v.ano_desde != null && v.ano_hasta != null && v.ano_desde > v.ano_hasta)) {
+    alert("En algún vehículo el año desde es mayor que el año hasta.");
     return;
   }
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
@@ -1055,6 +1117,24 @@ $("stage").addEventListener("click", (e) => {
     slideEditIndex = Number(t.dataset.slide);
     renderEditorPortada();
   }
+  if (t.dataset.addModelo) {
+    leerEditor();
+    const marca = t.dataset.addModelo;
+    const input = document.querySelector(`[data-nuevo-modelo="${marca}"]`);
+    const nombre = input && input.value.trim();
+    if (!nombre) {
+      alert("Escribe el nombre del modelo.");
+      return;
+    }
+    registrarModelo(marca, nombre);
+    if (!editando.vehiculos) editando.vehiculos = [];
+    if (!editando.vehiculos.some((v) => v.marca === marca && v.modelo === nombre)) {
+      editando.vehiculos.push({ marca, modelo: nombre, ano_desde: ANIO_MIN, ano_hasta: null });
+    }
+    if ($("e-veh-todos")) $("e-veh-todos").checked = false;
+    renderEditor();
+    return;
+  }
   if (t.id === "btn-add-combo") abrirCombo(-1);
   if (t.id === "btn-add-foto") {
     $("e-foto")?.click();
@@ -1182,23 +1262,38 @@ $("stage").addEventListener("change", async (e) => {
       document.querySelectorAll("[data-veh], [data-veh-marca]").forEach((el) => {
         el.checked = false;
       });
+      document.querySelectorAll("[data-veh-anios]").forEach((el) => {
+        el.hidden = true;
+      });
     }
   }
   if (e.target.dataset.vehMarca) {
     const marca = e.target.dataset.vehMarca;
+    const aniosMarca = document.querySelector(`[data-veh-anios="${marca}|*"]`);
+    if (aniosMarca) aniosMarca.hidden = !e.target.checked;
     document.querySelectorAll(`[data-veh^="${marca}|"]`).forEach((el) => {
-      el.checked = e.target.checked;
+      el.checked = false;
+      const fila = document.querySelector(`[data-veh-anios="${el.dataset.veh}"]`);
+      if (fila) fila.hidden = true;
     });
     if ($("e-veh-todos")) $("e-veh-todos").checked = false;
     if ($("e-veh-lista")) $("e-veh-lista").hidden = false;
   }
   if (e.target.dataset.veh) {
-    const marca = String(e.target.dataset.veh).split("|")[0];
-    const boxes = [...document.querySelectorAll(`[data-veh^="${marca}|"]`)];
+    const clave = e.target.dataset.veh;
+    const marca = String(clave).split("|")[0];
+    const fila = document.querySelector(`[data-veh-anios="${clave}"]`);
+    if (fila) fila.hidden = !e.target.checked;
     const brand = document.querySelector(`[data-veh-marca="${marca}"]`);
-    if (brand) brand.checked = boxes.length > 0 && boxes.every((b) => b.checked);
+    if (brand) brand.checked = false;
+    const aniosMarca = document.querySelector(`[data-veh-anios="${marca}|*"]`);
+    if (aniosMarca) aniosMarca.hidden = true;
     if ($("e-veh-todos")) $("e-veh-todos").checked = false;
     if ($("e-veh-lista")) $("e-veh-lista").hidden = false;
+  }
+  if (e.target.dataset.vehAdelante) {
+    const hasta = document.querySelector(`[data-veh-hasta="${e.target.dataset.vehAdelante}"]`);
+    if (hasta) hasta.disabled = e.target.checked;
   }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
   if (e.target.id === "p-foto" && e.target.files[0]) {

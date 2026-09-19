@@ -11,46 +11,123 @@ const MODELOS = {
   Suzuki: ["Otro"],
   Honda: ["Otro"],
 };
+const ANIO_MIN = 2010;
+const ANIO_MAX = new Date().getFullYear();
+const MODELOS_EXTRA_KEY = "autodato_modelos_extra";
+let MODELOS_EXTRA = {};
+
+function anios() {
+  const out = [];
+  for (let y = ANIO_MAX; y >= ANIO_MIN; y -= 1) out.push(y);
+  return out;
+}
+
+function hidratarModelosExtra() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MODELOS_EXTRA_KEY) || "{}");
+    if (raw && typeof raw === "object") MODELOS_EXTRA = { ...MODELOS_EXTRA, ...raw };
+  } catch (e) {
+    MODELOS_EXTRA = MODELOS_EXTRA || {};
+  }
+}
+
+function persistirModelosExtra() {
+  localStorage.setItem(MODELOS_EXTRA_KEY, JSON.stringify(MODELOS_EXTRA || {}));
+}
+
+function registrarModelo(marca, modelo) {
+  const m = String(modelo || "").trim();
+  if (!marca || !m || m === "*") return false;
+  const base = MODELOS[marca] || [];
+  if (base.includes(m)) return true;
+  if (!MODELOS_EXTRA[marca]) MODELOS_EXTRA[marca] = [];
+  if (!MODELOS_EXTRA[marca].includes(m)) MODELOS_EXTRA[marca].push(m);
+  persistirModelosExtra();
+  return true;
+}
+
+function recolectarModelosExtra(lista) {
+  (lista || []).forEach((s) => {
+    normalizarVehiculos(s && s.vehiculos).forEach((v) => registrarModelo(v.marca, v.modelo));
+  });
+}
 
 function modelosDe(marca) {
-  return MODELOS[marca] || ["Otro"];
+  const out = [];
+  [...(MODELOS[marca] || []), ...(MODELOS_EXTRA[marca] || [])].forEach((m) => {
+    if (m && !out.includes(m)) out.push(m);
+  });
+  if (!out.includes("Otro")) out.push("Otro");
+  return out;
 }
 
 function claveVehiculo(marca, modelo) {
   return `${marca}|${modelo}`;
 }
 
+function etiquetaRangoAnios(v) {
+  if (!v) return "todos los años";
+  if (v.ano_desde != null && v.ano_hasta == null) return `${v.ano_desde} en adelante`;
+  if (v.ano_desde == null && v.ano_hasta != null) return `hasta ${v.ano_hasta}`;
+  if (v.ano_desde != null && v.ano_hasta != null && v.ano_desde === v.ano_hasta) return String(v.ano_desde);
+  if (v.ano_desde != null && v.ano_hasta != null) return `${v.ano_desde} a ${v.ano_hasta}`;
+  return "todos los años";
+}
+
 function normalizarVehiculos(lista) {
   if (!Array.isArray(lista)) return [];
   return lista
     .map((v) => {
+      let marca = "";
+      let modelo = "";
+      let ano_desde = null;
+      let ano_hasta = null;
       if (typeof v === "string") {
-        const [marca, modelo] = v.split("|");
-        return marca && modelo ? { marca, modelo } : null;
+        const partes = v.split("|");
+        marca = partes[0] || "";
+        modelo = partes[1] || "";
+      } else if (v && v.marca) {
+        marca = String(v.marca);
+        modelo = String(v.modelo || "*");
+        const d = Number(v.ano_desde);
+        const h = Number(v.ano_hasta);
+        ano_desde = Number.isFinite(d) ? d : null;
+        ano_hasta = Number.isFinite(h) ? h : null;
       }
-      if (v && v.marca && v.modelo) return { marca: String(v.marca), modelo: String(v.modelo) };
-      return null;
+      if (!marca) return null;
+      return { marca, modelo: modelo || "*", ano_desde, ano_hasta };
     })
     .filter(Boolean);
+}
+
+function anioEnRango(ano, v) {
+  if (ano == null || ano === "") return true;
+  const n = Number(ano);
+  if (!Number.isFinite(n)) return true;
+  if (v.ano_desde != null && n < v.ano_desde) return false;
+  if (v.ano_hasta != null && n > v.ano_hasta) return false;
+  return true;
 }
 
 function servicioAplicaAVehiculo(s, vehiculo) {
   const destinos = normalizarVehiculos(s && s.vehiculos);
   if (!destinos.length) return true;
   if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) return true;
-  return destinos.some((v) => v.marca === vehiculo.marca && v.modelo === vehiculo.modelo);
+  return destinos.some((v) => {
+    if (v.marca !== vehiculo.marca) return false;
+    if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
+    return anioEnRango(vehiculo.ano, v);
+  });
 }
 
 function etiquetaVehiculos(s) {
   const destinos = normalizarVehiculos(s && s.vehiculos);
   if (!destinos.length) return "Todos los vehículos";
-  const porMarca = {};
-  destinos.forEach((v) => {
-    if (!porMarca[v.marca]) porMarca[v.marca] = [];
-    porMarca[v.marca].push(v.modelo);
-  });
-  return Object.keys(porMarca)
-    .map((marca) => `${marca} ${porMarca[marca].join(", ")}`)
+  return destinos
+    .map((v) => {
+      const modelo = v.modelo === "*" ? "todos los modelos" : v.modelo;
+      return `${v.marca} ${modelo} · ${etiquetaRangoAnios(v)}`;
+    })
     .join(" · ");
 }
 
@@ -295,12 +372,15 @@ function etiquetaCanales(s) {
 }
 
 async function cargarCatalogo() {
+  hidratarModelosExtra();
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {
       const remoto = await nubeLeerCatalogo();
       if (remoto.length) {
         catalogo = remoto.map(normalizarServicio);
+        recolectarModelosExtra(catalogo);
+        persistirModelosExtra();
         return catalogo;
       }
     } catch (e) {
@@ -308,11 +388,15 @@ async function cargarCatalogo() {
     }
   }
   catalogo = hidratarCatalogo().map(normalizarServicio);
+  recolectarModelosExtra(catalogo);
+  persistirModelosExtra();
   return catalogo;
 }
 
 async function guardarCatalogo(lista) {
   catalogo = lista;
+  recolectarModelosExtra(lista);
+  persistirModelosExtra();
   localStorage.setItem(CATALOGO_KEY, JSON.stringify(lista));
   if (typeof nubeActiva === "function" && nubeActiva()) {
     await nubeGuardarCatalogo(lista);

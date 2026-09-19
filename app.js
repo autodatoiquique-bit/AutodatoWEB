@@ -1,5 +1,3 @@
-const ANIO_MIN = 2010;
-const ANIO_MAX = new Date().getFullYear();
 const BLOQUES = [
   { hora: "09:00", etiqueta: "Mañana 09:00" },
   { hora: "11:00", etiqueta: "Mañana 11:00" },
@@ -42,12 +40,6 @@ function clp(n) {
     currency: "CLP",
     maximumFractionDigits: 0,
   }).format(n);
-}
-
-function anios() {
-  const out = [];
-  for (let y = ANIO_MAX; y >= ANIO_MIN; y -= 1) out.push(y);
-  return out;
 }
 
 function calcular(carrito = state.carrito) {
@@ -127,7 +119,7 @@ function htmlFiltro(contexto) {
   return `
     <div class="filtro">
       <h2>¿Qué vehículo tienes?</h2>
-      <p class="lead">Marca, modelo y año. Si no aparece, no se puede abrir el servicio.</p>
+      <p class="lead">Marca, modelo y año. El año importa: un mismo servicio puede ser otro producto y otro precio según el año del auto.</p>
       ${htmlDrop("marca", "Marca", MARCAS, marca, "Elige la marca", false)}
       ${htmlDrop("modelo", "Modelo", modelos, modelo, marca ? "Elige el modelo" : "Primero elige la marca", !marca)}
       ${htmlDrop("ano", "Año", anios(), ano, "Elige el año", false)}
@@ -439,6 +431,7 @@ function htmlTarjetaOferta(s) {
       <div class="card-body">
         <h3>${s.nombre}</h3>
         <p>${s.resumen}</p>
+        ${normalizarVehiculos(s.vehiculos).length ? `<p class="card-veh">${etiquetaVehiculos(s)}</p>` : ""}
         ${
           hayDesc
             ? `<div class="precio-lista tachado">${clp(s.precio)}</div>
@@ -509,6 +502,7 @@ function renderDetalleOferta() {
       ${htmlCarruselServicio(s)}
       <div class="detalle-copy">
         <p class="muted">${textoVehiculo()}</p>
+        ${normalizarVehiculos(s.vehiculos).length ? `<p class="muted">${etiquetaVehiculos(s)}</p>` : ""}
         <h2>${s.nombre}</h2>
         <p class="lead">${s.detalle}</p>
         <div class="precio-fila">
