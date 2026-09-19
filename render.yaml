@@ -10,3 +10,7 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      - key: AUTONEXUS_WEBHOOK_URL
+        sync: false
+      - key: AUTONEXUS_WEBHOOK_TOKEN
+        sync: false

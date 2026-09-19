@@ -933,8 +933,21 @@ function quitarOferta(id) {
 }
 
 function nuevoCodeTicket() {
-  const n = Date.now().toString();
-  return `AD${n.slice(-12)}`;
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+  return String(n).padStart(14, "0");
+}
+
+async function enviarTicketAutonexus(payload) {
+  try {
+    const r = await fetch("/api/autonexus-ticket", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) console.warn("AutoNexus no recibió el ticket.", r.status);
+  } catch (e) {
+    console.warn("No se pudo avisar a AutoNexus.", e);
+  }
 }
 
 async function generarTicket() {
@@ -986,6 +999,7 @@ async function generarTicket() {
     }
   }
 
+  await enviarTicketAutonexus(payload);
   vaciarCarritoTrasTicket();
   abrirTicket(payload);
 }
