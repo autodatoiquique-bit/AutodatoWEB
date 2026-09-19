@@ -938,7 +938,7 @@ function quitarOferta(id) {
 }
 
 function nuevoCodeTicket() {
-  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+  const n = 100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000);
   return String(n).padStart(14, "0");
 }
 
