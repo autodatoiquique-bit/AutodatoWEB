@@ -126,6 +126,31 @@ async function nubeBuscarTicket(patente, telefono) {
   return data || null;
 }
 
+async function nubeLeerPortada() {
+  const sb = clienteNube();
+  const { data, error } = await sb.from("portada_slides").select("*").order("orden");
+  if (error) throw error;
+  return data || [];
+}
+
+async function nubeGuardarPortada(lista) {
+  const sb = clienteNube();
+  const { error: errorD } = await sb.from("portada_slides").delete().neq("id", "__none__");
+  if (errorD) throw errorD;
+  if (!lista.length) return;
+  const rows = lista.map((s, i) => ({
+    id: s.id,
+    foto: s.foto,
+    servicio_id: s.servicio_id || null,
+    btn_texto: s.btn_texto || "Agregar al carrito",
+    btn_x: Number(s.btn_x) || 50,
+    btn_y: Number(s.btn_y) || 72,
+    orden: Number(s.orden) || i,
+  }));
+  const { error } = await sb.from("portada_slides").insert(rows);
+  if (error) throw error;
+}
+
 async function nubeLogin(email, password) {
   const { error } = await clienteNube().auth.signInWithPassword({ email, password });
   if (error) throw error;

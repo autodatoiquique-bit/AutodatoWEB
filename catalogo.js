@@ -240,6 +240,78 @@ function leerTaller() {
   }
 }
 
+const PORTADA_KEY = "autodato_portada";
+const PORTADA_DEFECTO = [
+  {
+    id: "portada-fiestas",
+    foto: "imagenes/portada.jpg",
+    servicio_id: "",
+    btn_texto: "Agregar al carrito",
+    btn_x: 50,
+    btn_y: 72,
+    orden: 0,
+  },
+];
+
+let portadaSlides = [];
+
+function normalizarSlide(s, i) {
+  return {
+    id: String((s && s.id) || `slide-${i}`),
+    foto: String((s && s.foto) || ""),
+    servicio_id: String((s && s.servicio_id) || ""),
+    btn_texto: String((s && s.btn_texto) || "Agregar al carrito"),
+    btn_x: Math.min(92, Math.max(8, Number(s && s.btn_x) || 50)),
+    btn_y: Math.min(92, Math.max(8, Number(s && s.btn_y) || 72)),
+    orden: Number(s && s.orden) || i,
+  };
+}
+
+function slideVacio(orden) {
+  return {
+    id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    foto: "",
+    servicio_id: "",
+    btn_texto: "Agregar al carrito",
+    btn_x: 50,
+    btn_y: 72,
+    orden: orden || 0,
+  };
+}
+
+async function cargarPortada() {
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    try {
+      const remoto = await nubeLeerPortada();
+      if (remoto.length) {
+        portadaSlides = remoto.map(normalizarSlide).sort((a, b) => a.orden - b.orden);
+        return portadaSlides;
+      }
+    } catch (e) {
+      console.warn("No se pudo leer la portada en la nube.", e);
+    }
+  }
+  try {
+    const raw = JSON.parse(localStorage.getItem(PORTADA_KEY) || "null");
+    if (Array.isArray(raw) && raw.length) {
+      portadaSlides = raw.map(normalizarSlide);
+      return portadaSlides;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  portadaSlides = PORTADA_DEFECTO.map(normalizarSlide);
+  return portadaSlides;
+}
+
+async function guardarPortada(lista) {
+  portadaSlides = lista.map(normalizarSlide);
+  localStorage.setItem(PORTADA_KEY, JSON.stringify(portadaSlides));
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    await nubeGuardarPortada(portadaSlides);
+  }
+}
+
 function guardarTaller(data) {
   const prev = leerTaller();
   const actual = {

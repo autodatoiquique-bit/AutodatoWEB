@@ -42,6 +42,7 @@ const state = {
   cita: { fecha: "", hora: "" },
   cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
   vistaAnterior: "ofertas",
+  agregarTrasFiltro: false,
 };
 
 let quitarPendiente = null;
@@ -294,12 +295,34 @@ function hidratar() {
 
 function renderPortada() {
   const t = leerTaller();
+  const slides = (portadaSlides || []).filter((s) => s.foto);
+  const lista = slides.length ? slides : PORTADA_DEFECTO;
   $("stage").innerHTML = `
     <section class="home-screen">
       <header class="home-logo">
         <img src="imagenes/logo.jpg" alt="AutoDato" />
       </header>
-      <img class="home-foto" src="imagenes/portada.jpg" alt="Felices Fiestas Patrias — AutoDato" />
+      <div class="home-slides" id="home-slides">
+        ${lista
+          .map((s) => {
+            const ofertaOk = s.servicio_id && oferta(s.servicio_id);
+            return `
+          <article class="home-slide">
+            <img class="home-foto" src="${s.foto}" alt="${ofertaOk ? oferta(s.servicio_id).nombre : "Oferta AutoDato"}" />
+            ${
+              ofertaOk
+                ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al carrito"}</button>`
+                : ""
+            }
+          </article>`;
+          })
+          .join("")}
+      </div>
+      ${
+        lista.length > 1
+          ? `<div class="home-dots" aria-hidden="true">${lista.map(() => "<i></i>").join("")}</div>`
+          : ""
+      }
       <div class="home-contacto">
         <a class="home-dir" href="${mapsHref()}" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="#111"/></svg>
@@ -317,6 +340,16 @@ function renderPortada() {
       </div>
     </section>
   `;
+  const pista = $("home-slides");
+  if (pista && lista.length > 1) {
+    const dots = document.querySelectorAll(".home-dots i");
+    const pintar = () => {
+      const i = Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    };
+    pista.addEventListener("scroll", pintar, { passive: true });
+    pintar();
+  }
 }
 
 function idsComboPara(id) {
@@ -794,6 +827,15 @@ function aplicarFiltro(contexto) {
   if (contexto === "oferta") {
     state.vista = "oferta-detalle";
     state.ofertaAbierta = state.ofertaPendiente;
+    if (state.agregarTrasFiltro && state.ofertaPendiente) {
+      const id = state.ofertaPendiente;
+      state.agregarTrasFiltro = false;
+      if (!state.carrito.some((x) => x.id === id)) {
+        state.carrito.push({ tipo: "oferta", id });
+        persistir();
+        renderTotales(true);
+      }
+    }
     renderVista();
     return;
   }
@@ -810,10 +852,30 @@ function aplicarFiltro(contexto) {
 
 function intentarAbrirOferta(id) {
   state.ofertaPendiente = id;
+  state.agregarTrasFiltro = false;
   if (!vehiculoOk()) {
     state.vista = "filtro-oferta";
     renderVista();
     return;
+  }
+  state.ofertaAbierta = id;
+  state.vista = "oferta-detalle";
+  renderVista();
+}
+
+function iniciarOfertaDesdePortada(id) {
+  if (!oferta(id)) return;
+  state.ofertaPendiente = id;
+  state.agregarTrasFiltro = true;
+  if (!vehiculoOk()) {
+    state.vista = "filtro-oferta";
+    renderVista();
+    return;
+  }
+  if (!state.carrito.some((x) => x.id === id)) {
+    state.carrito.push({ tipo: "oferta", id });
+    persistir();
+    renderTotales(true);
   }
   state.ofertaAbierta = id;
   state.vista = "oferta-detalle";
@@ -1196,7 +1258,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], #btn-ticket"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], #btn-ticket"
   );
   if (!t) return;
 
@@ -1247,6 +1309,7 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-close")) cerrar();
   if (t.hasAttribute("data-guardar-ticket")) descargarTicket();
   if (t.hasAttribute("data-compartir-ticket")) compartirTicket();
+  if (t.dataset.portadaOferta) iniciarOfertaDesdePortada(t.dataset.portadaOferta);
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
@@ -1323,12 +1386,14 @@ $("btn-abrir-informe").addEventListener("click", async () => {
 
 window.addEventListener("focus", async () => {
   await cargarCatalogo();
+  await cargarPortada();
   renderVista({ quedarse: true });
   renderTotales(false);
 });
 
 async function arrancar() {
   await cargarCatalogo();
+  await cargarPortada();
   hidratar();
   renderVista({ quedarse: true });
   renderTotales(false);

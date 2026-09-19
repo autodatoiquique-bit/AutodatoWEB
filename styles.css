@@ -266,6 +266,27 @@ button { font-family: inherit; cursor: pointer; }
 
 .home-logo { display: none; }
 
+.home-slides {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.home-slides::-webkit-scrollbar { display: none; }
+
+.home-slide {
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
 .home-foto {
   width: 100%;
   height: 100%;
@@ -274,6 +295,40 @@ button { font-family: inherit; cursor: pointer; }
   object-position: 55% 28%;
   display: block;
 }
+
+.home-add {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 0.92rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+.home-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 132px;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  pointer-events: none;
+}
+.home-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+}
+.home-dots i.on { background: #ffd000; }
 
 .home-contacto {
   position: absolute;
@@ -840,7 +895,9 @@ button { font-family: inherit; cursor: pointer; }
     height: 100dvh;
     min-height: 100dvh;
   }
-  body.en-portada .home-foto {
+  body.en-portada .home-foto,
+  body.en-portada .home-slides,
+  body.en-portada .home-slide {
     height: 100dvh;
     min-height: 100dvh;
   }

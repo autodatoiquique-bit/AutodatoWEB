@@ -5,6 +5,7 @@ const $ = (id) => document.getElementById(id);
 
 let editando = null;
 let comboEditIndex = -1;
+let slideEditIndex = 0;
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -392,6 +393,128 @@ function guardarCombo() {
   renderEditor();
 }
 
+function slideActual() {
+  if (!portadaSlides.length) portadaSlides.push(slideVacio(0));
+  if (slideEditIndex < 0 || slideEditIndex >= portadaSlides.length) slideEditIndex = 0;
+  return portadaSlides[slideEditIndex];
+}
+
+async function abrirEditorPortada() {
+  editando = null;
+  await cargarPortada();
+  if (!portadaSlides.length) portadaSlides = [slideVacio(0)];
+  slideEditIndex = 0;
+  renderEditorPortada();
+}
+
+function renderEditorPortada() {
+  const s = slideActual();
+  const ofertas = serviciosOferta();
+  $("stage").innerHTML = `
+    <article class="editor">
+      <h2>Configurar portada</h2>
+      <p class="muted">Sube un flyer por oferta. Arrastra el botón amarillo y déjalo cerca del precio. El cliente desliza la foto para ver la siguiente.</p>
+      <div class="portada-thumbs" id="portada-thumbs">
+        ${portadaSlides
+          .map(
+            (x, i) =>
+              `<button type="button" data-slide="${i}" class="${i === slideEditIndex ? "is-on" : ""}">${
+                x.foto ? `<img src="${x.foto}" alt="" />` : `<span class="ph">Foto ${i + 1}</span>`
+              }</button>`
+          )
+          .join("")}
+      </div>
+      <div class="btn-row">
+        <button class="btn-line" type="button" id="btn-slide-add">Agregar flyer</button>
+        ${portadaSlides.length > 1 ? `<button class="btn-soft" type="button" id="btn-slide-del">Quitar este</button>` : ""}
+      </div>
+      <label class="field">
+        <span>Foto de este flyer</span>
+        <input id="p-foto" type="file" accept="image/*" />
+      </label>
+      <label class="field">
+        <span>Qué oferta agrega al carrito</span>
+        <select id="p-servicio">
+          <option value="">Elige un servicio</option>
+          ${ofertas
+            .map((o) => `<option value="${o.id}" ${o.id === s.servicio_id ? "selected" : ""}>${o.nombre}</option>`)
+            .join("")}
+        </select>
+      </label>
+      <label class="field">
+        <span>Texto del botón</span>
+        <input id="p-texto" type="text" value="${escapeAttr(s.btn_texto)}" />
+      </label>
+      <p class="hint">Arrastra el botón sobre la foto y suéltalo donde quede cómodo.</p>
+      <div class="portada-preview" id="portada-preview">
+        ${s.foto ? `<img src="${s.foto}" alt="" />` : `<div class="vacio-foto">Sube la foto para ubicar el botón</div>`}
+        <button class="portada-btn-drag" type="button" id="portada-btn-drag" style="left:${s.btn_x}%;top:${s.btn_y}%">${escapeText(s.btn_texto)}</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
+      </div>
+    </article>
+  `;
+  activarArrastreBoton();
+}
+
+function leerEditorPortada() {
+  const s = slideActual();
+  if ($("p-servicio")) s.servicio_id = $("p-servicio").value;
+  if ($("p-texto")) s.btn_texto = $("p-texto").value.trim() || "Agregar al carrito";
+}
+
+function activarArrastreBoton() {
+  const caja = $("portada-preview");
+  const btn = $("portada-btn-drag");
+  if (!caja || !btn) return;
+  let dragging = false;
+  const mover = (e) => {
+    if (!dragging) return;
+    const r = caja.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    const s = slideActual();
+    s.btn_x = Math.min(92, Math.max(8, x));
+    s.btn_y = Math.min(92, Math.max(8, y));
+    btn.style.left = `${s.btn_x}%`;
+    btn.style.top = `${s.btn_y}%`;
+  };
+  btn.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    btn.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  btn.addEventListener("pointermove", mover);
+  const fin = () => {
+    dragging = false;
+  };
+  btn.addEventListener("pointerup", fin);
+  btn.addEventListener("pointercancel", fin);
+}
+
+async function guardarEditorPortada() {
+  leerEditorPortada();
+  const sinFoto = portadaSlides.filter((s) => !s.foto);
+  if (sinFoto.length) {
+    alert("Cada flyer necesita una foto.");
+    return;
+  }
+  portadaSlides.forEach((s, i) => {
+    s.orden = i;
+  });
+  try {
+    await guardarPortada(portadaSlides);
+    renderEditorPortada();
+    alert("Portada guardada. Ya se ve en autodato.cl.");
+  } catch (e) {
+    alert(
+      (e && e.message) ||
+        "No se pudo guardar en la nube. Corre supabase/portada.sql en Supabase y vuelve a intentar."
+    );
+  }
+}
+
 $("btn-acceso").addEventListener("click", intentarAcceso);
 $("acceso-pin").addEventListener("keydown", (e) => {
   if (e.key === "Enter") intentarAcceso();
@@ -400,6 +523,7 @@ $("acceso-pin2").addEventListener("keydown", (e) => {
   if (e.key === "Enter") intentarAcceso();
 });
 
+$("btn-portada").addEventListener("click", abrirEditorPortada);
 $("btn-nuevo").addEventListener("click", nuevoServicio);
 $("btn-taller").addEventListener("click", () => {
   guardarTaller({
@@ -433,6 +557,24 @@ $("stage").addEventListener("click", (e) => {
   if (!t) return;
   if (t.id === "btn-guardar") guardarServicio();
   if (t.id === "btn-borrar") borrarServicio();
+  if (t.id === "btn-guardar-portada") guardarEditorPortada();
+  if (t.id === "btn-slide-add") {
+    leerEditorPortada();
+    portadaSlides.push(slideVacio(portadaSlides.length));
+    slideEditIndex = portadaSlides.length - 1;
+    renderEditorPortada();
+  }
+  if (t.id === "btn-slide-del") {
+    if (portadaSlides.length < 2) return;
+    portadaSlides.splice(slideEditIndex, 1);
+    slideEditIndex = Math.max(0, slideEditIndex - 1);
+    renderEditorPortada();
+  }
+  if (t.dataset.slide != null) {
+    leerEditorPortada();
+    slideEditIndex = Number(t.dataset.slide);
+    renderEditorPortada();
+  }
   if (t.id === "btn-add-combo") abrirCombo(-1);
   if (t.id === "btn-add-video") {
     leerEditor();
@@ -460,7 +602,21 @@ $("stage").addEventListener("click", (e) => {
   }
 });
 
+$("stage").addEventListener("input", (e) => {
+  if (e.target.id === "p-texto") {
+    slideActual().btn_texto = e.target.value.trim() || "Agregar al carrito";
+    if ($("portada-btn-drag")) $("portada-btn-drag").textContent = slideActual().btn_texto;
+  }
+});
+
 $("stage").addEventListener("change", async (e) => {
+  if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
+  if (e.target.id === "p-foto" && e.target.files[0]) {
+    let src = await leerImagen(e.target.files[0], 1800);
+    if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+    slideActual().foto = src;
+    renderEditorPortada();
+  }
   if (e.target.id === "e-foto" && e.target.files[0]) {
     leerEditor();
     let src = await leerImagen(e.target.files[0]);
