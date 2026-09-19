@@ -293,11 +293,12 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .home-foto {
-  width: 100%;
+  width: auto;
   height: 100%;
+  max-width: none;
   min-height: 0;
-  object-fit: cover;
-  object-position: 50% 50%;
+  object-fit: contain;
+  object-position: center;
   display: block;
   pointer-events: none;
 }

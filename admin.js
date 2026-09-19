@@ -428,7 +428,7 @@ function renderEditorPortada() {
   $("stage").innerHTML = `
     <article class="editor editor-portada">
       <h2>Configurar portada</h2>
-      <p class="muted">La izquierda es el celular. Arrastra la foto o el logo para moverlos. Estira ancho y alto por separado. El logo puede salir del marco amarillo. Los cuatro controles (carrito, puntos, dirección y WhatsApp) se mueven igual.</p>
+      <p class="muted">La izquierda es el celular. La foto se sube completa, sin recorte. Si es horizontal, arrástrala para elegir qué parte se ve en el formato vertical. Estira ancho y alto por separado. El logo puede salir del marco amarillo.</p>
       <div class="portada-thumbs" id="portada-thumbs">
         ${portadaSlides
           .map(
@@ -471,7 +471,7 @@ function renderEditorPortada() {
           </label>
           <label class="field">
             <span>Zoom</span>
-            <input id="p-zoom" type="range" min="100" max="280" step="2" value="${Math.round(s.zoom * 100)}" />
+            <input id="p-zoom" type="range" min="35" max="400" step="2" value="${Math.round(s.zoom * 100)}" />
           </label>
           <label class="field">
             <span>Estirar ancho</span>
@@ -498,7 +498,7 @@ function renderEditorPortada() {
           </label>
           <button class="btn-soft btn-block" type="button" id="btn-reset-logo">Centrar y resetear logo</button>
           <p class="hint">Arrastra el logo de la barra amarilla para moverlo. Puede salir hacia afuera del marco.</p>
-          <p class="hint">Arrastra la foto (el área negra) para moverla dentro del zoom. Arrastra cada botón o los puntos para ubicarlos.</p>
+          <p class="hint">Arrastra la foto para elegir el recorte. Baja el zoom si quieres verla completa. Arrastra cada botón o los puntos para ubicarlos.</p>
           <label class="check">
             <input id="p-boton" type="checkbox" ${s.mostrar_boton ? "checked" : ""} />
             Mostrar botón Agregar al carrito
@@ -596,8 +596,8 @@ function activarEditorImagen() {
     }
     if (modo === "foto" && img) {
       const r = caja.getBoundingClientRect();
-      s.off_x = Math.min(90, Math.max(-90, s.off_x + ((e.clientX - lastX) / r.width) * 100));
-      s.off_y = Math.min(90, Math.max(-90, s.off_y + ((e.clientY - lastY) / r.height) * 100));
+      s.off_x = Math.min(160, Math.max(-160, s.off_x + ((e.clientX - lastX) / r.width) * 100));
+      s.off_y = Math.min(160, Math.max(-160, s.off_y + ((e.clientY - lastY) / r.height) * 100));
       lastX = e.clientX;
       lastY = e.clientY;
       pintarFotoPortada();
@@ -873,7 +873,13 @@ $("stage").addEventListener("change", async (e) => {
   if (e.target.id === "p-foto" && e.target.files[0]) {
     let src = await leerImagen(e.target.files[0], 1800);
     if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
-    slideActual().foto = src;
+    const actual = slideActual();
+    actual.foto = src;
+    actual.zoom = 1;
+    actual.scale_x = 1;
+    actual.scale_y = 1;
+    actual.off_x = 0;
+    actual.off_y = 0;
     renderEditorPortada();
   }
   if (e.target.id === "e-foto" && e.target.files[0]) {

@@ -332,11 +332,11 @@ function normalizarSlide(s, i) {
     btn_texto: String((s && s.btn_texto) || "Agregar al carrito"),
     btn_x: clampNum(s && s.btn_x, 8, 92, 50),
     btn_y: clampNum(s && s.btn_y, 8, 92, 55),
-    zoom: clampNum(s && s.zoom, 1, 3, 1),
+    zoom: clampNum(s && s.zoom, 0.35, 4, 1),
     scale_x: clampNum(s && s.scale_x, 0.4, 3, 1),
     scale_y: clampNum(s && s.scale_y, 0.4, 3, 1),
-    off_x: clampNum(s && s.off_x, -90, 90, 0),
-    off_y: clampNum(s && s.off_y, -90, 90, 0),
+    off_x: clampNum(s && s.off_x, -160, 160, 0),
+    off_y: clampNum(s && s.off_y, -160, 160, 0),
     orden: Number(s && s.orden) || i,
     ...normalizarUi(s),
   };
@@ -359,12 +359,12 @@ function slideMuestraBoton(s) {
 }
 
 function estiloFotoPortada(s) {
-  const z = clampNum(s && s.zoom, 1, 3, 1);
+  const z = clampNum(s && s.zoom, 0.35, 4, 1);
   const sx = clampNum(s && s.scale_x, 0.4, 3, 1) * z;
   const sy = clampNum(s && s.scale_y, 0.4, 3, 1) * z;
-  const ox = clampNum(s && s.off_x, -90, 90, 0);
-  const oy = clampNum(s && s.off_y, -90, 90, 0);
-  return `position:absolute;left:50%;top:50%;width:100%;height:100%;object-fit:cover;transform:translate(-50%,-50%) translate(${ox}%,${oy}%) scale(${sx},${sy});`;
+  const ox = clampNum(s && s.off_x, -160, 160, 0);
+  const oy = clampNum(s && s.off_y, -160, 160, 0);
+  return `position:absolute;left:50%;top:50%;width:auto;height:100%;max-width:none;object-fit:contain;object-position:center;transform:translate(-50%,-50%) translate(${ox}%,${oy}%) scale(${sx},${sy});`;
 }
 
 function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {

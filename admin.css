@@ -367,6 +367,10 @@ button { font-family: inherit; cursor: pointer; }
 }
 .portada-lienzo:active { cursor: grabbing; }
 .portada-preview .home-foto {
+  width: auto;
+  height: 100%;
+  max-width: none;
+  object-fit: contain;
   pointer-events: none;
 }
 .portada-preview .vacio-foto {
