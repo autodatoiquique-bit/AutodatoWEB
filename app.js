@@ -1,14 +1,3 @@
-const MARCAS = ["Hyundai", "Kia", "Mazda", "Suzuki", "Nissan", "Toyota", "Mitsubishi", "Honda"];
-const MODELOS = {
-  Hyundai: ["Santa Fe", "Tucson", "Maxcruz", "Accent", "i30", "Elantra", "Porter", "Creta", "Veloster", "i40", "Palisade", "Otro"],
-  Kia: ["Sportage", "Sorento", "Soul", "Carnival", "Bongo", "Otro"],
-  Mitsubishi: ["Delica", "RVR"],
-  Nissan: ["Tiida", "Note"],
-  Toyota: ["Vitz"],
-  Mazda: ["Axela", "Demio", "CX3", "CX5"],
-  Suzuki: ["Otro"],
-  Honda: ["Otro"],
-};
 const ANIO_MIN = 2010;
 const ANIO_MAX = new Date().getFullYear();
 const BLOQUES = [
@@ -59,10 +48,6 @@ function anios() {
   const out = [];
   for (let y = ANIO_MAX; y >= ANIO_MIN; y -= 1) out.push(y);
   return out;
-}
-
-function modelosDe(marca) {
-  return MODELOS[marca] || ["Otro"];
 }
 
 function calcular(carrito = state.carrito) {
@@ -433,14 +418,21 @@ function htmlTarjetaOferta(s) {
   `;
 }
 
+function serviciosParaVehiculo(lista) {
+  return (lista || []).filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
+}
+
 function htmlListaCotizacion(titulo, lead, lista) {
   const hayCarro = state.carrito.some((x) => x.tipo === "oferta");
+  const vacio = vehiculoOk()
+    ? `<p class="muted">No hay servicios para ${textoVehiculo()}.</p>`
+    : `<p class="muted">Aún no hay servicios en esta sección.</p>`;
   return `
     <section class="panel claro">
       <h2>${titulo}</h2>
       <p class="lead">${hayCarro ? "Los servicios con etiqueta En carrito ya están seleccionados. En el resto ves el descuento de combo si aplica." : lead}</p>
       <div class="grid">
-        ${lista.length ? lista.map(htmlTarjetaOferta).join("") : `<p class="muted">Aún no hay servicios en esta sección.</p>`}
+        ${lista.length ? lista.map(htmlTarjetaOferta).join("") : vacio}
       </div>
     </section>
   `;
@@ -450,7 +442,7 @@ function renderOfertas() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Ofertas",
     "Promociones de ocasión. Las mantenciones regulares están en Mantención preventiva.",
-    serviciosOferta()
+    serviciosParaVehiculo(serviciosOferta())
   );
 }
 
@@ -458,7 +450,7 @@ function renderMantencion() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Mantención preventiva",
     "Listado de mantenciones. Si hay combo, el descuento aparece al armar la cotización.",
-    serviciosMantencion()
+    serviciosParaVehiculo(serviciosMantencion())
   );
 }
 
@@ -477,11 +469,11 @@ function renderDetalleOferta() {
   const p = precioPagado(s, ids.filter((id) => id !== s.id));
   const mostrarDesc = p.ahorro > 0;
   const idsComp = (s.complementos || []).map((c) => c.id);
-  const extras = serviciosCotizacion().filter((x) => x.id !== s.id);
+  const extras = serviciosParaVehiculo(serviciosCotizacion()).filter((x) => x.id !== s.id);
   const minisHtml = [
     ...(s.complementos || []).map((c) => {
       const extra = oferta(c.id);
-      return extra ? htmlMini(extra, c) : "";
+      return extra && servicioAplicaAVehiculo(extra, state.vehiculo) ? htmlMini(extra, c) : "";
     }),
     ...extras.filter((x) => !idsComp.includes(x.id)).map((x) => htmlMini(x)),
   ].join("");
@@ -537,7 +529,7 @@ function htmlCarruselServicio(s) {
       <div class="detalle-pista" id="detalle-pista">${media.map(htmlSlideMediaServicio).join("")}</div>
       ${
         media.length > 1
-          ? `<div class="home-dots detalle-dots">${media.map((_, i) => `<i class="${i === 0 ? "on" : ""}"></i>`).join("")}</div>`
+          ? `<div class="home-dots detalle-dots" style="left:${s.dots_x || 50}%;top:${s.dots_y || 88}%">${media.map((_, i) => `<i class="${i === 0 ? "on" : ""}"></i>`).join("")}</div>`
           : ""
       }
     </div>
@@ -646,7 +638,7 @@ function renderDiagnostico() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Diagnóstico automotriz",
     "Elige el diagnóstico. Se suma a la misma cotización que mantención y ofertas.",
-    serviciosDiagnostico()
+    serviciosParaVehiculo(serviciosDiagnostico())
   );
 }
 
@@ -918,8 +910,11 @@ function aplicarFiltro(contexto) {
     state.ofertaAbierta = state.ofertaPendiente;
     if (state.agregarTrasFiltro && state.ofertaPendiente) {
       const id = state.ofertaPendiente;
+      const s = oferta(id);
       state.agregarTrasFiltro = false;
-      if (!state.carrito.some((x) => x.id === id)) {
+      if (s && !servicioAplicaAVehiculo(s, state.vehiculo)) {
+        alert(`Esta oferta no aplica para ${textoVehiculo()}.`);
+      } else if (s && !state.carrito.some((x) => x.id === id)) {
         state.carrito.push({ tipo: "oferta", id });
         persistir();
         renderTotales(true);
@@ -945,6 +940,11 @@ function intentarAbrirOferta(id) {
   if (!vehiculoOk()) {
     state.vista = "filtro-oferta";
     renderVista();
+    return;
+  }
+  const s = oferta(id);
+  if (s && !servicioAplicaAVehiculo(s, state.vehiculo)) {
+    alert(`Este servicio no aplica para ${textoVehiculo()}.`);
     return;
   }
   state.ofertaAbierta = id;

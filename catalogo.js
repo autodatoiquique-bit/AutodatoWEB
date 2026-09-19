@@ -1,5 +1,59 @@
 const CATALOGO_KEY = "autodato_catalogo";
 
+const MARCAS = ["Hyundai", "Kia", "Mazda", "Suzuki", "Nissan", "Toyota", "Mitsubishi", "Honda"];
+const MODELOS = {
+  Hyundai: ["Santa Fe", "Tucson", "Maxcruz", "Accent", "i30", "Elantra", "Porter", "Creta", "Veloster", "i40", "Palisade", "Otro"],
+  Kia: ["Sportage", "Sorento", "Soul", "Carnival", "Bongo", "Otro"],
+  Mitsubishi: ["Delica", "RVR"],
+  Nissan: ["Tiida", "Note"],
+  Toyota: ["Vitz"],
+  Mazda: ["Axela", "Demio", "CX3", "CX5"],
+  Suzuki: ["Otro"],
+  Honda: ["Otro"],
+};
+
+function modelosDe(marca) {
+  return MODELOS[marca] || ["Otro"];
+}
+
+function claveVehiculo(marca, modelo) {
+  return `${marca}|${modelo}`;
+}
+
+function normalizarVehiculos(lista) {
+  if (!Array.isArray(lista)) return [];
+  return lista
+    .map((v) => {
+      if (typeof v === "string") {
+        const [marca, modelo] = v.split("|");
+        return marca && modelo ? { marca, modelo } : null;
+      }
+      if (v && v.marca && v.modelo) return { marca: String(v.marca), modelo: String(v.modelo) };
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function servicioAplicaAVehiculo(s, vehiculo) {
+  const destinos = normalizarVehiculos(s && s.vehiculos);
+  if (!destinos.length) return true;
+  if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) return true;
+  return destinos.some((v) => v.marca === vehiculo.marca && v.modelo === vehiculo.modelo);
+}
+
+function etiquetaVehiculos(s) {
+  const destinos = normalizarVehiculos(s && s.vehiculos);
+  if (!destinos.length) return "Todos los vehículos";
+  const porMarca = {};
+  destinos.forEach((v) => {
+    if (!porMarca[v.marca]) porMarca[v.marca] = [];
+    porMarca[v.marca].push(v.modelo);
+  });
+  return Object.keys(porMarca)
+    .map((marca) => `${marca} ${porMarca[marca].join(", ")}`)
+    .join(" · ");
+}
+
 const AGENDA_EXTRA = [
   { id: "cambio-aceite-agenda", nombre: "Cambio de aceite", precio: null, tipo: "agenda" },
 ];
@@ -214,6 +268,9 @@ function normalizarServicio(s) {
     tiene_oferta: tieneOferta(s),
     oferta_combo: s && (s.oferta_combo === true || s.oferta_combo === "si" || (s.oferta_combo == null && (s.complementos || []).length > 0)),
     precio_oferta: precioOfertaDe({ ...s, tiene_oferta: tieneOferta(s) }),
+    vehiculos: normalizarVehiculos(s && s.vehiculos),
+    dots_x: clampNum(s && s.dots_x, 6, 94, 50),
+    dots_y: clampNum(s && s.dots_y, 6, 94, 62),
   };
   return aplicarMediaServicio(base, mediaServicio(base));
 }

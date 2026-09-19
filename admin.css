@@ -46,7 +46,8 @@ button { font-family: inherit; cursor: pointer; }
 .split {
   display: grid;
   grid-template-columns: 300px 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -56,6 +57,8 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .logo-btn {
@@ -123,8 +126,11 @@ button { font-family: inherit; cursor: pointer; }
 
 .stage {
   background: var(--ofertas-bg);
-  padding: 28px;
-  overflow: auto;
+  padding: 16px 20px;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .vacio { color: var(--muted); }
@@ -271,7 +277,43 @@ button { font-family: inherit; cursor: pointer; }
   margin-top: 10px;
 }
 
-.editor-portada { max-width: 1080px; }
+.editor-portada {
+  max-width: none;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 18px;
+}
+.editor-head { flex: 0 0 auto; }
+.editor-head h2 { margin: 0 0 4px; }
+.editor-head .muted { margin: 0; }
+.editor-board {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+}
+.editor-phone-sticky { align-self: start; }
+.editor-fields {
+  overflow-y: auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 28px;
+  align-content: start;
+  padding-right: 6px;
+}
+.editor-fields-single {
+  grid-template-columns: 1fr;
+  max-width: 520px;
+}
+.editor-col { min-width: 0; }
+.editor-col h3 { margin: 18px 0 6px; }
+.editor-col .field textarea { min-height: 80px; }
 .portada-layout {
   display: grid;
   grid-template-columns: 360px 1fr;
@@ -279,6 +321,24 @@ button { font-family: inherit; cursor: pointer; }
   align-items: start;
   margin-top: 16px;
 }
+.veh-marca {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px 10px 8px;
+  margin-top: 8px;
+  background: #fff;
+}
+.veh-marca summary {
+  cursor: pointer;
+  font-weight: 800;
+  padding: 8px 0;
+}
+.veh-modelos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+.veh-marca .check { margin-top: 6px; font-weight: 600; }
 .portada-thumbs {
   display: flex;
   flex-wrap: wrap;
@@ -401,12 +461,14 @@ button { font-family: inherit; cursor: pointer; }
 .servicio-preview .precio-lista { color: #bbb; }
 .servicio-preview .precio-oferta { color: #7dffa3; font-weight: 800; font-size: 1.05rem; }
 .servicio-dots {
-  position: absolute;
-  left: 50%;
-  top: auto;
-  bottom: 218px;
-  transform: translateX(-50%);
   z-index: 6;
+  pointer-events: auto;
+}
+@media (max-height: 860px) {
+  .portada-preview.home-screen {
+    height: calc(100vh - 110px);
+    min-height: 520px;
+  }
 }
 .servicio-preview .portada-lienzo { bottom: 210px; }
 .servicio-preview .servicio-video {
@@ -555,7 +617,17 @@ button { font-family: inherit; cursor: pointer; }
 .canales .hint { margin: 4px 0 8px; font-weight: 500; }
 .canales .check { margin-top: 10px; }
 
-@media (max-width: 900px) {
+@media (max-width: 1280px) {
+  .editor-fields { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 980px) {
+  .split { height: auto; overflow: visible; }
+  .sidebar { overflow: visible; height: auto; }
+  .stage { overflow: auto; height: auto; }
+  .editor-portada { height: auto; }
+  .editor-board { grid-template-columns: 1fr; }
+  .editor-fields { overflow: visible; }
   .portada-layout { grid-template-columns: 1fr; }
 }
 

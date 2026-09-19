@@ -135,6 +135,9 @@ function servicioVacio() {
     precio_oferta: null,
     tiene_oferta: false,
     oferta_combo: false,
+    vehiculos: [],
+    dots_x: 50,
+    dots_y: 62,
     complementos: [],
     activo: true,
   };
@@ -152,7 +155,7 @@ function renderLista() {
           ${foto}
           <div>
             <strong>${s.nombre || "Sin nombre"}</strong>
-            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${(s.complementos || []).length} complementos</span>
+            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${etiquetaVehiculos(s)}</span>
           </div>
         </button>
       `;
@@ -184,6 +187,15 @@ function leerEditor() {
     if ($("e-alto")) m.scale_y = Number($("e-alto").value) / 100;
   }
   aplicarMediaServicio(editando, mediaEditando());
+  editando.vehiculos = leerVehiculosEditor();
+}
+
+function leerVehiculosEditor() {
+  if ($("e-veh-todos") && $("e-veh-todos").checked) return [];
+  return [...document.querySelectorAll("[data-veh]:checked")].map((el) => {
+    const [marca, modelo] = String(el.dataset.veh || "").split("|");
+    return marca && modelo ? { marca, modelo } : null;
+  }).filter(Boolean);
 }
 
 function mediaEditando() {
@@ -221,9 +233,44 @@ function htmlPreviewMedia(m) {
   return `<img class="home-foto" id="e-img" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" />`;
 }
 
-function htmlDotsMedia(n, on) {
+function htmlDotsMedia(n, on, s) {
   if (n < 2) return "";
-  return `<div class="home-dots servicio-dots">${Array.from({ length: n }, (_, i) => `<i class="${i === on ? "on" : ""}"></i>`).join("")}</div>`;
+  const x = s && s.dots_x != null ? s.dots_x : 50;
+  const y = s && s.dots_y != null ? s.dots_y : 62;
+  return `<div class="home-dots servicio-dots" data-drag="dots" style="left:${x}%;top:${y}%">${Array.from({ length: n }, (_, i) => `<i class="${i === on ? "on" : ""}"></i>`).join("")}</div>`;
+}
+
+function htmlVehiculosEditor(s) {
+  const sel = new Set(normalizarVehiculos(s && s.vehiculos).map((v) => claveVehiculo(v.marca, v.modelo)));
+  const todos = sel.size === 0;
+  const marcas = MARCAS.map((marca) => {
+    const modelos = modelosDe(marca);
+    const n = modelos.filter((m) => sel.has(claveVehiculo(marca, m))).length;
+    return `
+      <details class="veh-marca" ${todos ? "" : "open"}>
+        <summary>${marca}${n ? ` · ${n}` : ""}</summary>
+        <label class="check"><input type="checkbox" data-veh-marca="${marca}" ${n === modelos.length && modelos.length ? "checked" : ""} /> Toda la marca</label>
+        <div class="veh-modelos">
+          ${modelos
+            .map(
+              (m) =>
+                `<label class="check"><input type="checkbox" data-veh="${escapeAttr(claveVehiculo(marca, m))}" ${
+                  sel.has(claveVehiculo(marca, m)) ? "checked" : ""
+                } /> ${m}</label>`
+            )
+            .join("")}
+        </div>
+      </details>
+    `;
+  }).join("");
+  return `
+    <fieldset class="canales">
+      <legend>Para qué vehículos</legend>
+      <p class="hint">Este precio vale solo para los modelos que marques. Ejemplo: aceite 8 L para ciertos Hyundai y Kia. Si dejas todos, aparece para cualquier vehículo del taller.</p>
+      <label class="check"><input id="e-veh-todos" type="checkbox" ${todos ? "checked" : ""} /> Todos los vehículos que atiende el taller</label>
+      <div id="e-veh-lista" ${todos ? "hidden" : ""}>${marcas}</div>
+    </fieldset>
+  `;
 }
 
 function pintarPrecioPreview() {
@@ -258,17 +305,19 @@ function renderEditor() {
   if (lista.length && (mediaEditIndex < 0 || mediaEditIndex >= lista.length)) mediaEditIndex = 0;
   const m = mediaActual();
   $("stage").innerHTML = `
-    <article class="editor editor-portada">
-      <h2>${s.id ? "Editar servicio" : "Nuevo servicio"}</h2>
-      <p class="muted">La izquierda es el celular. Arrastra la foto para elegir el recorte. Los puntos aparecen si hay más de una imagen o video. El cliente los desliza igual.</p>
-      <div class="portada-layout">
-        <div class="portada-phone">
+    <article class="editor editor-portada editor-servicio">
+      <div class="editor-head">
+        <h2>${s.id ? "Editar servicio" : "Nuevo servicio"}</h2>
+        <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra la cápsula de puntos para ubicarla. Arrastra la foto para el recorte.</p>
+      </div>
+      <div class="editor-board">
+        <div class="portada-phone editor-phone-sticky">
           <div class="home-screen portada-preview servicio-preview" id="servicio-preview">
             <header class="home-logo">
               <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
             </header>
             <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}</div>
-            ${htmlDotsMedia(lista.length, mediaEditIndex)}
+            ${htmlDotsMedia(lista.length, mediaEditIndex, s)}
             <div class="servicio-copy">
               <h2 id="pv-nombre">${escapeText(s.nombre || "Nombre del servicio")}</h2>
               <p id="pv-resumen">${escapeText(s.resumen || "Resumen de la tarjeta")}</p>
@@ -281,59 +330,61 @@ function renderEditor() {
             ${htmlNavPortadaFalsa()}
           </div>
         </div>
-        <div>
-          <fieldset class="canales">
-            <legend>Dónde aparece este servicio</legend>
-            <p class="hint">Los tres menús arman una cotización. Ofertas es solo para promociones de ocasión.</p>
-            <label class="check"><input id="e-canal-ofertas" type="checkbox" ${s.canales && s.canales.ofertas ? "checked" : ""} /> Ofertas</label>
-            <label class="check"><input id="e-canal-mantencion" type="checkbox" ${s.canales && s.canales.mantencion ? "checked" : ""} /> Mantención preventiva</label>
-            <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
-          </fieldset>
-          <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
-          <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
-          <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
-          <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
-          <fieldset class="canales">
-            <legend>Criterio de la oferta</legend>
-            <p class="hint">Puedes marcar las dos. El cliente se queda con el precio más bajo que le corresponda. Ejemplo: refrigerante $90.000, esta semana $85.000, y si además lleva descarbonización baja a $50.000.</p>
-            <label class="check"><input id="e-oferta-fija" type="checkbox" ${s.tiene_oferta ? "checked" : ""} /> Oferta fija (descuento porque sí)</label>
-            <div id="e-oferta-wrap" ${s.tiene_oferta ? "" : "hidden"}>
-              <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null || Number(s.precio_oferta) <= 0 ? "" : s.precio_oferta}" /></label>
-            </div>
-            <label class="check"><input id="e-oferta-combo" type="checkbox" ${s.oferta_combo ? "checked" : ""} /> Oferta por complemento de servicio</label>
-            <p class="hint">La oferta fija vale siempre. La de complemento solo si el cliente lleva el otro servicio. Si aplican las dos, se usa la más conveniente.</p>
-          </fieldset>
-
-          <h3>Fotos y videos</h3>
-          <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
-          <div class="btn-row">
-            <button class="btn-line" type="button" id="btn-add-foto">Agregar foto</button>
-            <button class="btn-line" type="button" id="btn-add-video">Agregar video</button>
+        <div class="editor-fields">
+          <div class="editor-col">
+            <fieldset class="canales">
+              <legend>Dónde aparece este servicio</legend>
+              <p class="hint">Los tres menús arman una cotización. Ofertas es solo para promociones de ocasión.</p>
+              <label class="check"><input id="e-canal-ofertas" type="checkbox" ${s.canales && s.canales.ofertas ? "checked" : ""} /> Ofertas</label>
+              <label class="check"><input id="e-canal-mantencion" type="checkbox" ${s.canales && s.canales.mantencion ? "checked" : ""} /> Mantención preventiva</label>
+              <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
+            </fieldset>
+            <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
+            <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
+            <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
+            <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
+            <fieldset class="canales">
+              <legend>Criterio de la oferta</legend>
+              <p class="hint">Puedes marcar las dos. El cliente se queda con el precio más bajo que le corresponda. Ejemplo: refrigerante $90.000, esta semana $85.000, y si además lleva descarbonización baja a $50.000.</p>
+              <label class="check"><input id="e-oferta-fija" type="checkbox" ${s.tiene_oferta ? "checked" : ""} /> Oferta fija (descuento porque sí)</label>
+              <div id="e-oferta-wrap" ${s.tiene_oferta ? "" : "hidden"}>
+                <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null || Number(s.precio_oferta) <= 0 ? "" : s.precio_oferta}" /></label>
+              </div>
+              <label class="check"><input id="e-oferta-combo" type="checkbox" ${s.oferta_combo ? "checked" : ""} /> Oferta por complemento de servicio</label>
+              <p class="hint">La oferta fija vale siempre. La de complemento solo si el cliente lleva el otro servicio. Si aplican las dos, se usa la más conveniente.</p>
+            </fieldset>
+            ${htmlVehiculosEditor(s)}
           </div>
-          ${lista.length ? `<button class="btn-soft btn-block" type="button" id="btn-del-media">Quitar este</button>` : ""}
-          <input id="e-foto" type="file" accept="image/*" hidden />
-          <input id="e-galeria" type="file" accept="image/*" multiple hidden />
-          <input id="e-video-file" type="file" accept="video/mp4,video/webm,video/quicktime" hidden />
-          ${
-            m && m.tipo === "foto"
-              ? `<label class="field"><span>Zoom</span><input id="e-zoom" type="range" min="35" max="400" step="2" value="${Math.round(m.zoom * 100)}" /></label>
-                 <label class="field"><span>Estirar ancho</span><input id="e-ancho" type="range" min="40" max="250" step="2" value="${Math.round(m.scale_x * 100)}" /></label>
-                 <label class="field"><span>Estirar alto</span><input id="e-alto" type="range" min="40" max="250" step="2" value="${Math.round(m.scale_y * 100)}" /></label>
-                 <button class="btn-line btn-block" type="button" id="btn-reset-media">Centrar y resetear recorte</button>
-                 <p class="hint">Arrastra la foto en el celular para moverla. Si es horizontal, elige qué parte se ve.</p>`
-              : m && m.tipo === "video"
-                ? `<p class="hint">Video corto dentro de la ficha. El cliente lo reproduce ahí mismo, sin YouTube.</p>`
-                : ""
-          }
-
-          <h3>Servicios asociados</h3>
-          <p class="hint">Si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo que se hace en el mismo ingreso.</p>
-          <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
-          <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
-
-          <div class="btn-row">
-            <button class="btn-primary" type="button" id="btn-guardar">Guardar</button>
-            ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar">Eliminar</button>` : ""}
+          <div class="editor-col">
+            <h3>Fotos y videos</h3>
+            <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
+            <div class="btn-row">
+              <button class="btn-line" type="button" id="btn-add-foto">Agregar foto</button>
+              <button class="btn-line" type="button" id="btn-add-video">Agregar video</button>
+            </div>
+            ${lista.length ? `<button class="btn-soft btn-block" type="button" id="btn-del-media">Quitar este</button>` : ""}
+            <input id="e-foto" type="file" accept="image/*" hidden />
+            <input id="e-galeria" type="file" accept="image/*" multiple hidden />
+            <input id="e-video-file" type="file" accept="video/mp4,video/webm,video/quicktime" hidden />
+            ${
+              m && m.tipo === "foto"
+                ? `<label class="field"><span>Zoom</span><input id="e-zoom" type="range" min="35" max="400" step="2" value="${Math.round(m.zoom * 100)}" /></label>
+                   <label class="field"><span>Estirar ancho</span><input id="e-ancho" type="range" min="40" max="250" step="2" value="${Math.round(m.scale_x * 100)}" /></label>
+                   <label class="field"><span>Estirar alto</span><input id="e-alto" type="range" min="40" max="250" step="2" value="${Math.round(m.scale_y * 100)}" /></label>
+                   <button class="btn-line btn-block" type="button" id="btn-reset-media">Centrar y resetear recorte</button>
+                   <p class="hint">Arrastra la foto en el celular para moverla. Si es horizontal, elige qué parte se ve. Arrastra los puntos para ubicar la cápsula.</p>`
+                : m && m.tipo === "video"
+                  ? `<p class="hint">Video corto dentro de la ficha. El cliente lo reproduce ahí mismo, sin YouTube.</p>`
+                  : ""
+            }
+            <h3>Servicios asociados</h3>
+            <p class="hint">Si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo que se hace en el mismo ingreso.</p>
+            <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
+            <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
+            <div class="btn-row">
+              <button class="btn-primary" type="button" id="btn-guardar">Guardar</button>
+              ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar">Eliminar</button>` : ""}
+            </div>
           </div>
         </div>
       </div>
@@ -549,8 +600,30 @@ function renderEditorPortada() {
   const ofertas = serviciosCotizacion();
   $("stage").innerHTML = `
     <article class="editor editor-portada">
-      <h2>Configurar portada</h2>
-      <p class="muted">La izquierda es el celular. La foto se sube completa, sin recorte. Si es horizontal, arrástrala para elegir qué parte se ve en el formato vertical. Estira ancho y alto por separado. El logo puede salir del marco amarillo.</p>
+      <div class="editor-head">
+        <h2>Configurar portada</h2>
+        <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra foto, logo, botón y puntos.</p>
+      </div>
+      <div class="editor-board">
+        <div class="portada-phone editor-phone-sticky">
+          <div class="home-screen portada-preview" id="portada-preview">
+            <header class="home-logo">
+              <img data-logo id="p-logo" src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
+            </header>
+            <div class="portada-lienzo" id="portada-lienzo">
+              ${s.foto ? `<img class="home-foto" id="p-img" src="${s.foto}" alt="" style="${estiloFotoPortada(s)}" />` : `<div class="vacio-foto">Sube la foto para ajustar el recorte</div>`}
+            </div>
+            ${
+              s.mostrar_boton
+                ? `<button class="home-add portada-btn-drag" type="button" id="portada-btn-drag" style="left:${s.btn_x}%;top:${s.btn_y}%">${escapeText(s.btn_texto)}</button>`
+                : ""
+            }
+            ${htmlCapaPortada(portadaUi, portadaSlides.length, slideEditIndex, true)}
+            ${htmlNavPortadaFalsa()}
+          </div>
+        </div>
+        <div class="editor-fields editor-fields-single">
+          <div class="editor-col">
       <div class="portada-thumbs" id="portada-thumbs">
         ${portadaSlides
           .map(
@@ -568,25 +641,6 @@ function renderEditorPortada() {
         <button class="btn-line" type="button" id="btn-slide-add">Agregar flyer</button>
         ${portadaSlides.length > 1 ? `<button class="btn-soft" type="button" id="btn-slide-del">Quitar este</button>` : ""}
       </div>
-      <div class="portada-layout">
-        <div class="portada-phone">
-          <div class="home-screen portada-preview" id="portada-preview">
-            <header class="home-logo">
-              <img data-logo id="p-logo" src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
-            </header>
-            <div class="portada-lienzo" id="portada-lienzo">
-              ${s.foto ? `<img class="home-foto" id="p-img" src="${s.foto}" alt="" style="${estiloFotoPortada(s)}" />` : `<div class="vacio-foto">Sube la foto para ajustar el recorte</div>`}
-            </div>
-            ${
-              s.mostrar_boton
-                ? `<button class="home-add portada-btn-drag" type="button" id="portada-btn-drag" style="left:${s.btn_x}%;top:${s.btn_y}%">${escapeText(s.btn_texto)}</button>`
-                : ""
-            }
-            ${htmlCapaPortada(portadaUi, portadaSlides.length, slideEditIndex, true)}
-            ${htmlNavPortadaFalsa()}
-          </div>
-        </div>
-        <div>
           <label class="field">
             <span>Foto de este flyer</span>
             <input id="p-foto" type="file" accept="image/*" />
@@ -643,6 +697,7 @@ function renderEditorPortada() {
           <div class="btn-row">
             <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
           </div>
+          </div>
         </div>
       </div>
     </article>
@@ -680,36 +735,57 @@ function ubicarCapa(el, xKey, yKey, clientX, clientY) {
 function activarEditorMedia() {
   const caja = $("servicio-preview");
   const lienzo = $("e-lienzo");
-  const img = $("e-img");
-  if (!caja || !lienzo || !img) return;
+  const dots = caja ? caja.querySelector("[data-drag=\"dots\"]") : null;
+  if (!caja) return;
+  let modo = "";
   let lastX = 0;
   let lastY = 0;
-  let moviendo = false;
-  lienzo.addEventListener("pointerdown", (e) => {
-    const m = mediaActual();
-    if (!m || m.tipo !== "foto") return;
-    moviendo = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    lienzo.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  });
-  lienzo.addEventListener("pointermove", (e) => {
-    if (!moviendo) return;
-    const m = mediaActual();
-    if (!m || m.tipo !== "foto") return;
+  const mover = (e) => {
     const r = caja.getBoundingClientRect();
+    if (modo === "dots" && dots && editando) {
+      editando.dots_x = Math.min(94, Math.max(6, ((e.clientX - r.left) / r.width) * 100));
+      editando.dots_y = Math.min(94, Math.max(6, ((e.clientY - r.top) / r.height) * 100));
+      dots.style.left = `${editando.dots_x}%`;
+      dots.style.top = `${editando.dots_y}%`;
+      return;
+    }
+    if (modo !== "foto") return;
+    const m = mediaActual();
+    if (!m || m.tipo !== "foto") return;
     m.off_x = Math.min(160, Math.max(-160, m.off_x + ((e.clientX - lastX) / r.width) * 100));
     m.off_y = Math.min(160, Math.max(-160, m.off_y + ((e.clientY - lastY) / r.height) * 100));
     lastX = e.clientX;
     lastY = e.clientY;
     pintarFotoServicio();
-  });
-  const fin = () => {
-    moviendo = false;
   };
-  lienzo.addEventListener("pointerup", fin);
-  lienzo.addEventListener("pointercancel", fin);
+  const fin = () => {
+    modo = "";
+  };
+  if (dots) {
+    dots.addEventListener("pointerdown", (e) => {
+      modo = "dots";
+      dots.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    dots.addEventListener("pointermove", mover);
+    dots.addEventListener("pointerup", fin);
+    dots.addEventListener("pointercancel", fin);
+  }
+  if (lienzo) {
+    lienzo.addEventListener("pointerdown", (e) => {
+      const m = mediaActual();
+      if (!m || m.tipo !== "foto") return;
+      modo = "foto";
+      lastX = e.clientX;
+      lastY = e.clientY;
+      lienzo.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    lienzo.addEventListener("pointermove", mover);
+    lienzo.addEventListener("pointerup", fin);
+    lienzo.addEventListener("pointercancel", fin);
+  }
 }
 
 function activarEditorImagen() {
@@ -1071,6 +1147,30 @@ $("stage").addEventListener("change", async (e) => {
   if (e.target.id === "e-oferta-fija") {
     if ($("e-oferta-wrap")) $("e-oferta-wrap").hidden = !e.target.checked;
     pintarPrecioPreview();
+  }
+  if (e.target.id === "e-veh-todos") {
+    if ($("e-veh-lista")) $("e-veh-lista").hidden = e.target.checked;
+    if (e.target.checked) {
+      document.querySelectorAll("[data-veh], [data-veh-marca]").forEach((el) => {
+        el.checked = false;
+      });
+    }
+  }
+  if (e.target.dataset.vehMarca) {
+    const marca = e.target.dataset.vehMarca;
+    document.querySelectorAll(`[data-veh^="${marca}|"]`).forEach((el) => {
+      el.checked = e.target.checked;
+    });
+    if ($("e-veh-todos")) $("e-veh-todos").checked = false;
+    if ($("e-veh-lista")) $("e-veh-lista").hidden = false;
+  }
+  if (e.target.dataset.veh) {
+    const marca = String(e.target.dataset.veh).split("|")[0];
+    const boxes = [...document.querySelectorAll(`[data-veh^="${marca}|"]`)];
+    const brand = document.querySelector(`[data-veh-marca="${marca}"]`);
+    if (brand) brand.checked = boxes.length > 0 && boxes.every((b) => b.checked);
+    if ($("e-veh-todos")) $("e-veh-todos").checked = false;
+    if ($("e-veh-lista")) $("e-veh-lista").hidden = false;
   }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
   if (e.target.id === "p-foto" && e.target.files[0]) {

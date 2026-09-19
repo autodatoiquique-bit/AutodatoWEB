@@ -70,6 +70,9 @@ async function nubeGuardarCatalogoCanales(lista) {
       tiene_oferta: Boolean(s.tiene_oferta) && Number(s.precio_oferta) > 0,
       oferta_combo: Boolean(s.oferta_combo),
       precio_oferta: s.tiene_oferta && Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null,
+      dots_x: Number(s.dots_x) || 50,
+      dots_y: Number(s.dots_y) || 62,
+      vehiculos: Array.isArray(s.vehiculos) ? s.vehiculos : [],
     };
   });
   const { error } = await sb.storage.from("servicios").upload(
@@ -114,6 +117,9 @@ async function nubeLeerCatalogo() {
       if (extra[s.id].oferta_combo != null) s.oferta_combo = Boolean(extra[s.id].oferta_combo);
       if (Number(extra[s.id].precio_oferta) > 0) s.precio_oferta = Number(extra[s.id].precio_oferta);
       else s.precio_oferta = null;
+      if (extra[s.id].dots_x != null) s.dots_x = Number(extra[s.id].dots_x);
+      if (extra[s.id].dots_y != null) s.dots_y = Number(extra[s.id].dots_y);
+      if (extra[s.id].vehiculos) s.vehiculos = extra[s.id].vehiculos;
     }
     return s;
   });
