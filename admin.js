@@ -623,7 +623,7 @@ async function guardarEditorPortada() {
   } catch (e) {
     alert(
       (e && e.message) ||
-        "No se pudo guardar. Corre en Supabase el SQL nuevo de portada (scale_x, off_x, dir_x, etc.)."
+        "No se pudo guardar la portada. Reintenta o recarga el panel."
     );
   }
 }

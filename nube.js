@@ -126,15 +126,71 @@ async function nubeBuscarTicket(patente, telefono) {
   return data || null;
 }
 
+function extraPortada(s) {
+  return {
+    id: s.id,
+    mostrar_boton: Boolean(s.mostrar_boton),
+    zoom: Number(s.zoom) || 1,
+    scale_x: Number(s.scale_x) || 1,
+    scale_y: Number(s.scale_y) || 1,
+    off_x: Number(s.off_x) || 0,
+    off_y: Number(s.off_y) || 0,
+    btn_x: Number(s.btn_x) || 50,
+    btn_y: Number(s.btn_y) || 55,
+    dir_x: Number(s.dir_x) || 50,
+    dir_y: Number(s.dir_y) || 76,
+    wa_x: Number(s.wa_x) || 50,
+    wa_y: Number(s.wa_y) || 84,
+    dots_x: Number(s.dots_x) || 50,
+    dots_y: Number(s.dots_y) || 68,
+  };
+}
+
+async function nubeGuardarPortadaMeta(lista) {
+  const sb = clienteNube();
+  const cuerpo = JSON.stringify({
+    ui: typeof portadaUi !== "undefined" ? portadaUi : {},
+    slides: lista.map(extraPortada),
+  });
+  const { error } = await sb.storage.from("servicios").upload(
+    "portada-config.json",
+    new Blob([cuerpo], { type: "application/json" }),
+    { contentType: "application/json", upsert: true }
+  );
+  if (error) throw error;
+}
+
+async function nubeLeerPortadaMeta() {
+  const sb = clienteNube();
+  const { data, error } = await sb.storage.from("servicios").download("portada-config.json");
+  if (error || !data) return null;
+  return JSON.parse(await data.text());
+}
+
 async function nubeLeerPortada() {
   const sb = clienteNube();
   const { data, error } = await sb.from("portada_slides").select("*").order("orden");
   if (error) throw error;
-  return data || [];
+  let extra = null;
+  try {
+    extra = await nubeLeerPortadaMeta();
+  } catch (e) {
+    extra = null;
+  }
+  const byId = {};
+  ((extra && extra.slides) || []).forEach((s) => {
+    byId[s.id] = s;
+  });
+  return (data || []).map((row) => ({
+    ...row,
+    ...((extra && extra.ui) || {}),
+    ...(byId[row.id] || {}),
+  }));
 }
 
 async function nubeGuardarPortada(lista) {
   const sb = clienteNube();
+  await nubeGuardarPortadaMeta(lista);
   const { error: errorD } = await sb.from("portada_slides").delete().neq("id", "__none__");
   if (errorD) throw errorD;
   if (!lista.length) return;
@@ -145,21 +201,25 @@ async function nubeGuardarPortada(lista) {
     mostrar_boton: Boolean(s.mostrar_boton),
     btn_texto: s.btn_texto || "Agregar al carrito",
     btn_x: Number(s.btn_x) || 50,
-    btn_y: Number(s.btn_y) || 62,
+    btn_y: Number(s.btn_y) || 55,
     zoom: Number(s.zoom) || 1,
-    scale_x: Number(s.scale_x) || 1,
-    scale_y: Number(s.scale_y) || 1,
-    off_x: Number(s.off_x) || 0,
-    off_y: Number(s.off_y) || 0,
-    dir_x: Number(s.dir_x) || 50,
-    dir_y: Number(s.dir_y) || 76,
-    wa_x: Number(s.wa_x) || 50,
-    wa_y: Number(s.wa_y) || 84,
-    dots_x: Number(s.dots_x) || 50,
-    dots_y: Number(s.dots_y) || 68,
     orden: Number(s.orden) || i,
   }));
   const { error } = await sb.from("portada_slides").insert(rows);
+  if (error && /column|schema cache/i.test(String(error.message || ""))) {
+    const slim = lista.map((s, i) => ({
+      id: s.id,
+      foto: s.foto,
+      servicio_id: s.servicio_id || null,
+      btn_texto: s.btn_texto || "Agregar al carrito",
+      btn_x: Number(s.btn_x) || 50,
+      btn_y: Number(s.btn_y) || 55,
+      orden: Number(s.orden) || i,
+    }));
+    const retry = await sb.from("portada_slides").insert(slim);
+    if (retry.error) throw retry.error;
+    return;
+  }
   if (error) throw error;
 }
 

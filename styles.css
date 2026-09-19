@@ -311,34 +311,40 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .home-add {
-  border: 0;
+  border: 2px solid #111;
   border-radius: 999px;
-  padding: 12px 18px;
+  padding: 10px 16px;
   background: var(--yellow);
   color: var(--ink);
   font-weight: 800;
   font-size: 0.92rem;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
   white-space: nowrap;
 }
 
 .home-dots {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 2px solid #111;
+  background: #fff;
   pointer-events: none;
   z-index: 6;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
 }
 .home-dots i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.7);
+  background: #cfcfcf;
   transition: transform 0.2s ease, background 0.2s ease;
 }
 .home-dots i.on {
-  background: #ffd000;
-  transform: scale(1.65);
+  background: #111;
+  transform: scale(1.55);
 }
 @keyframes dots-hint {
   0%, 100% { transform: translate(-50%, -50%); }
@@ -358,7 +364,8 @@ button { font-family: inherit; cursor: pointer; }
   text-decoration: none;
   font-weight: 800;
   font-size: 0.86rem;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  border: 2px solid #111;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
   background: #fff;
   color: #111;
   white-space: nowrap;
