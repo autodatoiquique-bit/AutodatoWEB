@@ -133,6 +133,7 @@ function servicioVacio() {
     media: [],
     precio: 0,
     precio_oferta: null,
+    tiene_oferta: false,
     complementos: [],
     activo: true,
   };
@@ -171,8 +172,9 @@ function leerEditor() {
   editando.detalle = $("e-detalle").value.trim();
   const precio = $("e-precio").value;
   editando.precio = precio === "" ? null : Number(precio);
+  editando.tiene_oferta = $("e-tiene-oferta") ? $("e-tiene-oferta").value === "si" : false;
   const oferta = $("e-precio-oferta") ? $("e-precio-oferta").value : "";
-  editando.precio_oferta = oferta === "" ? null : Number(oferta);
+  editando.precio_oferta = editando.tiene_oferta && oferta !== "" ? Number(oferta) : null;
   const m = mediaActual();
   if (m && m.tipo === "foto") {
     if ($("e-zoom")) m.zoom = Number($("e-zoom").value) / 100;
@@ -220,6 +222,17 @@ function htmlPreviewMedia(m) {
 function htmlDotsMedia(n, on) {
   if (n < 2) return "";
   return `<div class="home-dots servicio-dots">${Array.from({ length: n }, (_, i) => `<i class="${i === on ? "on" : ""}"></i>`).join("")}</div>`;
+}
+
+function pintarPrecioPreview() {
+  if (!$("pv-precios") || !editando) return;
+  const dummy = {
+    ...editando,
+    precio: $("e-precio") && $("e-precio").value !== "" ? Number($("e-precio").value) : null,
+    tiene_oferta: $("e-tiene-oferta") ? $("e-tiene-oferta").value === "si" : false,
+    precio_oferta: $("e-precio-oferta") && $("e-precio-oferta").value !== "" ? Number($("e-precio-oferta").value) : null,
+  };
+  $("pv-precios").innerHTML = htmlPrecioPreview(dummy);
 }
 
 function htmlPrecioPreview(s) {
@@ -278,8 +291,17 @@ function renderEditor() {
           <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
           <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
           <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
-          <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null ? "" : s.precio_oferta}" /></label>
-          <p class="hint">Si hay precio oferta, el cliente ve el valor anterior tachado y el ahorro se suma arriba en Total carrito y Total ahorrado.</p>
+          <label class="field">
+            <span>¿Este servicio tiene oferta?</span>
+            <select id="e-tiene-oferta">
+              <option value="no" ${s.tiene_oferta ? "" : "selected"}>No</option>
+              <option value="si" ${s.tiene_oferta ? "selected" : ""}>Sí, tiene oferta</option>
+            </select>
+          </label>
+          <div id="e-oferta-wrap" ${s.tiene_oferta ? "" : "hidden"}>
+            <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null ? "" : s.precio_oferta}" /></label>
+            <p class="hint">El cliente ve el valor normal tachado y el ahorro se suma arriba en Total carrito y Total ahorrado.</p>
+          </div>
 
           <h3>Fotos y videos</h3>
           <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
@@ -370,6 +392,14 @@ async function guardarServicio() {
   }
   if (!editando.canales.ofertas && !editando.canales.mantencion && !editando.canales.diagnostico) {
     alert("Marca al menos un menú: Ofertas, Mantención preventiva o Diagnóstico automotriz.");
+    return;
+  }
+  if (editando.tiene_oferta && (editando.precio_oferta == null || Number.isNaN(editando.precio_oferta))) {
+    alert("Si el servicio tiene oferta, escribe el precio oferta.");
+    return;
+  }
+  if (editando.tiene_oferta && editando.precio != null && editando.precio_oferta >= editando.precio) {
+    alert("El precio oferta tiene que ser menor que el valor normal.");
     return;
   }
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
@@ -1016,14 +1046,7 @@ $("stage").addEventListener("input", (e) => {
   if (e.target.id === "e-nombre" && $("pv-nombre")) $("pv-nombre").textContent = e.target.value || "Nombre del servicio";
   if (e.target.id === "e-resumen" && $("pv-resumen")) $("pv-resumen").textContent = e.target.value || "Resumen de la tarjeta";
   if (e.target.id === "e-detalle" && $("pv-detalle")) $("pv-detalle").textContent = e.target.value || "La descripción se ve aquí, como en el celular.";
-  if ((e.target.id === "e-precio" || e.target.id === "e-precio-oferta") && $("pv-precios") && editando) {
-    const dummy = {
-      ...editando,
-      precio: $("e-precio") && $("e-precio").value !== "" ? Number($("e-precio").value) : null,
-      precio_oferta: $("e-precio-oferta") && $("e-precio-oferta").value !== "" ? Number($("e-precio-oferta").value) : null,
-    };
-    $("pv-precios").innerHTML = htmlPrecioPreview(dummy);
-  }
+  if (e.target.id === "e-precio" || e.target.id === "e-precio-oferta") pintarPrecioPreview();
 });
 
 $("stage").addEventListener("change", async (e) => {
@@ -1042,6 +1065,10 @@ $("stage").addEventListener("change", async (e) => {
   if (e.target.id === "p-boton") {
     slideActual().mostrar_boton = e.target.checked;
     renderEditorPortada();
+  }
+  if (e.target.id === "e-tiene-oferta") {
+    if ($("e-oferta-wrap")) $("e-oferta-wrap").hidden = e.target.value !== "si";
+    pintarPrecioPreview();
   }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
   if (e.target.id === "p-foto" && e.target.files[0]) {

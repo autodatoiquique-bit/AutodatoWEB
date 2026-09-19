@@ -211,7 +211,8 @@ function normalizarServicio(s) {
     ...s,
     canales,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
-    precio_oferta: precioOfertaDe(s),
+    tiene_oferta: tieneOferta(s),
+    precio_oferta: precioOfertaDe({ ...s, tiene_oferta: tieneOferta(s) }),
   };
   return aplicarMediaServicio(base, mediaServicio(base));
 }
@@ -562,7 +563,15 @@ function waMostrar() {
   return `+${d}`;
 }
 
+function tieneOferta(item) {
+  if (!item) return false;
+  if (item.tiene_oferta === false || item.tiene_oferta === "no" || item.tiene_oferta === "false") return false;
+  if (item.tiene_oferta === true || item.tiene_oferta === "si" || item.tiene_oferta === "true") return true;
+  return item.precio_oferta != null && item.precio_oferta !== "";
+}
+
 function precioOfertaDe(item) {
+  if (!tieneOferta(item)) return null;
   const v = Number(item && item.precio_oferta);
   if (!Number.isFinite(v) || v < 0) return null;
   if (item && item.precio != null && v >= Number(item.precio)) return null;
