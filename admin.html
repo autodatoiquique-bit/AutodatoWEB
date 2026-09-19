@@ -12,7 +12,7 @@
 <body>
   <div id="acceso" class="acceso">
     <div class="acceso-card">
-      <img src="imagenes/logo.jpg" alt="AutoDato" />
+      <img data-logo src="imagenes/logo.jpg" alt="AutoDato" />
       <h1>Panel interno</h1>
       <p id="acceso-texto" class="muted"></p>
       <label class="field" id="acceso-email-wrap" hidden>
@@ -34,7 +34,12 @@
 
   <div id="panel" class="split" hidden>
     <aside class="sidebar">
-      <div class="logo-btn"><img src="imagenes/logo.jpg" alt="AutoDato" /></div>
+      <div class="logo-btn" id="logo-wrap">
+        <img data-logo src="imagenes/logo.jpg" alt="AutoDato" />
+        <button class="logo-lapiz" type="button" id="btn-logo-lapiz" title="Cambiar logotipo" aria-label="Cambiar logotipo">✎</button>
+      </div>
+      <input id="logo-file" type="file" accept="image/*" hidden />
+      <button class="btn-soft btn-block" type="button" id="btn-cambiar-logo">Cambiar logotipo</button>
       <p class="sidebar-kicker">Solo taller</p>
       <div class="taller-box">
         <label class="field">

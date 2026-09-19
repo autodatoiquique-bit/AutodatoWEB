@@ -63,6 +63,8 @@ async function mostrarPanel() {
   $("acceso").hidden = true;
   $("panel").hidden = false;
   await cargarCatalogo();
+  await cargarPortada();
+  aplicarLogos();
   pintarTaller();
   renderLista();
   if (editando) renderEditor();
@@ -426,7 +428,7 @@ function renderEditorPortada() {
   $("stage").innerHTML = `
     <article class="editor editor-portada">
       <h2>Configurar portada</h2>
-      <p class="muted">La izquierda es el celular. Arrastra la foto para desplazarla. Estira ancho y alto por separado. Los cuatro controles (carrito, puntos, dirección y WhatsApp) se mueven igual.</p>
+      <p class="muted">La izquierda es el celular. Arrastra la foto o el logo para moverlos. Estira ancho y alto por separado. El logo puede salir del marco amarillo. Los cuatro controles (carrito, puntos, dirección y WhatsApp) se mueven igual.</p>
       <div class="portada-thumbs" id="portada-thumbs">
         ${portadaSlides
           .map(
@@ -447,6 +449,9 @@ function renderEditorPortada() {
       <div class="portada-layout">
         <div class="portada-phone">
           <div class="home-screen portada-preview" id="portada-preview">
+            <header class="home-logo">
+              <img data-logo id="p-logo" src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
+            </header>
             <div class="portada-lienzo" id="portada-lienzo">
               ${s.foto ? `<img class="home-foto" id="p-img" src="${s.foto}" alt="" style="${estiloFotoPortada(s)}" />` : `<div class="vacio-foto">Sube la foto para ajustar el recorte</div>`}
             </div>
@@ -477,6 +482,22 @@ function renderEditorPortada() {
             <input id="p-alto" type="range" min="40" max="250" step="2" value="${Math.round(s.scale_y * 100)}" />
           </label>
           <button class="btn-line btn-block" type="button" id="btn-reset-foto">Centrar y resetear recorte</button>
+          <h3>Logotipo</h3>
+          <button class="btn-line btn-block" type="button" id="btn-cambiar-logo-editor">Cambiar logotipo</button>
+          <label class="field">
+            <span>Zoom del logo</span>
+            <input id="p-logo-zoom" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_zoom * 100)}" />
+          </label>
+          <label class="field">
+            <span>Estirar logo (ancho)</span>
+            <input id="p-logo-ancho" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_scale_x * 100)}" />
+          </label>
+          <label class="field">
+            <span>Estirar logo (alto)</span>
+            <input id="p-logo-alto" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_scale_y * 100)}" />
+          </label>
+          <button class="btn-soft btn-block" type="button" id="btn-reset-logo">Centrar y resetear logo</button>
+          <p class="hint">Arrastra el logo de la barra amarilla para moverlo. Puede salir hacia afuera del marco.</p>
           <p class="hint">Arrastra la foto (el área negra) para moverla dentro del zoom. Arrastra cada botón o los puntos para ubicarlos.</p>
           <label class="check">
             <input id="p-boton" type="checkbox" ${s.mostrar_boton ? "checked" : ""} />
@@ -515,6 +536,13 @@ function leerEditorPortada() {
   if ($("p-zoom")) s.zoom = Number($("p-zoom").value) / 100;
   if ($("p-ancho")) s.scale_x = Number($("p-ancho").value) / 100;
   if ($("p-alto")) s.scale_y = Number($("p-alto").value) / 100;
+  if ($("p-logo-zoom")) portadaUi.logo_zoom = Number($("p-logo-zoom").value) / 100;
+  if ($("p-logo-ancho")) portadaUi.logo_scale_x = Number($("p-logo-ancho").value) / 100;
+  if ($("p-logo-alto")) portadaUi.logo_scale_y = Number($("p-logo-alto").value) / 100;
+}
+
+function pintarLogoPortada() {
+  aplicarLogos();
 }
 
 function ubicarCapa(el, xKey, yKey, clientX, clientY) {
@@ -557,6 +585,15 @@ function activarEditorImagen() {
       ubicarCapa(el, capas[modo][0], capas[modo][1], e.clientX, e.clientY);
       return;
     }
+    if (modo === "logo") {
+      const r = caja.getBoundingClientRect();
+      portadaUi.logo_off_x = Math.min(120, Math.max(-120, portadaUi.logo_off_x + ((e.clientX - lastX) / r.width) * 100));
+      portadaUi.logo_off_y = Math.min(120, Math.max(-120, portadaUi.logo_off_y + ((e.clientY - lastY) / r.height) * 100));
+      lastX = e.clientX;
+      lastY = e.clientY;
+      pintarLogoPortada();
+      return;
+    }
     if (modo === "foto" && img) {
       const r = caja.getBoundingClientRect();
       s.off_x = Math.min(90, Math.max(-90, s.off_x + ((e.clientX - lastX) / r.width) * 100));
@@ -581,6 +618,20 @@ function activarEditorImagen() {
     el.addEventListener("pointerup", fin);
     el.addEventListener("pointercancel", fin);
   };
+  const logo = $("p-logo");
+  if (logo) {
+    logo.addEventListener("pointerdown", (e) => {
+      modo = "logo";
+      lastX = e.clientX;
+      lastY = e.clientY;
+      logo.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    logo.addEventListener("pointermove", mover);
+    logo.addEventListener("pointerup", fin);
+    logo.addEventListener("pointercancel", fin);
+  }
   prender($("portada-btn-drag"), "btn");
   Object.keys(capas).forEach((name) => prender(caja.querySelector(`[data-drag="${name}"]`), name));
   caja.querySelectorAll("[data-drag]").forEach((el) => {
@@ -636,6 +687,39 @@ $("acceso-pin2").addEventListener("keydown", (e) => {
   if (e.key === "Enter") intentarAcceso();
 });
 
+async function cambiarLogotipo(file) {
+  if (!file) return;
+  if (!portadaSlides.length) await cargarPortada();
+  let src = await leerImagen(file, 1400);
+  if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+  portadaUi.logo = src;
+  pintarLogoPortada();
+  try {
+    if (portadaSlides.length) await guardarPortada(portadaSlides);
+  } catch (e) {
+    if (typeof nubeGuardarPortadaMeta === "function" && portadaSlides.length) {
+      try {
+        await nubeGuardarPortadaMeta(portadaSlides);
+      } catch (e2) {
+        /* ignore */
+      }
+    }
+  }
+}
+
+function abrirSelectorLogo() {
+  $("logo-file")?.click();
+}
+
+$("btn-logo-lapiz")?.addEventListener("click", abrirSelectorLogo);
+$("btn-cambiar-logo")?.addEventListener("click", abrirSelectorLogo);
+$("logo-file")?.addEventListener("change", async (e) => {
+  if (e.target.files[0]) {
+    await cambiarLogotipo(e.target.files[0]);
+    e.target.value = "";
+  }
+});
+
 $("btn-portada").addEventListener("click", abrirEditorPortada);
 $("btn-nuevo").addEventListener("click", nuevoServicio);
 $("btn-taller").addEventListener("click", () => {
@@ -671,6 +755,19 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-guardar") guardarServicio();
   if (t.id === "btn-borrar") borrarServicio();
   if (t.id === "btn-guardar-portada") guardarEditorPortada();
+  if (t.id === "btn-cambiar-logo-editor") {
+    $("logo-file")?.click();
+    return;
+  }
+  if (t.id === "btn-reset-logo") {
+    portadaUi.logo_zoom = 1;
+    portadaUi.logo_scale_x = 1;
+    portadaUi.logo_scale_y = 1;
+    portadaUi.logo_off_x = 0;
+    portadaUi.logo_off_y = 0;
+    renderEditorPortada();
+    return;
+  }
   if (t.id === "btn-reset-foto") {
     const s = slideActual();
     s.zoom = 1;
@@ -741,6 +838,18 @@ $("stage").addEventListener("input", (e) => {
     slideActual().scale_y = Number(e.target.value) / 100;
     pintarFotoPortada();
   }
+  if (e.target.id === "p-logo-zoom") {
+    portadaUi.logo_zoom = Number(e.target.value) / 100;
+    pintarLogoPortada();
+  }
+  if (e.target.id === "p-logo-ancho") {
+    portadaUi.logo_scale_x = Number(e.target.value) / 100;
+    pintarLogoPortada();
+  }
+  if (e.target.id === "p-logo-alto") {
+    portadaUi.logo_scale_y = Number(e.target.value) / 100;
+    pintarLogoPortada();
+  }
 });
 
 $("stage").addEventListener("change", async (e) => {
@@ -801,6 +910,12 @@ $("acceso-email")?.addEventListener("keydown", (e) => {
 });
 
 async function arrancarAdmin() {
+  try {
+    await cargarPortada();
+    aplicarLogos();
+  } catch (e) {
+    /* ignore */
+  }
   if (typeof nubeActiva === "function" && nubeActiva()) {
     if (await nubeSesion()) await mostrarPanel();
     else mostrarAcceso();

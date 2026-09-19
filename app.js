@@ -378,7 +378,7 @@ function renderPortada() {
   $("stage").innerHTML = `
     <section class="home-screen">
       <header class="home-logo">
-        <img src="imagenes/logo.jpg" alt="AutoDato" />
+        <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
       </header>
       <div class="home-slides" id="home-slides">${pista.map(htmlSlidePortada).join("")}</div>
       ${htmlCapaPortada(portadaUi, lista.length, 0, false)}
@@ -1122,7 +1122,7 @@ function abrirTicket(payload) {
   $("ticket-contenido").innerHTML = `
     <div id="ticket-sheet" class="ticket-sheet">
       <div class="ticket-head">
-        <img src="imagenes/logo.jpg" alt="AutoDato" />
+        <img data-logo src="${logoHref()}" alt="AutoDato" />
       </div>
       <div class="ticket-body">
         <p class="muted">Ticket de visita</p>
@@ -1411,6 +1411,7 @@ $("btn-abrir-informe").addEventListener("click", async () => {
 window.addEventListener("focus", async () => {
   await cargarCatalogo();
   await cargarPortada();
+  aplicarLogos();
   renderVista({ quedarse: true });
   renderTotales(false);
 });
@@ -1418,6 +1419,7 @@ window.addEventListener("focus", async () => {
 async function arrancar() {
   await cargarCatalogo();
   await cargarPortada();
+  aplicarLogos();
   hidratar();
   renderVista({ quedarse: true });
   renderTotales(false);

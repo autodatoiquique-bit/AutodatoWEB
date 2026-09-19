@@ -258,6 +258,8 @@ const PORTADA_DEFECTO = [
 ];
 
 let portadaSlides = [];
+const LOGO_DEFECTO = "imagenes/logo.jpg";
+
 let portadaUi = {
   dir_x: 50,
   dir_y: 76,
@@ -265,6 +267,12 @@ let portadaUi = {
   wa_y: 84,
   dots_x: 50,
   dots_y: 68,
+  logo: LOGO_DEFECTO,
+  logo_zoom: 1,
+  logo_scale_x: 1,
+  logo_scale_y: 1,
+  logo_off_x: 0,
+  logo_off_y: 0,
 };
 
 function clampNum(n, min, max, def) {
@@ -281,7 +289,36 @@ function normalizarUi(s) {
     wa_y: clampNum(s && s.wa_y, 6, 94, 84),
     dots_x: clampNum(s && s.dots_x, 6, 94, 50),
     dots_y: clampNum(s && s.dots_y, 6, 94, 68),
+    logo: String((s && s.logo) || LOGO_DEFECTO),
+    logo_zoom: clampNum(s && s.logo_zoom, 0.3, 3, 1),
+    logo_scale_x: clampNum(s && s.logo_scale_x, 0.3, 3, 1),
+    logo_scale_y: clampNum(s && s.logo_scale_y, 0.3, 3, 1),
+    logo_off_x: clampNum(s && s.logo_off_x, -120, 120, 0),
+    logo_off_y: clampNum(s && s.logo_off_y, -120, 120, 0),
   };
+}
+
+function logoHref() {
+  return (portadaUi && portadaUi.logo) || LOGO_DEFECTO;
+}
+
+function estiloLogoPortada(ui) {
+  const u = ui || portadaUi;
+  const z = clampNum(u && u.logo_zoom, 0.3, 3, 1);
+  const sx = clampNum(u && u.logo_scale_x, 0.3, 3, 1) * z;
+  const sy = clampNum(u && u.logo_scale_y, 0.3, 3, 1) * z;
+  const ox = clampNum(u && u.logo_off_x, -120, 120, 0);
+  const oy = clampNum(u && u.logo_off_y, -120, 120, 0);
+  return `transform:translate(-50%,-50%) translate(${ox}%,${oy}%) scale(${sx},${sy});`;
+}
+
+function aplicarLogos() {
+  const src = logoHref();
+  const estilo = estiloLogoPortada(portadaUi);
+  document.querySelectorAll("[data-logo]").forEach((img) => {
+    img.src = src;
+    if (img.closest(".home-logo")) img.style.cssText = estilo;
+  });
 }
 
 function normalizarSlide(s, i) {
