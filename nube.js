@@ -47,6 +47,7 @@ function filaAServicio(row, comps) {
     galeria: row.galeria || [],
     videos: row.videos || [],
     precio: row.precio,
+    precio_oferta: row.precio_oferta == null ? null : Number(row.precio_oferta),
     activo: row.activo !== false,
     canales: row.canales || null,
     complementos: (comps || [])
@@ -63,7 +64,11 @@ async function nubeGuardarCatalogoCanales(lista) {
   const sb = clienteNube();
   const mapa = {};
   (lista || []).forEach((s) => {
-    mapa[s.id] = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
+    const canales = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
+    mapa[s.id] = {
+      ...canales,
+      precio_oferta: s.precio_oferta == null || s.precio_oferta === "" ? null : Number(s.precio_oferta),
+    };
   });
   const { error } = await sb.storage.from("servicios").upload(
     "catalogo-canales.json",
@@ -101,7 +106,12 @@ async function nubeLeerCatalogo() {
   }
   return (rows || []).map((row) => {
     const s = filaAServicio(row, comps || []);
-    if (extra && extra[s.id]) s.canales = extra[s.id];
+    if (extra && extra[s.id]) {
+      s.canales = extra[s.id];
+      if (extra[s.id].precio_oferta != null && extra[s.id].precio_oferta !== "") {
+        s.precio_oferta = Number(extra[s.id].precio_oferta);
+      }
+    }
     return s;
   });
 }

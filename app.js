@@ -425,7 +425,7 @@ function htmlTarjetaOferta(s) {
             ? `<div class="precio-lista tachado">${clp(s.precio)}</div>
                <div class="precio-card-oferta">${clp(p.pagado)}</div>
                <div class="ahorro-tag">Ahorras ${clp(p.ahorro)}</div>
-               ${p.regla ? `<p class="card-combo">${p.regla.etiqueta}</p>` : ""}`
+               ${p.regla && p.regla.si ? `<p class="card-combo">${p.regla.etiqueta}</p>` : ""}`
             : `<div class="precio">${clp(s.precio)}</div>`
         }
       </div>
@@ -475,7 +475,7 @@ function renderDetalleOferta() {
   const enCarro = state.carrito.some((x) => x.id === s.id);
   const ids = state.carrito.map((x) => x.id);
   const p = precioPagado(s, ids.filter((id) => id !== s.id));
-  const mostrarDesc = state.carrito.length > 0 && p.ahorro > 0;
+  const mostrarDesc = p.ahorro > 0;
   const idsComp = (s.complementos || []).map((c) => c.id);
   const extras = serviciosCotizacion().filter((x) => x.id !== s.id);
   const minisHtml = [

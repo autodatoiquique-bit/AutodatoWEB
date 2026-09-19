@@ -211,6 +211,7 @@ function normalizarServicio(s) {
     ...s,
     canales,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
+    precio_oferta: precioOfertaDe(s),
   };
   return aplicarMediaServicio(base, mediaServicio(base));
 }
@@ -561,12 +562,24 @@ function waMostrar() {
   return `+${d}`;
 }
 
+function precioOfertaDe(item) {
+  const v = Number(item && item.precio_oferta);
+  if (!Number.isFinite(v) || v < 0) return null;
+  if (item && item.precio != null && v >= Number(item.precio)) return null;
+  return v;
+}
+
 function precioPagado(item, idsCarrito) {
   if (!item || item.precio == null) return { lista: null, pagado: null, ahorro: 0, regla: null };
   let pagado = item.precio;
   let regla = null;
+  const oferta = precioOfertaDe(item);
+  if (oferta != null) {
+    pagado = oferta;
+    regla = { etiqueta: "oferta", precio: oferta };
+  }
   reglasComboDe(item.id).forEach((d) => {
-    if (idsCarrito.includes(d.si) && d.precio < pagado) {
+    if ((idsCarrito || []).includes(d.si) && d.precio < pagado) {
       pagado = d.precio;
       regla = d;
     }

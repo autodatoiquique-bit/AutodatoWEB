@@ -132,6 +132,7 @@ function servicioVacio() {
     videos: [],
     media: [],
     precio: 0,
+    precio_oferta: null,
     complementos: [],
     activo: true,
   };
@@ -170,6 +171,8 @@ function leerEditor() {
   editando.detalle = $("e-detalle").value.trim();
   const precio = $("e-precio").value;
   editando.precio = precio === "" ? null : Number(precio);
+  const oferta = $("e-precio-oferta") ? $("e-precio-oferta").value : "";
+  editando.precio_oferta = oferta === "" ? null : Number(oferta);
   const m = mediaActual();
   if (m && m.tipo === "foto") {
     if ($("e-zoom")) m.zoom = Number($("e-zoom").value) / 100;
@@ -219,6 +222,14 @@ function htmlDotsMedia(n, on) {
   return `<div class="home-dots servicio-dots">${Array.from({ length: n }, (_, i) => `<i class="${i === on ? "on" : ""}"></i>`).join("")}</div>`;
 }
 
+function htmlPrecioPreview(s) {
+  const p = typeof precioPagado === "function" ? precioPagado(s, []) : { lista: s.precio, pagado: s.precio, ahorro: 0 };
+  if (p.ahorro > 0) {
+    return `<div class="precio-lista tachado">${clp(p.lista)}</div><div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)}</div>`;
+  }
+  return `<div class="precio">${clp(s.precio)}</div>`;
+}
+
 function pintarFotoServicio() {
   const img = $("e-img");
   const m = mediaActual();
@@ -248,7 +259,7 @@ function renderEditor() {
               <p id="pv-resumen">${escapeText(s.resumen || "Resumen de la tarjeta")}</p>
               <p class="lead" id="pv-detalle">${escapeText(s.detalle || "La descripción se ve aquí, como en el celular.")}</p>
               <div class="precio-fila">
-                <div class="precio" id="pv-precio">${clp(s.precio)}</div>
+                <div id="pv-precios">${htmlPrecioPreview(s)}</div>
                 <button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>
               </div>
             </div>
@@ -266,7 +277,9 @@ function renderEditor() {
           <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
           <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
           <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
-          <label class="field"><span>Valor de lista</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
+          <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
+          <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null ? "" : s.precio_oferta}" /></label>
+          <p class="hint">Si hay precio oferta, el cliente ve el valor anterior tachado y el ahorro se suma arriba en Total carrito y Total ahorrado.</p>
 
           <h3>Fotos y videos</h3>
           <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
@@ -1003,7 +1016,14 @@ $("stage").addEventListener("input", (e) => {
   if (e.target.id === "e-nombre" && $("pv-nombre")) $("pv-nombre").textContent = e.target.value || "Nombre del servicio";
   if (e.target.id === "e-resumen" && $("pv-resumen")) $("pv-resumen").textContent = e.target.value || "Resumen de la tarjeta";
   if (e.target.id === "e-detalle" && $("pv-detalle")) $("pv-detalle").textContent = e.target.value || "La descripción se ve aquí, como en el celular.";
-  if (e.target.id === "e-precio" && $("pv-precio")) $("pv-precio").textContent = clp(e.target.value === "" ? null : Number(e.target.value));
+  if ((e.target.id === "e-precio" || e.target.id === "e-precio-oferta") && $("pv-precios") && editando) {
+    const dummy = {
+      ...editando,
+      precio: $("e-precio") && $("e-precio").value !== "" ? Number($("e-precio").value) : null,
+      precio_oferta: $("e-precio-oferta") && $("e-precio-oferta").value !== "" ? Number($("e-precio-oferta").value) : null,
+    };
+    $("pv-precios").innerHTML = htmlPrecioPreview(dummy);
+  }
 });
 
 $("stage").addEventListener("change", async (e) => {

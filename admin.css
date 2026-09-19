@@ -398,6 +398,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 .servicio-preview .precio-fila { margin-top: 8px; }
 .servicio-preview .precio { color: #fff; font-weight: 800; }
+.servicio-preview .precio-lista { color: #bbb; }
+.servicio-preview .precio-oferta { color: #7dffa3; font-weight: 800; font-size: 1.05rem; }
 .servicio-dots {
   position: absolute;
   left: 50%;
