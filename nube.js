@@ -142,9 +142,13 @@ async function nubeGuardarPortada(lista) {
     id: s.id,
     foto: s.foto,
     servicio_id: s.servicio_id || null,
+    mostrar_boton: Boolean(s.mostrar_boton),
     btn_texto: s.btn_texto || "Agregar al carrito",
     btn_x: Number(s.btn_x) || 50,
-    btn_y: Number(s.btn_y) || 72,
+    btn_y: Number(s.btn_y) || 62,
+    zoom: Number(s.zoom) || 1,
+    pos_x: Number(s.pos_x) || 50,
+    pos_y: Number(s.pos_y) || 50,
     orden: Number(s.orden) || i,
   }));
   const { error } = await sb.from("portada_slides").insert(rows);

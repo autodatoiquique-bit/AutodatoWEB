@@ -127,7 +127,11 @@ create table if not exists portada_slides (
   servicio_id text references servicios(id) on delete set null,
   btn_texto text default 'Agregar al carrito',
   btn_x numeric not null default 50,
-  btn_y numeric not null default 72,
+  btn_y numeric not null default 62,
+  mostrar_boton boolean not null default false,
+  zoom numeric not null default 1,
+  pos_x numeric not null default 50,
+  pos_y numeric not null default 50,
   orden integer not null default 0
 );
 

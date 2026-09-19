@@ -293,8 +293,57 @@ function hidratar() {
   }
 }
 
+function estiloFotoPortadaAttr(s) {
+  return estiloFotoPortada(s).replace(/"/g, "");
+}
+
+function armarCarruselPortada() {
+  const pista = $("home-slides");
+  if (!pista) return;
+  const slides = [...pista.querySelectorAll(".home-slide")];
+  const dots = document.querySelectorAll(".home-dots i");
+  const ancho = () => pista.clientWidth;
+  const medir = () => {
+    const w = ancho();
+    slides.forEach((el) => {
+      el.style.flex = `0 0 ${w}px`;
+      el.style.width = `${w}px`;
+      el.style.minWidth = `${w}px`;
+      el.style.maxWidth = `${w}px`;
+    });
+  };
+  const indice = () => Math.round(pista.scrollLeft / Math.max(1, ancho()));
+  const pintarDots = () => {
+    const i = indice();
+    dots.forEach((d, n) => d.classList.toggle("on", n === i));
+  };
+  const centrar = () => {
+    const w = ancho();
+    const i = Math.max(0, Math.min(slides.length - 1, indice()));
+    const left = i * w;
+    if (Math.abs(pista.scrollLeft - left) > 2) {
+      pista.scrollTo({ left, behavior: "smooth" });
+    }
+    pintarDots();
+  };
+  medir();
+  pintarDots();
+  let tope;
+  pista.addEventListener("scroll", () => {
+    pintarDots();
+    clearTimeout(tope);
+    tope = setTimeout(centrar, 90);
+  }, { passive: true });
+  if (window._portadaResize) window.removeEventListener("resize", window._portadaResize);
+  window._portadaResize = () => {
+    medir();
+    pista.scrollLeft = indice() * ancho();
+    pintarDots();
+  };
+  window.addEventListener("resize", window._portadaResize);
+}
+
 function renderPortada() {
-  const t = leerTaller();
   const slides = (portadaSlides || []).filter((s) => s.foto);
   const lista = slides.length ? slides : PORTADA_DEFECTO;
   $("stage").innerHTML = `
@@ -305,10 +354,10 @@ function renderPortada() {
       <div class="home-slides" id="home-slides">
         ${lista
           .map((s) => {
-            const ofertaOk = s.servicio_id && oferta(s.servicio_id);
+            const ofertaOk = slideMuestraBoton(s) && oferta(s.servicio_id);
             return `
           <article class="home-slide">
-            <img class="home-foto" src="${s.foto}" alt="${ofertaOk ? oferta(s.servicio_id).nombre : "Oferta AutoDato"}" />
+            <img class="home-foto" src="${s.foto}" alt="${ofertaOk ? oferta(s.servicio_id).nombre : "Portada AutoDato"}" style="${estiloFotoPortadaAttr(s)}" />
             ${
               ofertaOk
                 ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al carrito"}</button>`
@@ -323,33 +372,10 @@ function renderPortada() {
           ? `<div class="home-dots" aria-hidden="true">${lista.map(() => "<i></i>").join("")}</div>`
           : ""
       }
-      <div class="home-contacto">
-        <a class="home-dir" href="${mapsHref()}" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="#111"/></svg>
-          ${t.direccion}
-        </a>
-        <a class="home-wa" href="${waHref()}" target="_blank" rel="noopener">
-          <span class="wa-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path fill="#25D366" d="M12 2a10 10 0 0 0-8.7 14.8L2 22l5.3-1.3A10 10 0 1 0 12 2z"/>
-              <path fill="#fff" d="M16.4 14.1c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.6c-.1-.2 0-.4.1-.5l.4-.4.1-.3c0-.1 0-.3 0-.4s-.5-1.3-.7-1.8-.4-.4-.5-.4h-.4c-.1 0-.4.1-.6.3s-.8.8-.8 1.9.8 2.2.9 2.4 1.6 2.6 4 3.5c.6.2 1 .4 1.4.5.6.2 1.1.2 1.5.1.5-.1 1.4-.6 1.6-1.1s.2-1 .1-1.1-.2-.2-.4-.3z"/>
-            </svg>
-          </span>
-          WhatsApp ${waMostrar()}
-        </a>
-      </div>
+      ${htmlPillsContacto()}
     </section>
   `;
-  const pista = $("home-slides");
-  if (pista && lista.length > 1) {
-    const dots = document.querySelectorAll(".home-dots i");
-    const pintar = () => {
-      const i = Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth));
-      dots.forEach((d, n) => d.classList.toggle("on", n === i));
-    };
-    pista.addEventListener("scroll", pintar, { passive: true });
-    pintar();
-  }
+  armarCarruselPortada();
 }
 
 function idsComboPara(id) {

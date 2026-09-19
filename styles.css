@@ -273,6 +273,8 @@ button { font-family: inherit; cursor: pointer; }
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -282,7 +284,10 @@ button { font-family: inherit; cursor: pointer; }
   position: relative;
   flex: 0 0 100%;
   width: 100%;
+  min-width: 100%;
+  max-width: 100%;
   height: 100%;
+  overflow: hidden;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
@@ -290,10 +295,11 @@ button { font-family: inherit; cursor: pointer; }
 .home-foto {
   width: 100%;
   height: 100%;
-  min-height: 100vh;
+  min-height: 0;
   object-fit: cover;
-  object-position: 55% 28%;
+  object-position: 50% 50%;
   display: block;
+  pointer-events: none;
 }
 
 .home-add {
@@ -899,7 +905,13 @@ button { font-family: inherit; cursor: pointer; }
   body.en-portada .home-slides,
   body.en-portada .home-slide {
     height: 100dvh;
-    min-height: 100dvh;
+    min-height: 0;
+  }
+  .home-contacto {
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+  .home-dots {
+    bottom: calc(150px + env(safe-area-inset-bottom, 0px));
   }
 
   .sidebar {

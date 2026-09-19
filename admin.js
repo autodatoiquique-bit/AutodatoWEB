@@ -407,13 +407,26 @@ async function abrirEditorPortada() {
   renderEditorPortada();
 }
 
+function htmlNavPortadaFalsa() {
+  return `<nav class="portada-nav" aria-hidden="true">${["Mis informes", "Ofertas", "Agendamiento", "Mantención preventiva"]
+    .map((txt) => `<span><i></i><b>${txt}</b></span>`)
+    .join("")}</nav>`;
+}
+
+function pintarFotoPortada() {
+  const img = $("p-img");
+  const s = slideActual();
+  if (!img) return;
+  img.style.cssText = estiloFotoPortada(s);
+}
+
 function renderEditorPortada() {
   const s = slideActual();
   const ofertas = serviciosOferta();
   $("stage").innerHTML = `
-    <article class="editor">
+    <article class="editor editor-portada">
       <h2>Configurar portada</h2>
-      <p class="muted">Sube un flyer por oferta. Arrastra el botón amarillo y déjalo cerca del precio. El cliente desliza la foto para ver la siguiente.</p>
+      <p class="muted">La vista de la izquierda es el celular: misma foto, mismos botones de abajo. Ahí calzás el zoom y el recorte.</p>
       <div class="portada-thumbs" id="portada-thumbs">
         ${portadaSlides
           .map(
@@ -428,69 +441,120 @@ function renderEditorPortada() {
         <button class="btn-line" type="button" id="btn-slide-add">Agregar flyer</button>
         ${portadaSlides.length > 1 ? `<button class="btn-soft" type="button" id="btn-slide-del">Quitar este</button>` : ""}
       </div>
-      <label class="field">
-        <span>Foto de este flyer</span>
-        <input id="p-foto" type="file" accept="image/*" />
-      </label>
-      <label class="field">
-        <span>Qué oferta agrega al carrito</span>
-        <select id="p-servicio">
-          <option value="">Elige un servicio</option>
-          ${ofertas
-            .map((o) => `<option value="${o.id}" ${o.id === s.servicio_id ? "selected" : ""}>${o.nombre}</option>`)
-            .join("")}
-        </select>
-      </label>
-      <label class="field">
-        <span>Texto del botón</span>
-        <input id="p-texto" type="text" value="${escapeAttr(s.btn_texto)}" />
-      </label>
-      <p class="hint">Arrastra el botón sobre la foto y suéltalo donde quede cómodo.</p>
-      <div class="portada-preview" id="portada-preview">
-        ${s.foto ? `<img src="${s.foto}" alt="" />` : `<div class="vacio-foto">Sube la foto para ubicar el botón</div>`}
-        <button class="portada-btn-drag" type="button" id="portada-btn-drag" style="left:${s.btn_x}%;top:${s.btn_y}%">${escapeText(s.btn_texto)}</button>
-      </div>
-      <div class="btn-row">
-        <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
+      <div class="portada-layout">
+        <div class="portada-phone">
+          <div class="home-screen portada-preview" id="portada-preview">
+            ${s.foto ? `<img class="home-foto" id="p-img" src="${s.foto}" alt="" style="${estiloFotoPortada(s)}" />` : `<div class="vacio-foto">Sube la foto para ajustar el recorte</div>`}
+            ${
+              s.mostrar_boton
+                ? `<button class="home-add portada-btn-drag" type="button" id="portada-btn-drag" style="left:${s.btn_x}%;top:${s.btn_y}%">${escapeText(s.btn_texto)}</button>`
+                : ""
+            }
+            ${htmlPillsContacto()}
+            ${htmlNavPortadaFalsa()}
+          </div>
+        </div>
+        <div>
+          <label class="field">
+            <span>Foto de este flyer</span>
+            <input id="p-foto" type="file" accept="image/*" />
+          </label>
+          <label class="field">
+            <span>Zoom de la foto</span>
+            <input id="p-zoom" type="range" min="100" max="240" step="2" value="${Math.round(s.zoom * 100)}" />
+          </label>
+          <p class="hint">Arrastra la foto para mover el recorte. Sube el zoom si quieres agrandarla.</p>
+          <label class="check">
+            <input id="p-boton" type="checkbox" ${s.mostrar_boton ? "checked" : ""} />
+            Mostrar botón Agregar al carrito
+          </label>
+          <div id="p-boton-campos" ${s.mostrar_boton ? "" : "hidden"}>
+            <label class="field">
+              <span>Qué oferta agrega al carrito</span>
+              <select id="p-servicio">
+                <option value="">Elige un servicio</option>
+                ${ofertas
+                  .map((o) => `<option value="${o.id}" ${o.id === s.servicio_id ? "selected" : ""}>${o.nombre}</option>`)
+                  .join("")}
+              </select>
+            </label>
+            <label class="field">
+              <span>Texto del botón</span>
+              <input id="p-texto" type="text" value="${escapeAttr(s.btn_texto)}" />
+            </label>
+            <p class="hint">Arrastra el botón amarillo y suéltalo cerca del precio.</p>
+          </div>
+          <div class="btn-row">
+            <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
+          </div>
+        </div>
       </div>
     </article>
   `;
-  activarArrastreBoton();
+  activarEditorImagen();
 }
 
 function leerEditorPortada() {
   const s = slideActual();
   if ($("p-servicio")) s.servicio_id = $("p-servicio").value;
   if ($("p-texto")) s.btn_texto = $("p-texto").value.trim() || "Agregar al carrito";
+  if ($("p-boton")) s.mostrar_boton = $("p-boton").checked;
+  if ($("p-zoom")) s.zoom = Number($("p-zoom").value) / 100;
 }
 
-function activarArrastreBoton() {
+function activarEditorImagen() {
   const caja = $("portada-preview");
+  const img = $("p-img");
   const btn = $("portada-btn-drag");
-  if (!caja || !btn) return;
-  let dragging = false;
+  if (!caja) return;
+  let modo = "";
+  let lastX = 0;
+  let lastY = 0;
   const mover = (e) => {
-    if (!dragging) return;
-    const r = caja.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * 100;
-    const y = ((e.clientY - r.top) / r.height) * 100;
     const s = slideActual();
-    s.btn_x = Math.min(92, Math.max(8, x));
-    s.btn_y = Math.min(92, Math.max(8, y));
-    btn.style.left = `${s.btn_x}%`;
-    btn.style.top = `${s.btn_y}%`;
+    if (modo === "btn" && btn) {
+      const r = caja.getBoundingClientRect();
+      s.btn_x = Math.min(92, Math.max(8, ((e.clientX - r.left) / r.width) * 100));
+      s.btn_y = Math.min(92, Math.max(8, ((e.clientY - r.top) / r.height) * 100));
+      btn.style.left = `${s.btn_x}%`;
+      btn.style.top = `${s.btn_y}%`;
+      return;
+    }
+    if (modo === "foto" && img) {
+      const r = caja.getBoundingClientRect();
+      s.pos_x = Math.min(100, Math.max(0, s.pos_x - ((e.clientX - lastX) / r.width) * 100));
+      s.pos_y = Math.min(100, Math.max(0, s.pos_y - ((e.clientY - lastY) / r.height) * 100));
+      lastX = e.clientX;
+      lastY = e.clientY;
+      pintarFotoPortada();
+    }
   };
-  btn.addEventListener("pointerdown", (e) => {
-    dragging = true;
-    btn.setPointerCapture(e.pointerId);
+  const fin = () => {
+    modo = "";
+  };
+  if (btn) {
+    btn.addEventListener("pointerdown", (e) => {
+      modo = "btn";
+      btn.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    btn.addEventListener("pointermove", mover);
+    btn.addEventListener("pointerup", fin);
+    btn.addEventListener("pointercancel", fin);
+  }
+  caja.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#portada-btn-drag")) return;
+    if (!img) return;
+    modo = "foto";
+    lastX = e.clientX;
+    lastY = e.clientY;
+    caja.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
-  btn.addEventListener("pointermove", mover);
-  const fin = () => {
-    dragging = false;
-  };
-  btn.addEventListener("pointerup", fin);
-  btn.addEventListener("pointercancel", fin);
+  caja.addEventListener("pointermove", mover);
+  caja.addEventListener("pointerup", fin);
+  caja.addEventListener("pointercancel", fin);
 }
 
 async function guardarEditorPortada() {
@@ -498,6 +562,11 @@ async function guardarEditorPortada() {
   const sinFoto = portadaSlides.filter((s) => !s.foto);
   if (sinFoto.length) {
     alert("Cada flyer necesita una foto.");
+    return;
+  }
+  const sinOferta = portadaSlides.filter((s) => s.mostrar_boton && !s.servicio_id);
+  if (sinOferta.length) {
+    alert("Si el botón está visible, elige qué oferta agrega al carrito.");
     return;
   }
   portadaSlides.forEach((s, i) => {
@@ -510,7 +579,7 @@ async function guardarEditorPortada() {
   } catch (e) {
     alert(
       (e && e.message) ||
-        "No se pudo guardar en la nube. Corre supabase/portada.sql en Supabase y vuelve a intentar."
+        "No se pudo guardar. Corre en Supabase el SQL de columnas nuevas (mostrar_boton, zoom, pos_x, pos_y)."
     );
   }
 }
@@ -554,7 +623,7 @@ $("lista-servicios").addEventListener("click", (e) => {
 
 $("stage").addEventListener("click", (e) => {
   const t = e.target.closest("button");
-  if (!t) return;
+  if (!t || t.id === "portada-btn-drag") return;
   if (t.id === "btn-guardar") guardarServicio();
   if (t.id === "btn-borrar") borrarServicio();
   if (t.id === "btn-guardar-portada") guardarEditorPortada();
@@ -607,9 +676,17 @@ $("stage").addEventListener("input", (e) => {
     slideActual().btn_texto = e.target.value.trim() || "Agregar al carrito";
     if ($("portada-btn-drag")) $("portada-btn-drag").textContent = slideActual().btn_texto;
   }
+  if (e.target.id === "p-zoom") {
+    slideActual().zoom = Number(e.target.value) / 100;
+    pintarFotoPortada();
+  }
 });
 
 $("stage").addEventListener("change", async (e) => {
+  if (e.target.id === "p-boton") {
+    slideActual().mostrar_boton = e.target.checked;
+    renderEditorPortada();
+  }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
   if (e.target.id === "p-foto" && e.target.files[0]) {
     let src = await leerImagen(e.target.files[0], 1800);
