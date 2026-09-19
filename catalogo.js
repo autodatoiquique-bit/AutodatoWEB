@@ -155,13 +155,64 @@ function tipoDesdeCanales(canales) {
   return "oferta";
 }
 
+function normalizarMediaItem(x, tipo, i) {
+  const src = typeof x === "string" ? x : String((x && (x.src || x.url)) || "");
+  const base = typeof x === "object" && x ? x : {};
+  return {
+    id: String(base.id || `${tipo}-${i}`),
+    tipo: base.tipo === "video" || tipo === "video" ? "video" : "foto",
+    src,
+    zoom: clampNum(base.zoom, 0.35, 4, 1),
+    scale_x: clampNum(base.scale_x, 0.4, 3, 1),
+    scale_y: clampNum(base.scale_y, 0.4, 3, 1),
+    off_x: clampNum(base.off_x, -160, 160, 0),
+    off_y: clampNum(base.off_y, -160, 160, 0),
+  };
+}
+
+function mediaServicio(s) {
+  if (s && Array.isArray(s.media) && s.media.length) {
+    return s.media.map((m, i) => normalizarMediaItem(m, (m && m.tipo) || "foto", i)).filter((m) => m.src);
+  }
+  const items = [];
+  const vistos = new Set();
+  const push = (item) => {
+    if (!item.src || vistos.has(item.src)) return;
+    vistos.add(item.src);
+    items.push(item);
+  };
+  const galeria = (s && s.galeria) || [];
+  const yaEnGaleria = galeria.map((g) => (typeof g === "string" ? g : g && g.src));
+  if (s && s.foto && !yaEnGaleria.includes(s.foto)) {
+    push(normalizarMediaItem({ src: s.foto, ...(s.foto_ui || {}) }, "foto", 0));
+  }
+  galeria.forEach((g, i) => push(normalizarMediaItem(g, "foto", i + 1)));
+  ((s && s.videos) || []).forEach((v, i) => push(normalizarMediaItem(v, "video", i)));
+  return items;
+}
+
+function aplicarMediaServicio(s, media) {
+  const lista = (media || []).map((m, i) => normalizarMediaItem(m, m.tipo || "foto", i)).filter((m) => m.src);
+  s.media = lista;
+  const fotos = lista.filter((m) => m.tipo === "foto");
+  const videos = lista.filter((m) => m.tipo === "video");
+  s.foto = fotos[0] ? fotos[0].src : "";
+  s.foto_ui = fotos[0]
+    ? { zoom: fotos[0].zoom, scale_x: fotos[0].scale_x, scale_y: fotos[0].scale_y, off_x: fotos[0].off_x, off_y: fotos[0].off_y }
+    : null;
+  s.galeria = fotos;
+  s.videos = videos;
+  return s;
+}
+
 function normalizarServicio(s) {
   const canales = normalizarCanales(s && s.canales, s && s.tipo);
-  return {
+  const base = {
     ...s,
     canales,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
   };
+  return aplicarMediaServicio(base, mediaServicio(base));
 }
 
 function serviciosEn(canal) {

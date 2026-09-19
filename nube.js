@@ -167,6 +167,22 @@ async function nubeSubirImagen(dataUrl) {
   return sb.storage.from("servicios").getPublicUrl(path).data.publicUrl;
 }
 
+async function nubeSubirVideo(file) {
+  const sb = clienteNube();
+  const ext = String((file && file.name) || "clip.mp4")
+    .split(".")
+    .pop()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "") || "mp4";
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await sb.storage.from("servicios").upload(path, file, {
+    contentType: (file && file.type) || "video/mp4",
+    upsert: true,
+  });
+  if (error) throw error;
+  return sb.storage.from("servicios").getPublicUrl(path).data.publicUrl;
+}
+
 async function nubeGuardarTicket(payload) {
   const sb = clienteNube();
   const { error } = await sb.from("tickets").insert({

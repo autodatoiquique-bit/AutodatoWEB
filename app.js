@@ -488,19 +488,11 @@ function renderDetalleOferta() {
 
   $("stage").innerHTML = `
     <article class="detalle-full">
-      <div class="detalle-foto" style="background-image:url('${s.foto}')"></div>
+      ${htmlCarruselServicio(s)}
       <div class="detalle-copy">
         <p class="muted">${textoVehiculo()}</p>
         <h2>${s.nombre}</h2>
         <p class="lead">${s.detalle}</p>
-        ${
-          (s.galeria && s.galeria.length) || (s.videos && s.videos.length)
-            ? `<div class="detalle-extras">
-                ${(s.galeria || []).map((src) => `<img src="${src}" alt="" />`).join("")}
-                ${(s.videos || []).map((url) => `<a class="btn-line btn-block" href="${url}" target="_blank" rel="noopener">Ver video</a>`).join("")}
-              </div>`
-            : ""
-        }
         <div class="precio-fila">
           <div class="precio-col">
             <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(s.precio)}</div>
@@ -527,6 +519,60 @@ function renderDetalleOferta() {
       </div>
     </article>
   `;
+  armarCarruselDetalle();
+}
+
+function htmlSlideMediaServicio(m) {
+  if (m.tipo === "video") {
+    return `<article class="detalle-slide"><video class="servicio-video" src="${m.src}" playsinline muted controls preload="metadata"></video></article>`;
+  }
+  return `<article class="detalle-slide"><img class="home-foto" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" /></article>`;
+}
+
+function htmlCarruselServicio(s) {
+  const media = mediaServicio(s);
+  if (!media.length) return `<div class="detalle-media"><div class="detalle-foto"></div></div>`;
+  return `
+    <div class="detalle-media" id="detalle-media">
+      <div class="detalle-pista" id="detalle-pista">${media.map(htmlSlideMediaServicio).join("")}</div>
+      ${
+        media.length > 1
+          ? `<div class="home-dots detalle-dots">${media.map((_, i) => `<i class="${i === 0 ? "on" : ""}"></i>`).join("")}</div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function armarCarruselDetalle() {
+  const pista = $("detalle-pista");
+  if (!pista) return;
+  const slides = [...pista.querySelectorAll(".detalle-slide")];
+  const dots = document.querySelectorAll(".detalle-dots i");
+  const ancho = () => pista.clientWidth;
+  const medir = () => {
+    const w = ancho();
+    slides.forEach((el) => {
+      el.style.flex = `0 0 ${w}px`;
+      el.style.width = `${w}px`;
+      el.style.minWidth = `${w}px`;
+      el.style.maxWidth = `${w}px`;
+    });
+  };
+  const pintar = () => {
+    const i = Math.round(pista.scrollLeft / Math.max(1, ancho()));
+    dots.forEach((d, n) => d.classList.toggle("on", n === i));
+  };
+  medir();
+  requestAnimationFrame(medir);
+  pista.addEventListener("scroll", pintar, { passive: true });
+  if (window._detalleResize) window.removeEventListener("resize", window._detalleResize);
+  window._detalleResize = () => {
+    const i = Math.round(pista.scrollLeft / Math.max(1, ancho()));
+    medir();
+    pista.scrollLeft = i * ancho();
+  };
+  window.addEventListener("resize", window._detalleResize);
 }
 
 function htmlMini(s, combo) {

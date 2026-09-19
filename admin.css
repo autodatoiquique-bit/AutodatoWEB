@@ -373,6 +373,54 @@ button { font-family: inherit; cursor: pointer; }
   object-fit: contain;
   pointer-events: none;
 }
+.servicio-preview .servicio-copy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 64px;
+  z-index: 4;
+  padding: 12px 14px 10px;
+  background: linear-gradient(transparent, #111 28%);
+  color: #fff;
+}
+.servicio-preview .servicio-copy h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+.servicio-preview .servicio-copy p {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  color: #ddd;
+}
+.servicio-preview .servicio-copy .lead {
+  max-height: 4.6em;
+  overflow: hidden;
+}
+.servicio-preview .precio-fila { margin-top: 8px; }
+.servicio-preview .precio { color: #fff; font-weight: 800; }
+.servicio-dots {
+  position: absolute;
+  left: 50%;
+  top: auto;
+  bottom: 218px;
+  transform: translateX(-50%);
+  z-index: 6;
+}
+.servicio-preview .portada-lienzo { bottom: 210px; }
+.servicio-preview .servicio-video {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: auto;
+  height: 100%;
+  transform: translate(-50%, -50%);
+}
+.portada-thumbs video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .portada-preview .vacio-foto {
   position: absolute;
   inset: 0;

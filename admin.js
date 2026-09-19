@@ -6,6 +6,7 @@ const $ = (id) => document.getElementById(id);
 let editando = null;
 let comboEditIndex = -1;
 let slideEditIndex = 0;
+let mediaEditIndex = 0;
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -129,6 +130,7 @@ function servicioVacio() {
     foto: "",
     galeria: [],
     videos: [],
+    media: [],
     precio: 0,
     complementos: [],
     activo: true,
@@ -168,76 +170,142 @@ function leerEditor() {
   editando.detalle = $("e-detalle").value.trim();
   const precio = $("e-precio").value;
   editando.precio = precio === "" ? null : Number(precio);
+  const m = mediaActual();
+  if (m && m.tipo === "foto") {
+    if ($("e-zoom")) m.zoom = Number($("e-zoom").value) / 100;
+    if ($("e-ancho")) m.scale_x = Number($("e-ancho").value) / 100;
+    if ($("e-alto")) m.scale_y = Number($("e-alto").value) / 100;
+  }
+  aplicarMediaServicio(editando, mediaEditando());
+}
+
+function mediaEditando() {
+  if (!editando) return [];
+  if (!Array.isArray(editando.media)) editando.media = mediaServicio(editando);
+  return editando.media;
+}
+
+function mediaActual() {
+  const lista = mediaEditando();
+  if (!lista.length) return null;
+  if (mediaEditIndex < 0 || mediaEditIndex >= lista.length) mediaEditIndex = 0;
+  return lista[mediaEditIndex];
+}
+
+function htmlMediaThumbs(lista) {
+  return lista
+    .map((m, i) => {
+      const cuerpo =
+        m.tipo === "video"
+          ? `<video src="${m.src}" muted playsinline></video><span class="ph">Video</span>`
+          : `<img src="${m.src}" alt="" />`;
+      return `<div class="portada-thumb">
+        <button type="button" data-media="${i}" class="${i === mediaEditIndex ? "is-on" : ""}">${cuerpo}</button>
+      </div>`;
+    })
+    .join("");
+}
+
+function htmlPreviewMedia(m) {
+  if (!m) return `<div class="vacio-foto">Sube fotos o un video corto para verlo en el celular</div>`;
+  if (m.tipo === "video") {
+    return `<video class="servicio-video" src="${m.src}" muted playsinline controls preload="metadata"></video>`;
+  }
+  return `<img class="home-foto" id="e-img" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" />`;
+}
+
+function htmlDotsMedia(n, on) {
+  if (n < 2) return "";
+  return `<div class="home-dots servicio-dots">${Array.from({ length: n }, (_, i) => `<i class="${i === on ? "on" : ""}"></i>`).join("")}</div>`;
+}
+
+function pintarFotoServicio() {
+  const img = $("e-img");
+  const m = mediaActual();
+  if (img && m && m.tipo === "foto") img.style.cssText = estiloFotoPortada(m);
 }
 
 function renderEditor() {
   const s = editando;
+  if (!s.media) s.media = mediaServicio(s);
+  const lista = mediaEditando();
+  if (lista.length && (mediaEditIndex < 0 || mediaEditIndex >= lista.length)) mediaEditIndex = 0;
+  const m = mediaActual();
   $("stage").innerHTML = `
-    <article class="editor">
+    <article class="editor editor-portada">
       <h2>${s.id ? "Editar servicio" : "Nuevo servicio"}</h2>
-      <fieldset class="canales">
-        <legend>Dónde aparece este servicio</legend>
-        <p class="hint">Los tres menús arman una cotización. Marca uno o más. Ofertas es solo para promociones de ocasión. Mantención preventiva es el listado largo. Diagnóstico automotriz es para diagnósticos.</p>
-        <label class="check"><input id="e-canal-ofertas" type="checkbox" ${s.canales && s.canales.ofertas ? "checked" : ""} /> Ofertas</label>
-        <label class="check"><input id="e-canal-mantencion" type="checkbox" ${s.canales && s.canales.mantencion ? "checked" : ""} /> Mantención preventiva</label>
-        <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
-      </fieldset>
-      <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
-      <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
-      <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
-      <label class="field"><span>Valor de lista</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
-
-      <label class="field">
-        <span>Imagen de portada</span>
-        <input id="e-foto" type="file" accept="image/*" />
-      </label>
-      <div class="preview" id="e-preview" ${s.foto ? `style="background-image:url('${s.foto}')"` : ""}></div>
-
-      <label class="field">
-        <span>Imágenes de complemento</span>
-        <input id="e-galeria" type="file" accept="image/*" multiple />
-      </label>
-      <div class="galeria" id="e-galeria-box">${htmlGaleria(s)}</div>
-
-      <label class="field">
-        <span>Video (URL de YouTube o archivo en la web)</span>
-        <div class="grid-2">
-          <input id="e-video" type="url" placeholder="https://" />
-          <button class="btn-line" type="button" id="btn-add-video">Agregar video</button>
+      <p class="muted">La izquierda es el celular. Arrastra la foto para elegir el recorte. Los puntos aparecen si hay más de una imagen o video. El cliente los desliza igual.</p>
+      <div class="portada-layout">
+        <div class="portada-phone">
+          <div class="home-screen portada-preview servicio-preview" id="servicio-preview">
+            <header class="home-logo">
+              <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
+            </header>
+            <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}</div>
+            ${htmlDotsMedia(lista.length, mediaEditIndex)}
+            <div class="servicio-copy">
+              <h2 id="pv-nombre">${escapeText(s.nombre || "Nombre del servicio")}</h2>
+              <p id="pv-resumen">${escapeText(s.resumen || "Resumen de la tarjeta")}</p>
+              <p class="lead" id="pv-detalle">${escapeText(s.detalle || "La descripción se ve aquí, como en el celular.")}</p>
+              <div class="precio-fila">
+                <div class="precio" id="pv-precio">${clp(s.precio)}</div>
+                <button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>
+              </div>
+            </div>
+            ${htmlNavPortadaFalsa()}
+          </div>
         </div>
-      </label>
-      <div class="videos" id="e-videos-box">${htmlVideos(s)}</div>
+        <div>
+          <fieldset class="canales">
+            <legend>Dónde aparece este servicio</legend>
+            <p class="hint">Los tres menús arman una cotización. Ofertas es solo para promociones de ocasión.</p>
+            <label class="check"><input id="e-canal-ofertas" type="checkbox" ${s.canales && s.canales.ofertas ? "checked" : ""} /> Ofertas</label>
+            <label class="check"><input id="e-canal-mantencion" type="checkbox" ${s.canales && s.canales.mantencion ? "checked" : ""} /> Mantención preventiva</label>
+            <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
+          </fieldset>
+          <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
+          <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
+          <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
+          <label class="field"><span>Valor de lista</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
 
-      <h3>Servicios asociados</h3>
-      <p class="hint">Si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo que se hace en el mismo ingreso. Ejemplo: cambias discos y las pastillas salen más baratas porque igual hay que sacarlas.</p>
-      <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
-      <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
+          <h3>Fotos y videos</h3>
+          <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
+          <div class="btn-row">
+            <button class="btn-line" type="button" id="btn-add-foto">Agregar foto</button>
+            <button class="btn-line" type="button" id="btn-add-video">Agregar video</button>
+          </div>
+          ${lista.length ? `<button class="btn-soft btn-block" type="button" id="btn-del-media">Quitar este</button>` : ""}
+          <input id="e-foto" type="file" accept="image/*" hidden />
+          <input id="e-galeria" type="file" accept="image/*" multiple hidden />
+          <input id="e-video-file" type="file" accept="video/mp4,video/webm,video/quicktime" hidden />
+          ${
+            m && m.tipo === "foto"
+              ? `<label class="field"><span>Zoom</span><input id="e-zoom" type="range" min="35" max="400" step="2" value="${Math.round(m.zoom * 100)}" /></label>
+                 <label class="field"><span>Estirar ancho</span><input id="e-ancho" type="range" min="40" max="250" step="2" value="${Math.round(m.scale_x * 100)}" /></label>
+                 <label class="field"><span>Estirar alto</span><input id="e-alto" type="range" min="40" max="250" step="2" value="${Math.round(m.scale_y * 100)}" /></label>
+                 <button class="btn-line btn-block" type="button" id="btn-reset-media">Centrar y resetear recorte</button>
+                 <p class="hint">Arrastra la foto en el celular para moverla. Si es horizontal, elige qué parte se ve.</p>`
+              : m && m.tipo === "video"
+                ? `<p class="hint">Video corto dentro de la ficha. El cliente lo reproduce ahí mismo, sin YouTube.</p>`
+                : ""
+          }
 
-      <div class="btn-row">
-        <button class="btn-primary" type="button" id="btn-guardar">Guardar</button>
-        ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar">Eliminar</button>` : ""}
+          <h3>Servicios asociados</h3>
+          <p class="hint">Si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo que se hace en el mismo ingreso.</p>
+          <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
+          <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
+
+          <div class="btn-row">
+            <button class="btn-primary" type="button" id="btn-guardar">Guardar</button>
+            ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar">Eliminar</button>` : ""}
+          </div>
+        </div>
       </div>
     </article>
   `;
   renderLista();
-}
-
-function htmlGaleria(s) {
-  return (s.galeria || [])
-    .map(
-      (src, i) =>
-        `<div class="chip-x"><img src="${src}" alt="" /><button type="button" data-del-img="${i}">×</button></div>`
-    )
-    .join("");
-}
-
-function htmlVideos(s) {
-  return (s.videos || [])
-    .map(
-      (url, i) =>
-        `<div class="combo-row"><a href="${url}" target="_blank" rel="noopener">${url}</a><button class="btn-soft" type="button" data-del-video="${i}">Quitar</button></div>`
-    )
-    .join("");
+  aplicarLogos();
+  activarEditorMedia();
 }
 
 function htmlComplementos(s) {
@@ -271,11 +339,13 @@ function abrirServicio(id) {
   const s = servicioPorId(id);
   if (!s) return;
   editando = normalizarServicio(JSON.parse(JSON.stringify(s)));
+  mediaEditIndex = 0;
   renderEditor();
 }
 
 function nuevoServicio() {
   editando = servicioVacio();
+  mediaEditIndex = 0;
   renderEditor();
 }
 
@@ -562,6 +632,41 @@ function ubicarCapa(el, xKey, yKey, clientX, clientY) {
   el.style.top = `${portadaUi[yKey]}%`;
 }
 
+function activarEditorMedia() {
+  const caja = $("servicio-preview");
+  const lienzo = $("e-lienzo");
+  const img = $("e-img");
+  if (!caja || !lienzo || !img) return;
+  let lastX = 0;
+  let lastY = 0;
+  let moviendo = false;
+  lienzo.addEventListener("pointerdown", (e) => {
+    const m = mediaActual();
+    if (!m || m.tipo !== "foto") return;
+    moviendo = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    lienzo.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  lienzo.addEventListener("pointermove", (e) => {
+    if (!moviendo) return;
+    const m = mediaActual();
+    if (!m || m.tipo !== "foto") return;
+    const r = caja.getBoundingClientRect();
+    m.off_x = Math.min(160, Math.max(-160, m.off_x + ((e.clientX - lastX) / r.width) * 100));
+    m.off_y = Math.min(160, Math.max(-160, m.off_y + ((e.clientY - lastY) / r.height) * 100));
+    lastX = e.clientX;
+    lastY = e.clientY;
+    pintarFotoServicio();
+  });
+  const fin = () => {
+    moviendo = false;
+  };
+  lienzo.addEventListener("pointerup", fin);
+  lienzo.addEventListener("pointercancel", fin);
+}
+
 function activarEditorImagen() {
   const caja = $("portada-preview");
   const lienzo = $("portada-lienzo");
@@ -802,23 +907,40 @@ $("stage").addEventListener("click", (e) => {
     renderEditorPortada();
   }
   if (t.id === "btn-add-combo") abrirCombo(-1);
+  if (t.id === "btn-add-foto") {
+    $("e-foto")?.click();
+    return;
+  }
   if (t.id === "btn-add-video") {
-    leerEditor();
-    const url = $("e-video").value.trim();
-    if (!url) return;
-    editando.videos = editando.videos || [];
-    editando.videos.push(url);
-    renderEditor();
+    $("e-video-file")?.click();
+    return;
   }
-  if (t.dataset.delImg != null) {
+  if (t.id === "btn-del-media") {
     leerEditor();
-    editando.galeria.splice(Number(t.dataset.delImg), 1);
+    const lista = mediaEditando();
+    if (!lista.length) return;
+    lista.splice(mediaEditIndex, 1);
+    mediaEditIndex = Math.max(0, lista.length - 1);
+    aplicarMediaServicio(editando, lista);
     renderEditor();
+    return;
   }
-  if (t.dataset.delVideo != null) {
-    leerEditor();
-    editando.videos.splice(Number(t.dataset.delVideo), 1);
+  if (t.id === "btn-reset-media") {
+    const m = mediaActual();
+    if (!m || m.tipo !== "foto") return;
+    m.zoom = 1;
+    m.scale_x = 1;
+    m.scale_y = 1;
+    m.off_x = 0;
+    m.off_y = 0;
     renderEditor();
+    return;
+  }
+  if (t.dataset.media != null) {
+    leerEditor();
+    mediaEditIndex = Number(t.dataset.media);
+    renderEditor();
+    return;
   }
   if (t.dataset.editCombo != null) abrirCombo(Number(t.dataset.editCombo));
   if (t.dataset.delCombo != null) {
@@ -857,6 +979,31 @@ $("stage").addEventListener("input", (e) => {
     portadaUi.logo_scale_y = Number(e.target.value) / 100;
     pintarLogoPortada();
   }
+  if (e.target.id === "e-zoom") {
+    const m = mediaActual();
+    if (m && m.tipo === "foto") {
+      m.zoom = Number(e.target.value) / 100;
+      pintarFotoServicio();
+    }
+  }
+  if (e.target.id === "e-ancho") {
+    const m = mediaActual();
+    if (m && m.tipo === "foto") {
+      m.scale_x = Number(e.target.value) / 100;
+      pintarFotoServicio();
+    }
+  }
+  if (e.target.id === "e-alto") {
+    const m = mediaActual();
+    if (m && m.tipo === "foto") {
+      m.scale_y = Number(e.target.value) / 100;
+      pintarFotoServicio();
+    }
+  }
+  if (e.target.id === "e-nombre" && $("pv-nombre")) $("pv-nombre").textContent = e.target.value || "Nombre del servicio";
+  if (e.target.id === "e-resumen" && $("pv-resumen")) $("pv-resumen").textContent = e.target.value || "Resumen de la tarjeta";
+  if (e.target.id === "e-detalle" && $("pv-detalle")) $("pv-detalle").textContent = e.target.value || "La descripción se ve aquí, como en el celular.";
+  if (e.target.id === "e-precio" && $("pv-precio")) $("pv-precio").textContent = clp(e.target.value === "" ? null : Number(e.target.value));
 });
 
 $("stage").addEventListener("change", async (e) => {
@@ -891,20 +1038,49 @@ $("stage").addEventListener("change", async (e) => {
   }
   if (e.target.id === "e-foto" && e.target.files[0]) {
     leerEditor();
-    let src = await leerImagen(e.target.files[0]);
+    let src = await leerImagen(e.target.files[0], 1800);
     if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
-    editando.foto = src;
+    const lista = mediaEditando();
+    lista.push(normalizarMediaItem({ src }, "foto", lista.length));
+    mediaEditIndex = lista.length - 1;
+    aplicarMediaServicio(editando, lista);
+    e.target.value = "";
     renderEditor();
   }
   if (e.target.id === "e-galeria" && e.target.files.length) {
     leerEditor();
-    editando.galeria = editando.galeria || [];
+    const lista = mediaEditando();
     for (const file of e.target.files) {
-      let src = await leerImagen(file, 1100);
+      let src = await leerImagen(file, 1800);
       if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
-      editando.galeria.push(src);
+      lista.push(normalizarMediaItem({ src }, "foto", lista.length));
     }
+    mediaEditIndex = lista.length - 1;
+    aplicarMediaServicio(editando, lista);
+    e.target.value = "";
     renderEditor();
+  }
+  if (e.target.id === "e-video-file" && e.target.files[0]) {
+    leerEditor();
+    const file = e.target.files[0];
+    try {
+      if (file.size > 28 * 1024 * 1024) throw new Error("El video debe pesar menos de 25 MB. Sube un clip corto.");
+      let src = "";
+      if (typeof nubeActiva === "function" && nubeActiva() && typeof nubeSubirVideo === "function") {
+        src = await nubeSubirVideo(file);
+      } else {
+        throw new Error("Abre el panel en autodato.cl/admin.html para subir el video.");
+      }
+      const lista = mediaEditando();
+      lista.push(normalizarMediaItem({ src }, "video", lista.length));
+      mediaEditIndex = lista.length - 1;
+      aplicarMediaServicio(editando, lista);
+      e.target.value = "";
+      renderEditor();
+    } catch (err) {
+      alert((err && err.message) || "No se pudo subir el video.");
+      e.target.value = "";
+    }
   }
 });
 
