@@ -207,6 +207,11 @@ function esMovil() {
   return window.matchMedia("(max-width: 860px)").matches;
 }
 
+function esIos() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 function irAContenido() {
   if (!esMovil()) return;
   window.scrollTo({ top: 0, behavior: "auto" });
@@ -1062,7 +1067,9 @@ function abrirTicket(payload) {
       </div>
     </div>
     <div class="ticket-acciones">
-      <button class="btn-green btn-block" type="button" id="btn-descargar-ticket" data-guardar-ticket>Guardar foto del ticket</button>
+      <button class="btn-green btn-block" type="button" id="btn-descargar-ticket" data-guardar-ticket>Guardar en el celular</button>
+      <button class="btn-soft btn-block" type="button" data-compartir-ticket>Compartir</button>
+      <p class="muted" style="margin:0;text-align:center">Se guarda en Descargas. Después lo ves en Galería.</p>
       <button class="btn-soft btn-block" type="button" data-close>Cerrar</button>
     </div>
   `;
@@ -1078,50 +1085,66 @@ function abrirTicket(payload) {
   });
 }
 
-async function descargarTicket() {
+async function fotoDelTicket() {
   const hoja = $("ticket-sheet");
-  const btn = $("btn-descargar-ticket");
-  if (!hoja) return;
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Preparando foto…";
-  }
-  try {
-    if (!window.html2canvas) throw new Error("sin html2canvas");
-    const canvas = await html2canvas(hoja, {
-      scale: esMovil() ? 1.5 : 2,
-      backgroundColor: "#ffffff",
-      useCORS: true,
-      logging: false,
-    });
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("sin imagen"))), "image/png");
-    });
-    const nombre = `ticket-autodato-${Date.now()}.png`;
-    const file = new File([blob], nombre, { type: "image/png" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: "Ticket AutoDato",
-        text: "Ticket de visita AutoDato",
-      });
-      return;
-    }
-    const url = URL.createObjectURL(blob);
-    if (!esMovil()) {
+  if (!hoja) throw new Error("sin ticket");
+  if (!window.html2canvas) throw new Error("sin html2canvas");
+  const canvas = await html2canvas(hoja, {
+    scale: esMovil() ? 1.5 : 2,
+    backgroundColor: "#ffffff",
+    useCORS: true,
+    logging: false,
+  });
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("sin imagen"))), "image/png");
+  });
+  const code = String((hoja.querySelector(".ticket-code") || {}).textContent || "")
+    .replace(/\D/g, "")
+    .slice(-14);
+  const nombre = `ticket-autodato-${code || Date.now()}.png`;
+  return { blob, file: new File([blob], nombre, { type: "image/png" }), nombre };
+}
+
+function bajarBlob(blob, nombre) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
       const a = document.createElement("a");
-      a.href = url;
+      a.href = reader.result;
       a.download = nombre;
       a.rel = "noopener";
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-      return;
+      resolve();
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function compartirArchivo(file) {
+  if (!(navigator.canShare && navigator.canShare({ files: [file] }))) return false;
+  await navigator.share({
+    files: [file],
+    title: "Ticket AutoDato",
+    text: "Ticket de visita AutoDato",
+  });
+  return true;
+}
+
+async function descargarTicket() {
+  const btn = $("btn-descargar-ticket");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Preparando foto…";
+  }
+  try {
+    const { blob, file, nombre } = await fotoDelTicket();
+    if (esIos()) {
+      if (await compartirArchivo(file)) return;
     }
-    const abierta = window.open(url, "_blank");
-    if (!abierta) window.location.href = url;
-    setTimeout(() => URL.revokeObjectURL(url), 20000);
+    await bajarBlob(blob, nombre);
   } catch (e) {
     if (e && e.name === "AbortError") return;
     console.warn("No se pudo guardar el ticket.", e);
@@ -1129,8 +1152,19 @@ async function descargarTicket() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "Guardar foto del ticket";
+      btn.textContent = "Guardar en el celular";
     }
+  }
+}
+
+async function compartirTicket() {
+  try {
+    const { blob, file, nombre } = await fotoDelTicket();
+    if (await compartirArchivo(file)) return;
+    await bajarBlob(blob, nombre);
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+    console.warn("No se pudo compartir el ticket.", e);
   }
 }
 
@@ -1162,7 +1196,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], #btn-ticket"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], #btn-ticket"
   );
   if (!t) return;
 
@@ -1212,6 +1246,7 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-cerrar-informe")) cerrarModalInforme();
   if (t.hasAttribute("data-close")) cerrar();
   if (t.hasAttribute("data-guardar-ticket")) descargarTicket();
+  if (t.hasAttribute("data-compartir-ticket")) compartirTicket();
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
