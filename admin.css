@@ -268,6 +268,20 @@ button { font-family: inherit; cursor: pointer; }
   gap: 8px;
   margin: 12px 0;
 }
+.portada-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.portada-thumb input {
+  width: 44px;
+  padding: 4px;
+  text-align: center;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  font-weight: 800;
+}
 .portada-thumbs button {
   width: 72px;
   height: 112px;
@@ -298,13 +312,17 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
   touch-action: none;
 }
-.portada-preview .home-foto {
+.portada-lienzo {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  z-index: 1;
+}
+.portada-lienzo:active { cursor: grabbing; }
+.portada-preview .home-foto {
+  pointer-events: none;
 }
 .portada-preview .vacio-foto {
   position: absolute;
@@ -316,10 +334,15 @@ button { font-family: inherit; cursor: pointer; }
   padding: 20px;
 }
 .home-add,
-.portada-btn-drag {
+.portada-btn-drag,
+.home-pill,
+.home-dots {
   position: absolute;
   transform: translate(-50%, -50%);
-  z-index: 3;
+  z-index: 5;
+}
+.home-add,
+.portada-btn-drag {
   border: 0;
   border-radius: 999px;
   padding: 12px 18px;
@@ -333,21 +356,15 @@ button { font-family: inherit; cursor: pointer; }
   touch-action: none;
   user-select: none;
 }
-.portada-btn-drag:active { cursor: grabbing; }
-.home-contacto {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 78px;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  pointer-events: none;
+.portada-btn-drag:active,
+.home-pill:active,
+.home-dots:active { cursor: grabbing; }
+.home-pill,
+.home-dots {
+  cursor: grab;
+  touch-action: none;
 }
-.home-dir,
-.home-wa {
+.home-pill {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -358,11 +375,27 @@ button { font-family: inherit; cursor: pointer; }
   text-decoration: none;
   font-weight: 800;
   font-size: 0.82rem;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  background: #fff;
+  color: #111;
+  white-space: nowrap;
 }
-.home-dir { background: rgba(0, 0, 0, 0.58); color: #fff; }
-.home-dir svg { width: 15px; height: 15px; fill: #ffd000; }
-.home-wa { background: #fff; color: #111; }
+.home-dir svg { width: 15px; height: 15px; fill: #111; }
+.home-dots {
+  display: flex;
+  gap: 8px;
+  z-index: 6;
+}
+.home-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+}
+.home-dots i.on {
+  background: #ffd000;
+  transform: scale(1.65);
+}
 .wa-logo { width: 26px; height: 26px; display: block; }
 .wa-logo svg { width: 26px; height: 26px; display: block; }
 .portada-nav {

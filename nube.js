@@ -147,8 +147,16 @@ async function nubeGuardarPortada(lista) {
     btn_x: Number(s.btn_x) || 50,
     btn_y: Number(s.btn_y) || 62,
     zoom: Number(s.zoom) || 1,
-    pos_x: Number(s.pos_x) || 50,
-    pos_y: Number(s.pos_y) || 50,
+    scale_x: Number(s.scale_x) || 1,
+    scale_y: Number(s.scale_y) || 1,
+    off_x: Number(s.off_x) || 0,
+    off_y: Number(s.off_y) || 0,
+    dir_x: Number(s.dir_x) || 50,
+    dir_y: Number(s.dir_y) || 76,
+    wa_x: Number(s.wa_x) || 50,
+    wa_y: Number(s.wa_y) || 84,
+    dots_x: Number(s.dots_x) || 50,
+    dots_y: Number(s.dots_y) || 68,
     orden: Number(s.orden) || i,
   }));
   const { error } = await sb.from("portada_slides").insert(rows);

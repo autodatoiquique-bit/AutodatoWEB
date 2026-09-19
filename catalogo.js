@@ -258,11 +258,30 @@ const PORTADA_DEFECTO = [
 ];
 
 let portadaSlides = [];
+let portadaUi = {
+  dir_x: 50,
+  dir_y: 76,
+  wa_x: 50,
+  wa_y: 84,
+  dots_x: 50,
+  dots_y: 68,
+};
 
 function clampNum(n, min, max, def) {
   const v = Number(n);
   if (!Number.isFinite(v)) return def;
   return Math.min(max, Math.max(min, v));
+}
+
+function normalizarUi(s) {
+  return {
+    dir_x: clampNum(s && s.dir_x, 6, 94, 50),
+    dir_y: clampNum(s && s.dir_y, 6, 94, 76),
+    wa_x: clampNum(s && s.wa_x, 6, 94, 50),
+    wa_y: clampNum(s && s.wa_y, 6, 94, 84),
+    dots_x: clampNum(s && s.dots_x, 6, 94, 50),
+    dots_y: clampNum(s && s.dots_y, 6, 94, 68),
+  };
 }
 
 function normalizarSlide(s, i) {
@@ -275,28 +294,27 @@ function normalizarSlide(s, i) {
     mostrar_boton: botonRaw == null ? Boolean(servicio) : botonRaw === true || botonRaw === "true",
     btn_texto: String((s && s.btn_texto) || "Agregar al carrito"),
     btn_x: clampNum(s && s.btn_x, 8, 92, 50),
-    btn_y: clampNum(s && s.btn_y, 8, 92, 62),
-    zoom: clampNum(s && s.zoom, 1, 2.6, 1),
-    pos_x: clampNum(s && s.pos_x, 0, 100, 50),
-    pos_y: clampNum(s && s.pos_y, 0, 100, 50),
+    btn_y: clampNum(s && s.btn_y, 8, 92, 55),
+    zoom: clampNum(s && s.zoom, 1, 3, 1),
+    scale_x: clampNum(s && s.scale_x, 0.4, 3, 1),
+    scale_y: clampNum(s && s.scale_y, 0.4, 3, 1),
+    off_x: clampNum(s && s.off_x, -90, 90, 0),
+    off_y: clampNum(s && s.off_y, -90, 90, 0),
     orden: Number(s && s.orden) || i,
+    ...normalizarUi(s),
   };
 }
 
 function slideVacio(orden) {
-  return {
-    id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    foto: "",
-    servicio_id: "",
-    mostrar_boton: false,
-    btn_texto: "Agregar al carrito",
-    btn_x: 50,
-    btn_y: 62,
-    zoom: 1,
-    pos_x: 50,
-    pos_y: 50,
-    orden: orden || 0,
-  };
+  return normalizarSlide(
+    {
+      id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      foto: "",
+      mostrar_boton: false,
+      orden: orden || 0,
+    },
+    orden || 0
+  );
 }
 
 function slideMuestraBoton(s) {
@@ -304,29 +322,38 @@ function slideMuestraBoton(s) {
 }
 
 function estiloFotoPortada(s) {
-  const z = clampNum(s && s.zoom, 1, 2.6, 1);
-  const x = clampNum(s && s.pos_x, 0, 100, 50);
-  const y = clampNum(s && s.pos_y, 0, 100, 50);
-  return `object-position:${x}% ${y}%;transform:scale(${z});transform-origin:${x}% ${y}%;`;
+  const z = clampNum(s && s.zoom, 1, 3, 1);
+  const sx = clampNum(s && s.scale_x, 0.4, 3, 1) * z;
+  const sy = clampNum(s && s.scale_y, 0.4, 3, 1) * z;
+  const ox = clampNum(s && s.off_x, -90, 90, 0);
+  const oy = clampNum(s && s.off_y, -90, 90, 0);
+  return `position:absolute;left:50%;top:50%;width:100%;height:100%;object-fit:cover;transform:translate(-50%,-50%) translate(${ox}%,${oy}%) scale(${sx},${sy});`;
 }
 
-function htmlPillsContacto() {
+function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {
+  const drag = (name) => (arrastrable ? ` data-drag="${name}"` : "");
+  const dots =
+    dotsN > 1
+      ? `<div class="home-dots${arrastrable ? "" : " home-dots-hint"}" style="left:${ui.dots_x}%;top:${ui.dots_y}%"${drag("dots")}>${Array.from(
+          { length: dotsN },
+          (_, i) => `<i class="${i === dotsOn ? "on" : ""}"></i>`
+        ).join("")}</div>`
+      : "";
   return `
-      <div class="home-contacto">
-        <a class="home-dir" href="${mapsHref()}" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="#111"/></svg>
-          ${leerTaller().direccion}
-        </a>
-        <a class="home-wa" href="${waHref()}" target="_blank" rel="noopener">
-          <span class="wa-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path fill="#25D366" d="M12 2a10 10 0 0 0-8.7 14.8L2 22l5.3-1.3A10 10 0 1 0 12 2z"/>
-              <path fill="#fff" d="M16.4 14.1c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.6c-.1-.2 0-.4.1-.5l.4-.4.1-.3c0-.1 0-.3 0-.4s-.5-1.3-.7-1.8-.4-.4-.5-.4h-.4c-.1 0-.4.1-.6.3s-.8.8-.8 1.9.8 2.2.9 2.4 1.6 2.6 4 3.5c.6.2 1 .4 1.4.5.6.2 1.1.2 1.5.1.5-.1 1.4-.6 1.6-1.1s.2-1 .1-1.1-.2-.2-.4-.3z"/>
-            </svg>
-          </span>
-          WhatsApp ${waMostrar()}
-        </a>
-      </div>`;
+    <a class="home-pill home-dir" href="${mapsHref()}" target="_blank" rel="noopener" style="left:${ui.dir_x}%;top:${ui.dir_y}%"${drag("dir")}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="#111"/></svg>
+      ${leerTaller().direccion}
+    </a>
+    <a class="home-pill home-wa" href="${waHref()}" target="_blank" rel="noopener" style="left:${ui.wa_x}%;top:${ui.wa_y}%"${drag("wa")}>
+      <span class="wa-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path fill="#25D366" d="M12 2a10 10 0 0 0-8.7 14.8L2 22l5.3-1.3A10 10 0 1 0 12 2z"/>
+          <path fill="#fff" d="M16.4 14.1c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.6c-.1-.2 0-.4.1-.5l.4-.4.1-.3c0-.1 0-.3 0-.4s-.5-1.3-.7-1.8-.4-.4-.5-.4h-.4c-.1 0-.4.1-.6.3s-.8.8-.8 1.9.8 2.2.9 2.4 1.6 2.6 4 3.5c.6.2 1 .4 1.4.5.6.2 1.1.2 1.5.1.5-.1 1.4-.6 1.6-1.1s.2-1 .1-1.1-.2-.2-.4-.3z"/>
+        </svg>
+      </span>
+      WhatsApp ${waMostrar()}
+    </a>
+    ${dots}`;
 }
 
 async function cargarPortada() {
@@ -335,6 +362,7 @@ async function cargarPortada() {
       const remoto = await nubeLeerPortada();
       if (remoto.length) {
         portadaSlides = remoto.map(normalizarSlide).sort((a, b) => a.orden - b.orden);
+        if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
         return portadaSlides;
       }
     } catch (e) {
@@ -345,17 +373,21 @@ async function cargarPortada() {
     const raw = JSON.parse(localStorage.getItem(PORTADA_KEY) || "null");
     if (Array.isArray(raw) && raw.length) {
       portadaSlides = raw.map(normalizarSlide);
+      if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
       return portadaSlides;
     }
   } catch (e) {
     /* ignore */
   }
   portadaSlides = PORTADA_DEFECTO.map(normalizarSlide);
+  if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
   return portadaSlides;
 }
 
 async function guardarPortada(lista) {
-  portadaSlides = lista.map(normalizarSlide);
+  const ui = normalizarUi(portadaUi);
+  portadaUi = ui;
+  portadaSlides = lista.map((s, i) => normalizarSlide({ ...s, ...ui, orden: i }, i));
   localStorage.setItem(PORTADA_KEY, JSON.stringify(portadaSlides));
   if (typeof nubeActiva === "function" && nubeActiva()) {
     await nubeGuardarPortada(portadaSlides);

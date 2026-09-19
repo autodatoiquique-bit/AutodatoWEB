@@ -302,10 +302,15 @@ button { font-family: inherit; cursor: pointer; }
   pointer-events: none;
 }
 
-.home-add {
+.home-add,
+.home-pill,
+.home-dots {
   position: absolute;
   transform: translate(-50%, -50%);
-  z-index: 3;
+  z-index: 5;
+}
+
+.home-add {
   border: 0;
   border-radius: 999px;
   padding: 12px 18px;
@@ -318,38 +323,31 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .home-dots {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 132px;
-  z-index: 5;
   display: flex;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   pointer-events: none;
+  z-index: 6;
 }
 .home-dots i {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.7);
+  transition: transform 0.2s ease, background 0.2s ease;
 }
-.home-dots i.on { background: #ffd000; }
-
-.home-contacto {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 28px;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+.home-dots i.on {
+  background: #ffd000;
+  transform: scale(1.65);
 }
+@keyframes dots-hint {
+  0%, 100% { transform: translate(-50%, -50%); }
+  35% { transform: translate(calc(-50% - 12px), -50%); }
+  70% { transform: translate(calc(-50% + 8px), -50%); }
+}
+.home-dots-hint { animation: dots-hint 1.3s ease 0.4s 2; }
 
-.home-dir,
-.home-wa {
+.home-pill {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -360,26 +358,17 @@ button { font-family: inherit; cursor: pointer; }
   text-decoration: none;
   font-weight: 800;
   font-size: 0.86rem;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
-}
-
-.home-dir {
-  background: rgba(0, 0, 0, 0.58);
-  color: #fff;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  background: #fff;
+  color: #111;
+  white-space: nowrap;
 }
 
 .home-dir svg {
   width: 15px;
   height: 15px;
-  fill: #ffd000;
+  fill: #111;
   flex: 0 0 15px;
-}
-
-.home-wa {
-  background: #fff;
-  color: #111;
 }
 
 .wa-logo {
@@ -907,12 +896,6 @@ button { font-family: inherit; cursor: pointer; }
     height: 100dvh;
     min-height: 0;
   }
-  .home-contacto {
-    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
-  }
-  .home-dots {
-    bottom: calc(150px + env(safe-area-inset-bottom, 0px));
-  }
 
   .sidebar {
     position: fixed;
@@ -1002,21 +985,7 @@ button { font-family: inherit; cursor: pointer; }
     color-scheme: only light;
     forced-color-adjust: none;
   }
-  .home-foto {
-    position: absolute;
-    inset: 0;
-    min-height: 0;
-    height: 100%;
-    object-fit: cover;
-    object-position: 52% 30%;
-    transform: scale(1.45);
-    transform-origin: 50% 18%;
-  }
-  .home-contacto {
-    bottom: calc(118px + env(safe-area-inset-bottom, 0px));
-  }
-  .home-dir,
-  .home-wa { font-size: 0.78rem; padding: 7px 12px; }
+  .home-pill { font-size: 0.78rem; padding: 7px 12px; }
   .wa-logo,
   .wa-logo svg { width: 26px; height: 26px; }
 

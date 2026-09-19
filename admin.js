@@ -426,14 +426,17 @@ function renderEditorPortada() {
   $("stage").innerHTML = `
     <article class="editor editor-portada">
       <h2>Configurar portada</h2>
-      <p class="muted">La vista de la izquierda es el celular: misma foto, mismos botones de abajo. Ahí calzás el zoom y el recorte.</p>
+      <p class="muted">La izquierda es el celular. Arrastra la foto para desplazarla. Estira ancho y alto por separado. Los cuatro controles (carrito, puntos, dirección y WhatsApp) se mueven igual.</p>
       <div class="portada-thumbs" id="portada-thumbs">
         ${portadaSlides
           .map(
             (x, i) =>
-              `<button type="button" data-slide="${i}" class="${i === slideEditIndex ? "is-on" : ""}">${
+              `<div class="portada-thumb">
+                <input type="number" min="1" max="${portadaSlides.length}" value="${i + 1}" data-orden-id="${x.id}" title="Orden" />
+                <button type="button" data-slide="${i}" class="${i === slideEditIndex ? "is-on" : ""}">${
                 x.foto ? `<img src="${x.foto}" alt="" />` : `<span class="ph">Foto ${i + 1}</span>`
-              }</button>`
+              }</button>
+              </div>`
           )
           .join("")}
       </div>
@@ -444,13 +447,15 @@ function renderEditorPortada() {
       <div class="portada-layout">
         <div class="portada-phone">
           <div class="home-screen portada-preview" id="portada-preview">
-            ${s.foto ? `<img class="home-foto" id="p-img" src="${s.foto}" alt="" style="${estiloFotoPortada(s)}" />` : `<div class="vacio-foto">Sube la foto para ajustar el recorte</div>`}
+            <div class="portada-lienzo" id="portada-lienzo">
+              ${s.foto ? `<img class="home-foto" id="p-img" src="${s.foto}" alt="" style="${estiloFotoPortada(s)}" />` : `<div class="vacio-foto">Sube la foto para ajustar el recorte</div>`}
+            </div>
             ${
               s.mostrar_boton
                 ? `<button class="home-add portada-btn-drag" type="button" id="portada-btn-drag" style="left:${s.btn_x}%;top:${s.btn_y}%">${escapeText(s.btn_texto)}</button>`
                 : ""
             }
-            ${htmlPillsContacto()}
+            ${htmlCapaPortada(portadaUi, portadaSlides.length, slideEditIndex, true)}
             ${htmlNavPortadaFalsa()}
           </div>
         </div>
@@ -460,10 +465,19 @@ function renderEditorPortada() {
             <input id="p-foto" type="file" accept="image/*" />
           </label>
           <label class="field">
-            <span>Zoom de la foto</span>
-            <input id="p-zoom" type="range" min="100" max="240" step="2" value="${Math.round(s.zoom * 100)}" />
+            <span>Zoom</span>
+            <input id="p-zoom" type="range" min="100" max="280" step="2" value="${Math.round(s.zoom * 100)}" />
           </label>
-          <p class="hint">Arrastra la foto para mover el recorte. Sube el zoom si quieres agrandarla.</p>
+          <label class="field">
+            <span>Estirar ancho</span>
+            <input id="p-ancho" type="range" min="40" max="250" step="2" value="${Math.round(s.scale_x * 100)}" />
+          </label>
+          <label class="field">
+            <span>Estirar alto</span>
+            <input id="p-alto" type="range" min="40" max="250" step="2" value="${Math.round(s.scale_y * 100)}" />
+          </label>
+          <button class="btn-line btn-block" type="button" id="btn-reset-foto">Centrar y resetear recorte</button>
+          <p class="hint">Arrastra la foto (el área negra) para moverla dentro del zoom. Arrastra cada botón o los puntos para ubicarlos.</p>
           <label class="check">
             <input id="p-boton" type="checkbox" ${s.mostrar_boton ? "checked" : ""} />
             Mostrar botón Agregar al carrito
@@ -482,7 +496,6 @@ function renderEditorPortada() {
               <span>Texto del botón</span>
               <input id="p-texto" type="text" value="${escapeAttr(s.btn_texto)}" />
             </label>
-            <p class="hint">Arrastra el botón amarillo y suéltalo cerca del precio.</p>
           </div>
           <div class="btn-row">
             <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
@@ -500,19 +513,38 @@ function leerEditorPortada() {
   if ($("p-texto")) s.btn_texto = $("p-texto").value.trim() || "Agregar al carrito";
   if ($("p-boton")) s.mostrar_boton = $("p-boton").checked;
   if ($("p-zoom")) s.zoom = Number($("p-zoom").value) / 100;
+  if ($("p-ancho")) s.scale_x = Number($("p-ancho").value) / 100;
+  if ($("p-alto")) s.scale_y = Number($("p-alto").value) / 100;
+}
+
+function ubicarCapa(el, xKey, yKey, clientX, clientY) {
+  const caja = $("portada-preview");
+  if (!caja || !el) return;
+  const r = caja.getBoundingClientRect();
+  portadaUi[xKey] = Math.min(94, Math.max(6, ((clientX - r.left) / r.width) * 100));
+  portadaUi[yKey] = Math.min(94, Math.max(6, ((clientY - r.top) / r.height) * 100));
+  el.style.left = `${portadaUi[xKey]}%`;
+  el.style.top = `${portadaUi[yKey]}%`;
 }
 
 function activarEditorImagen() {
   const caja = $("portada-preview");
+  const lienzo = $("portada-lienzo");
   const img = $("p-img");
-  const btn = $("portada-btn-drag");
   if (!caja) return;
   let modo = "";
   let lastX = 0;
   let lastY = 0;
+  const capas = {
+    dir: ["dir_x", "dir_y"],
+    wa: ["wa_x", "wa_y"],
+    dots: ["dots_x", "dots_y"],
+  };
   const mover = (e) => {
     const s = slideActual();
-    if (modo === "btn" && btn) {
+    if (modo === "btn") {
+      const btn = $("portada-btn-drag");
+      if (!btn) return;
       const r = caja.getBoundingClientRect();
       s.btn_x = Math.min(92, Math.max(8, ((e.clientX - r.left) / r.width) * 100));
       s.btn_y = Math.min(92, Math.max(8, ((e.clientY - r.top) / r.height) * 100));
@@ -520,10 +552,15 @@ function activarEditorImagen() {
       btn.style.top = `${s.btn_y}%`;
       return;
     }
+    if (capas[modo]) {
+      const el = caja.querySelector(`[data-drag="${modo}"]`);
+      ubicarCapa(el, capas[modo][0], capas[modo][1], e.clientX, e.clientY);
+      return;
+    }
     if (modo === "foto" && img) {
       const r = caja.getBoundingClientRect();
-      s.pos_x = Math.min(100, Math.max(0, s.pos_x - ((e.clientX - lastX) / r.width) * 100));
-      s.pos_y = Math.min(100, Math.max(0, s.pos_y - ((e.clientY - lastY) / r.height) * 100));
+      s.off_x = Math.min(90, Math.max(-90, s.off_x + ((e.clientX - lastX) / r.width) * 100));
+      s.off_y = Math.min(90, Math.max(-90, s.off_y + ((e.clientY - lastY) / r.height) * 100));
       lastX = e.clientX;
       lastY = e.clientY;
       pintarFotoPortada();
@@ -532,29 +569,36 @@ function activarEditorImagen() {
   const fin = () => {
     modo = "";
   };
-  if (btn) {
-    btn.addEventListener("pointerdown", (e) => {
-      modo = "btn";
-      btn.setPointerCapture(e.pointerId);
+  const prender = (el, tipo) => {
+    if (!el) return;
+    el.addEventListener("pointerdown", (e) => {
+      modo = tipo;
+      el.setPointerCapture(e.pointerId);
       e.preventDefault();
       e.stopPropagation();
     });
-    btn.addEventListener("pointermove", mover);
-    btn.addEventListener("pointerup", fin);
-    btn.addEventListener("pointercancel", fin);
-  }
-  caja.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("#portada-btn-drag")) return;
-    if (!img) return;
-    modo = "foto";
-    lastX = e.clientX;
-    lastY = e.clientY;
-    caja.setPointerCapture(e.pointerId);
-    e.preventDefault();
+    el.addEventListener("pointermove", mover);
+    el.addEventListener("pointerup", fin);
+    el.addEventListener("pointercancel", fin);
+  };
+  prender($("portada-btn-drag"), "btn");
+  Object.keys(capas).forEach((name) => prender(caja.querySelector(`[data-drag="${name}"]`), name));
+  caja.querySelectorAll("[data-drag]").forEach((el) => {
+    el.addEventListener("click", (e) => e.preventDefault());
   });
-  caja.addEventListener("pointermove", mover);
-  caja.addEventListener("pointerup", fin);
-  caja.addEventListener("pointercancel", fin);
+  if (lienzo) {
+    lienzo.addEventListener("pointerdown", (e) => {
+      if (!img) return;
+      modo = "foto";
+      lastX = e.clientX;
+      lastY = e.clientY;
+      lienzo.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    lienzo.addEventListener("pointermove", mover);
+    lienzo.addEventListener("pointerup", fin);
+    lienzo.addEventListener("pointercancel", fin);
+  }
 }
 
 async function guardarEditorPortada() {
@@ -579,7 +623,7 @@ async function guardarEditorPortada() {
   } catch (e) {
     alert(
       (e && e.message) ||
-        "No se pudo guardar. Corre en Supabase el SQL de columnas nuevas (mostrar_boton, zoom, pos_x, pos_y)."
+        "No se pudo guardar. Corre en Supabase el SQL nuevo de portada (scale_x, off_x, dir_x, etc.)."
     );
   }
 }
@@ -627,6 +671,15 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-guardar") guardarServicio();
   if (t.id === "btn-borrar") borrarServicio();
   if (t.id === "btn-guardar-portada") guardarEditorPortada();
+  if (t.id === "btn-reset-foto") {
+    const s = slideActual();
+    s.zoom = 1;
+    s.scale_x = 1;
+    s.scale_y = 1;
+    s.off_x = 0;
+    s.off_y = 0;
+    renderEditorPortada();
+  }
   if (t.id === "btn-slide-add") {
     leerEditorPortada();
     portadaSlides.push(slideVacio(portadaSlides.length));
@@ -680,9 +733,29 @@ $("stage").addEventListener("input", (e) => {
     slideActual().zoom = Number(e.target.value) / 100;
     pintarFotoPortada();
   }
+  if (e.target.id === "p-ancho") {
+    slideActual().scale_x = Number(e.target.value) / 100;
+    pintarFotoPortada();
+  }
+  if (e.target.id === "p-alto") {
+    slideActual().scale_y = Number(e.target.value) / 100;
+    pintarFotoPortada();
+  }
 });
 
 $("stage").addEventListener("change", async (e) => {
+  if (e.target.dataset.ordenId) {
+    leerEditorPortada();
+    const id = e.target.dataset.ordenId;
+    const dest = Math.min(portadaSlides.length, Math.max(1, Number(e.target.value))) - 1;
+    const from = portadaSlides.findIndex((x) => x.id === id);
+    if (from < 0 || from === dest) return;
+    const [item] = portadaSlides.splice(from, 1);
+    portadaSlides.splice(dest, 0, item);
+    slideEditIndex = dest;
+    renderEditorPortada();
+    return;
+  }
   if (e.target.id === "p-boton") {
     slideActual().mostrar_boton = e.target.checked;
     renderEditorPortada();

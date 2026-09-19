@@ -297,11 +297,25 @@ function estiloFotoPortadaAttr(s) {
   return estiloFotoPortada(s).replace(/"/g, "");
 }
 
-function armarCarruselPortada() {
+function htmlSlidePortada(s) {
+  const ofertaOk = slideMuestraBoton(s) && oferta(s.servicio_id);
+  return `
+    <article class="home-slide">
+      <img class="home-foto" src="${s.foto}" alt="${ofertaOk ? oferta(s.servicio_id).nombre : "Portada AutoDato"}" style="${estiloFotoPortadaAttr(s)}" />
+      ${
+        ofertaOk
+          ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al carrito"}</button>`
+          : ""
+      }
+    </article>`;
+}
+
+function armarCarruselPortada(nReal) {
   const pista = $("home-slides");
-  if (!pista) return;
+  if (!pista || nReal < 1) return;
   const slides = [...pista.querySelectorAll(".home-slide")];
   const dots = document.querySelectorAll(".home-dots i");
+  const loop = nReal > 1;
   const ancho = () => pista.clientWidth;
   const medir = () => {
     const w = ancho();
@@ -312,70 +326,65 @@ function armarCarruselPortada() {
       el.style.maxWidth = `${w}px`;
     });
   };
-  const indice = () => Math.round(pista.scrollLeft / Math.max(1, ancho()));
-  const pintarDots = () => {
-    const i = indice();
+  const crudo = () => Math.round(pista.scrollLeft / Math.max(1, ancho()));
+  const realDe = (i) => {
+    if (!loop) return i;
+    if (i <= 0) return nReal - 1;
+    if (i >= nReal + 1) return 0;
+    return i - 1;
+  };
+  const pintarDots = (i) => {
     dots.forEach((d, n) => d.classList.toggle("on", n === i));
   };
-  const centrar = () => {
+  const irA = (i, suave) => {
     const w = ancho();
-    const i = Math.max(0, Math.min(slides.length - 1, indice()));
-    const left = i * w;
-    if (Math.abs(pista.scrollLeft - left) > 2) {
-      pista.scrollTo({ left, behavior: "smooth" });
+    if (suave) pista.scrollTo({ left: i * w, behavior: "smooth" });
+    else pista.scrollLeft = i * w;
+    pintarDots(realDe(i));
+  };
+  const acomodar = () => {
+    let i = crudo();
+    if (loop && i <= 0) {
+      irA(nReal, false);
+      return;
     }
-    pintarDots();
+    if (loop && i >= nReal + 1) {
+      irA(1, false);
+      return;
+    }
+    irA(i, true);
   };
   medir();
-  pintarDots();
+  irA(loop ? 1 : 0, false);
   let tope;
   pista.addEventListener("scroll", () => {
-    pintarDots();
+    pintarDots(realDe(crudo()));
     clearTimeout(tope);
-    tope = setTimeout(centrar, 90);
+    tope = setTimeout(acomodar, 80);
   }, { passive: true });
   if (window._portadaResize) window.removeEventListener("resize", window._portadaResize);
   window._portadaResize = () => {
     medir();
-    pista.scrollLeft = indice() * ancho();
-    pintarDots();
+    irA(loop ? realDe(crudo()) + 1 : crudo(), false);
   };
   window.addEventListener("resize", window._portadaResize);
 }
 
 function renderPortada() {
   const slides = (portadaSlides || []).filter((s) => s.foto);
-  const lista = slides.length ? slides : PORTADA_DEFECTO;
+  const lista = slides.length ? slides : PORTADA_DEFECTO.map(normalizarSlide);
+  const loop = lista.length > 1;
+  const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
   $("stage").innerHTML = `
     <section class="home-screen">
       <header class="home-logo">
         <img src="imagenes/logo.jpg" alt="AutoDato" />
       </header>
-      <div class="home-slides" id="home-slides">
-        ${lista
-          .map((s) => {
-            const ofertaOk = slideMuestraBoton(s) && oferta(s.servicio_id);
-            return `
-          <article class="home-slide">
-            <img class="home-foto" src="${s.foto}" alt="${ofertaOk ? oferta(s.servicio_id).nombre : "Portada AutoDato"}" style="${estiloFotoPortadaAttr(s)}" />
-            ${
-              ofertaOk
-                ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al carrito"}</button>`
-                : ""
-            }
-          </article>`;
-          })
-          .join("")}
-      </div>
-      ${
-        lista.length > 1
-          ? `<div class="home-dots" aria-hidden="true">${lista.map(() => "<i></i>").join("")}</div>`
-          : ""
-      }
-      ${htmlPillsContacto()}
+      <div class="home-slides" id="home-slides">${pista.map(htmlSlidePortada).join("")}</div>
+      ${htmlCapaPortada(portadaUi, lista.length, 0, false)}
     </section>
   `;
-  armarCarruselPortada();
+  armarCarruselPortada(lista.length);
 }
 
 function idsComboPara(id) {
@@ -893,18 +902,7 @@ function iniciarOfertaDesdePortada(id) {
   if (!oferta(id)) return;
   state.ofertaPendiente = id;
   state.agregarTrasFiltro = true;
-  if (!vehiculoOk()) {
-    state.vista = "filtro-oferta";
-    renderVista();
-    return;
-  }
-  if (!state.carrito.some((x) => x.id === id)) {
-    state.carrito.push({ tipo: "oferta", id });
-    persistir();
-    renderTotales(true);
-  }
-  state.ofertaAbierta = id;
-  state.vista = "oferta-detalle";
+  state.vista = "filtro-oferta";
   renderVista();
 }
 
