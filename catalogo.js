@@ -212,6 +212,7 @@ function normalizarServicio(s) {
     canales,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
     tiene_oferta: tieneOferta(s),
+    oferta_combo: s && (s.oferta_combo === true || s.oferta_combo === "si" || (s.oferta_combo == null && (s.complementos || []).length > 0)),
     precio_oferta: precioOfertaDe({ ...s, tiene_oferta: tieneOferta(s) }),
   };
   return aplicarMediaServicio(base, mediaServicio(base));
@@ -312,8 +313,9 @@ function nuevoIdServicio(nombre) {
 function reglasComboDe(itemId) {
   const reglas = [];
   catalogo.forEach((s) => {
+    if (!usaOfertaCombo(s)) return;
     (s.complementos || []).forEach((c) => {
-      if (c.id === itemId && c.precioCombo != null) {
+      if (c.id === itemId && Number(c.precioCombo) > 0) {
         reglas.push({
           si: s.id,
           precio: Number(c.precioCombo),
@@ -566,16 +568,25 @@ function waMostrar() {
 function tieneOferta(item) {
   if (!item) return false;
   if (item.tiene_oferta === false || item.tiene_oferta === "no" || item.tiene_oferta === "false") return false;
-  if (item.tiene_oferta === true || item.tiene_oferta === "si" || item.tiene_oferta === "true") return true;
-  return item.precio_oferta != null && item.precio_oferta !== "";
+  const v = Number(item.precio_oferta);
+  const precioReal = Number.isFinite(v) && v > 0;
+  if (item.tiene_oferta === true || item.tiene_oferta === "si" || item.tiene_oferta === "true") return precioReal;
+  return precioReal && item.precio != null && v < Number(item.precio);
 }
 
 function precioOfertaDe(item) {
   if (!tieneOferta(item)) return null;
   const v = Number(item && item.precio_oferta);
-  if (!Number.isFinite(v) || v < 0) return null;
+  if (!Number.isFinite(v) || v <= 0) return null;
   if (item && item.precio != null && v >= Number(item.precio)) return null;
   return v;
+}
+
+function usaOfertaCombo(item) {
+  if (!item) return true;
+  if (item.oferta_combo === false || item.oferta_combo === "no" || item.oferta_combo === "false") return false;
+  if (item.oferta_combo === true || item.oferta_combo === "si" || item.oferta_combo === "true") return true;
+  return true;
 }
 
 function precioPagado(item, idsCarrito) {
@@ -588,7 +599,7 @@ function precioPagado(item, idsCarrito) {
     regla = { etiqueta: "oferta", precio: oferta };
   }
   reglasComboDe(item.id).forEach((d) => {
-    if ((idsCarrito || []).includes(d.si) && d.precio < pagado) {
+    if ((idsCarrito || []).includes(d.si) && d.precio > 0 && d.precio < pagado) {
       pagado = d.precio;
       regla = d;
     }

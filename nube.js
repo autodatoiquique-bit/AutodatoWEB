@@ -47,7 +47,7 @@ function filaAServicio(row, comps) {
     galeria: row.galeria || [],
     videos: row.videos || [],
     precio: row.precio,
-    precio_oferta: row.precio_oferta == null ? null : Number(row.precio_oferta),
+    precio_oferta: Number(row.precio_oferta) > 0 ? Number(row.precio_oferta) : null,
     activo: row.activo !== false,
     canales: row.canales || null,
     complementos: (comps || [])
@@ -67,8 +67,9 @@ async function nubeGuardarCatalogoCanales(lista) {
     const canales = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
     mapa[s.id] = {
       ...canales,
-      tiene_oferta: Boolean(s.tiene_oferta),
-      precio_oferta: s.tiene_oferta && s.precio_oferta != null && s.precio_oferta !== "" ? Number(s.precio_oferta) : null,
+      tiene_oferta: Boolean(s.tiene_oferta) && Number(s.precio_oferta) > 0,
+      oferta_combo: Boolean(s.oferta_combo),
+      precio_oferta: s.tiene_oferta && Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null,
     };
   });
   const { error } = await sb.storage.from("servicios").upload(
@@ -109,10 +110,10 @@ async function nubeLeerCatalogo() {
     const s = filaAServicio(row, comps || []);
     if (extra && extra[s.id]) {
       s.canales = extra[s.id];
-      if (extra[s.id].tiene_oferta != null) s.tiene_oferta = Boolean(extra[s.id].tiene_oferta);
-      if (extra[s.id].precio_oferta != null && extra[s.id].precio_oferta !== "") {
-        s.precio_oferta = Number(extra[s.id].precio_oferta);
-      }
+      if (extra[s.id].tiene_oferta != null) s.tiene_oferta = Boolean(extra[s.id].tiene_oferta) && Number(extra[s.id].precio_oferta) > 0;
+      if (extra[s.id].oferta_combo != null) s.oferta_combo = Boolean(extra[s.id].oferta_combo);
+      if (Number(extra[s.id].precio_oferta) > 0) s.precio_oferta = Number(extra[s.id].precio_oferta);
+      else s.precio_oferta = null;
     }
     return s;
   });

@@ -578,11 +578,12 @@ function armarCarruselDetalle() {
 function htmlMini(s, combo) {
   const enCarro = state.carrito.some((x) => x.id === s.id);
   const p = precioPagado(s, idsComboPara(s.id));
-  const precioCombo = combo && combo.precioCombo != null ? combo.precioCombo : null;
-  const hayOferta = precioCombo != null ? precioCombo < s.precio : p.ahorro > 0;
-  const pagado = precioCombo != null ? precioCombo : p.pagado;
-  const ahorro = precioCombo != null ? s.precio - precioCombo : p.ahorro;
-  const etiqueta = combo?.etiqueta || p.regla?.etiqueta || "";
+  const precioCombo = combo && Number(combo.precioCombo) > 0 ? Number(combo.precioCombo) : null;
+  const pagadoCombo = precioCombo != null && precioCombo < (p.pagado == null ? Infinity : p.pagado) ? precioCombo : p.pagado;
+  const hayOferta = p.lista != null && pagadoCombo != null && pagadoCombo < p.lista;
+  const pagado = hayOferta ? pagadoCombo : p.pagado;
+  const ahorro = hayOferta ? p.lista - pagado : 0;
+  const etiqueta = (precioCombo != null && precioCombo === pagado && combo?.etiqueta) || (p.regla && p.regla.si ? p.regla.etiqueta : "") || "";
   return `
     <div class="mini">
       <div class="mini-foto" style="background-image:url('${s.foto}')"></div>

@@ -134,6 +134,7 @@ function servicioVacio() {
     precio: 0,
     precio_oferta: null,
     tiene_oferta: false,
+    oferta_combo: false,
     complementos: [],
     activo: true,
   };
@@ -172,7 +173,8 @@ function leerEditor() {
   editando.detalle = $("e-detalle").value.trim();
   const precio = $("e-precio").value;
   editando.precio = precio === "" ? null : Number(precio);
-  editando.tiene_oferta = $("e-tiene-oferta") ? $("e-tiene-oferta").value === "si" : false;
+  editando.tiene_oferta = Boolean($("e-oferta-fija") && $("e-oferta-fija").checked);
+  editando.oferta_combo = Boolean($("e-oferta-combo") && $("e-oferta-combo").checked);
   const oferta = $("e-precio-oferta") ? $("e-precio-oferta").value : "";
   editando.precio_oferta = editando.tiene_oferta && oferta !== "" ? Number(oferta) : null;
   const m = mediaActual();
@@ -229,7 +231,7 @@ function pintarPrecioPreview() {
   const dummy = {
     ...editando,
     precio: $("e-precio") && $("e-precio").value !== "" ? Number($("e-precio").value) : null,
-    tiene_oferta: $("e-tiene-oferta") ? $("e-tiene-oferta").value === "si" : false,
+    tiene_oferta: Boolean($("e-oferta-fija") && $("e-oferta-fija").checked),
     precio_oferta: $("e-precio-oferta") && $("e-precio-oferta").value !== "" ? Number($("e-precio-oferta").value) : null,
   };
   $("pv-precios").innerHTML = htmlPrecioPreview(dummy);
@@ -291,17 +293,16 @@ function renderEditor() {
           <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
           <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
           <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
-          <label class="field">
-            <span>¿Este servicio tiene oferta?</span>
-            <select id="e-tiene-oferta">
-              <option value="no" ${s.tiene_oferta ? "" : "selected"}>No</option>
-              <option value="si" ${s.tiene_oferta ? "selected" : ""}>Sí, tiene oferta</option>
-            </select>
-          </label>
-          <div id="e-oferta-wrap" ${s.tiene_oferta ? "" : "hidden"}>
-            <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null ? "" : s.precio_oferta}" /></label>
-            <p class="hint">El cliente ve el valor normal tachado y el ahorro se suma arriba en Total carrito y Total ahorrado.</p>
-          </div>
+          <fieldset class="canales">
+            <legend>Criterio de la oferta</legend>
+            <p class="hint">Puedes marcar las dos. El cliente se queda con el precio más bajo que le corresponda. Ejemplo: refrigerante $90.000, esta semana $85.000, y si además lleva descarbonización baja a $50.000.</p>
+            <label class="check"><input id="e-oferta-fija" type="checkbox" ${s.tiene_oferta ? "checked" : ""} /> Oferta fija (descuento porque sí)</label>
+            <div id="e-oferta-wrap" ${s.tiene_oferta ? "" : "hidden"}>
+              <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null || Number(s.precio_oferta) <= 0 ? "" : s.precio_oferta}" /></label>
+            </div>
+            <label class="check"><input id="e-oferta-combo" type="checkbox" ${s.oferta_combo ? "checked" : ""} /> Oferta por complemento de servicio</label>
+            <p class="hint">La oferta fija vale siempre. La de complemento solo si el cliente lleva el otro servicio. Si aplican las dos, se usa la más conveniente.</p>
+          </fieldset>
 
           <h3>Fotos y videos</h3>
           <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
@@ -394,7 +395,7 @@ async function guardarServicio() {
     alert("Marca al menos un menú: Ofertas, Mantención preventiva o Diagnóstico automotriz.");
     return;
   }
-  if (editando.tiene_oferta && (editando.precio_oferta == null || Number.isNaN(editando.precio_oferta))) {
+  if (editando.tiene_oferta && (editando.precio_oferta == null || Number.isNaN(editando.precio_oferta) || Number(editando.precio_oferta) <= 0)) {
     alert("Si el servicio tiene oferta, escribe el precio oferta.");
     return;
   }
@@ -502,12 +503,13 @@ function guardarCombo() {
   const id = $("combo-id").value;
   const precioCombo = Number($("combo-precio").value);
   const otro = servicioPorId(id);
-  if (!otro || Number.isNaN(precioCombo)) {
-    alert("Elige el servicio y un precio.");
+  if (!otro || Number.isNaN(precioCombo) || precioCombo <= 0) {
+    alert("Elige el servicio y un precio mayor a 0.");
     return;
   }
   const etiqueta = `con ${editando.nombre || "este servicio"}`;
   const fila = { id, precioCombo, etiqueta };
+  editando.oferta_combo = true;
   if (!editando.complementos) editando.complementos = [];
   if (comboEditIndex >= 0) editando.complementos[comboEditIndex] = fila;
   else editando.complementos.push(fila);
@@ -1066,8 +1068,8 @@ $("stage").addEventListener("change", async (e) => {
     slideActual().mostrar_boton = e.target.checked;
     renderEditorPortada();
   }
-  if (e.target.id === "e-tiene-oferta") {
-    if ($("e-oferta-wrap")) $("e-oferta-wrap").hidden = e.target.value !== "si";
+  if (e.target.id === "e-oferta-fija") {
+    if ($("e-oferta-wrap")) $("e-oferta-wrap").hidden = !e.target.checked;
     pintarPrecioPreview();
   }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
