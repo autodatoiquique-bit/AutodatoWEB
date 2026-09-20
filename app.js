@@ -20,7 +20,7 @@ const state = {
   origenAgenda: "menu",
   pasoAgenda: "filtro",
   servicioAgenda: null,
-  cliente: { nombre: "", telefono: "", patente: "", correo: "" },
+  cliente: { nombre: "", telefono: "", patente: "", correo: "", sintoma: "" },
   cita: { fecha: "", hora: "" },
   cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
   vistaAnterior: "ofertas",
@@ -998,6 +998,7 @@ function renderDatosAgenda() {
       <label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" /></label>
       <label class="field"><span>Teléfono</span><input id="c-telefono" type="tel" value="${escapeAttr(state.cliente.telefono)}" /></label>
       <label class="field"><span>Patente (opcional)</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" /></label>
+      <label class="field"><span>Falla o síntoma (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Ruido, check engine, fuga u otra falla que notes">${escapeHtml(state.cliente.sintoma)}</textarea></label>
       <label class="field"><span>Correo (opcional)</span><input id="c-correo" type="email" value="${escapeAttr(state.cliente.correo)}" /></label>
       <h3>Fecha de visita</h3>
       ${htmlCalendario()}
@@ -1005,15 +1006,23 @@ function renderDatosAgenda() {
     </section>
   `;
 
-  ["c-nombre", "c-telefono", "c-patente", "c-correo"].forEach((id) => {
+  ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo"].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener("input", guardarClienteDesdeForma);
   });
 }
 
+function escapeHtml(v) {
+  return String(v || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function escapeAttr(v) {
-  return String(v || "").replace(/"/g, "&quot;");
+  return escapeHtml(v);
 }
 
 function faltantesTicket() {
@@ -1339,6 +1348,7 @@ async function generarTicket() {
     telefono: state.cliente.telefono.trim(),
     patente: state.cliente.patente.trim().toUpperCase() || null,
     correo: state.cliente.correo.trim() || null,
+    sintoma: (state.cliente.sintoma || "").trim() || null,
     fecha_cita: state.cita.fecha,
     hora: state.cita.hora,
     servicios: items.map((s) => ({
@@ -1384,7 +1394,7 @@ function vaciarCarritoTrasTicket() {
   state.cita = { fecha: "", hora: "" };
   state.pasoAgenda = "filtro";
   state.origenAgenda = "menu";
-  state.cliente = { nombre: "", telefono: "", patente: "", correo: "" };
+  state.cliente = { nombre: "", telefono: "", patente: "", correo: "", sintoma: "" };
   state.vista = "ofertas";
   persistir();
   renderTotales(false);
@@ -1405,6 +1415,11 @@ function abrirTicket(payload) {
           <div>
             <p><strong>Cliente</strong><br />${payload.nombre_cliente}<br />${payload.telefono}${payload.correo ? "<br />" + payload.correo : ""}${payload.patente ? "<br />Patente " + payload.patente : ""}</p>
             <p><strong>Vehículo</strong><br />${payload.marca} ${payload.modelo} ${payload.ano}</p>
+            ${
+              payload.sintoma
+                ? `<p><strong>Falla o síntoma</strong><br />${escapeHtml(payload.sintoma).replace(/\n/g, "<br />")}</p>`
+                : ""
+            }
             <p><strong>Cita</strong><br />${fechaBonita(payload.fecha_cita)} · ${payload.hora}</p>
           </div>
           <div>
@@ -1552,6 +1567,7 @@ function guardarClienteDesdeForma() {
   if ($("c-nombre")) state.cliente.nombre = $("c-nombre").value;
   if ($("c-telefono")) state.cliente.telefono = $("c-telefono").value;
   if ($("c-patente")) state.cliente.patente = $("c-patente").value.toUpperCase();
+  if ($("c-sintoma")) state.cliente.sintoma = $("c-sintoma").value;
   if ($("c-correo")) state.cliente.correo = $("c-correo").value;
   persistir();
 }

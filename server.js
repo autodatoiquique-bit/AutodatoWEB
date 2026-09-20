@@ -64,7 +64,7 @@ function cuerpoAutonexus(payload, token) {
     servicios_solicitados: servicios,
     servicio_solicitado: servicios,
     total_pactado: Number.isFinite(total) ? Math.round(total) : "",
-    antecedentes: "",
+    antecedentes: String(payload.sintoma || "").trim(),
     correo: String(payload.correo || "").trim(),
     patente: String(payload.patente || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase(),
     estatus_tarifa: ahorro > 0 ? "bonificacion" : "estandar",

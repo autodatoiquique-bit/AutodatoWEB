@@ -540,7 +540,7 @@ body.hay-perfil .panel { padding-top: 88px; }
 
 .field { display: block; margin-top: 14px; }
 .field span { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; }
-.field input, .field select {
+.field input, .field select, .field textarea {
   width: 100%;
   padding: 11px 12px;
   border: 1px solid #d0d0d0;
@@ -549,6 +549,10 @@ body.hay-perfil .panel { padding-top: 88px; }
   background: #fff;
   color: var(--ink);
   color-scheme: light;
+}
+.field textarea {
+  min-height: 88px;
+  resize: vertical;
 }
 
 .dd { position: relative; margin-top: 14px; }
