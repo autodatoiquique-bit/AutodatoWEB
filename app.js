@@ -1300,6 +1300,11 @@ async function enviarTicketAutonexus(payload) {
   }
 }
 
+function mostrarCargaTicket(on) {
+  const el = $("carga-ticket");
+  if (el) el.hidden = !on;
+}
+
 async function generarTicket() {
   guardarClienteDesdeForma();
   const falta = faltantesTicket();
@@ -1308,6 +1313,15 @@ async function generarTicket() {
     return;
   }
 
+  const btn = $("btn-ticket");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Generando ticket…";
+  }
+  mostrarCargaTicket(true);
+
+  let llegoAgenda = false;
+  try {
   const { items, subtotal, total, ahorro } = calcular();
   const code = nuevoCodeTicket();
   const payload = {
@@ -1350,9 +1364,12 @@ async function generarTicket() {
     }
   }
 
-  const llegoAgenda = await enviarTicketAutonexus(payload);
+  llegoAgenda = await enviarTicketAutonexus(payload);
   vaciarCarritoTrasTicket();
   abrirTicket(payload);
+  } finally {
+    mostrarCargaTicket(false);
+  }
   if (!llegoAgenda) {
     alert("El ticket se generó, pero no llegó a la agenda de AutoNexus. Revisa el CODE y reintenta o avisa en el taller.");
   }
