@@ -1155,15 +1155,19 @@ function aplicarFiltroTrasPortada() {
 }
 
 function agregarOferta(id) {
-  if (state.carrito.some((x) => x.id === id)) {
-    if (state.vista === "oferta-detalle") renderDetalleOferta();
+  if (!state.carrito.some((x) => x.id === id)) {
+    state.carrito.push({ tipo: "oferta", id });
+    persistir();
+    renderTotales(true);
+  }
+  if (state.vista === "oferta-detalle") {
+    state.ofertaAbierta = id;
+    state.origenAgenda = "ofertas";
+    renderVista();
     return;
   }
-  state.carrito.push({ tipo: "oferta", id });
   if (!state.ofertaAbierta) state.ofertaAbierta = id;
   state.origenAgenda = "ofertas";
-  persistir();
-  renderTotales(true);
   refrescarListasCotizacion();
 }
 
