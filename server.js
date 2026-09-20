@@ -71,6 +71,96 @@ function cuerpoAutonexus(payload, token) {
   };
 }
 
+function extraerUrlFicha(parsed, texto) {
+  const esUrl = (v) => {
+    const t = String(v || "").trim();
+    if (!/^https?:\/\//i.test(t)) return "";
+    if (/workers\.dev/i.test(t)) return "";
+    return t.replace(/[),.;]+$/, "");
+  };
+  const directa = esUrl(texto);
+  if (directa) return directa;
+  const enTexto = String(texto || "").match(/https?:\/\/[^\s"'<>]+/i);
+  if (enTexto) {
+    const limpia = esUrl(enTexto[0]);
+    if (limpia) return limpia;
+  }
+  const claves = ["url", "link", "ficha", "url_ficha", "redirect", "href", "informe", "url_informe", "ficha_url"];
+  const walk = (obj, depth) => {
+    if (!obj || depth > 5) return "";
+    if (typeof obj === "string") return esUrl(obj);
+    if (typeof obj !== "object") return "";
+    for (const k of claves) {
+      const found = walk(obj[k], depth + 1);
+      if (found) return found;
+    }
+    for (const v of Object.values(obj)) {
+      const found = walk(v, depth + 1);
+      if (found) return found;
+    }
+    return "";
+  };
+  return walk(parsed, 0);
+}
+
+function cuerpoIdentificarCliente(payload, token) {
+  return {
+    accion: "identificar_cliente",
+    token,
+    asistente: "clientes",
+    telefono: telefonoLimpio(payload.telefono),
+    patente: String(payload.patente || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase(),
+  };
+}
+
+app.post("/api/autonexus-ficha", async (req, res) => {
+  const url = urlWebhookAutonexus();
+  const token = process.env.AUTONEXUS_WEBHOOK_TOKEN || "";
+  if (!token) {
+    return res.status(501).json({ ok: false, error: "Webhook no configurado" });
+  }
+  const telefono = telefonoLimpio((req.body || {}).telefono);
+  const patente = String((req.body || {}).patente || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (!telefono || !patente) {
+    return res.status(400).json({ ok: false, error: "Escribe la patente y el celular." });
+  }
+  try {
+    const body = cuerpoIdentificarCliente({ telefono, patente }, token);
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const texto = await r.text();
+    let parsed = null;
+    try {
+      parsed = JSON.parse(texto);
+    } catch (_e) {
+      parsed = null;
+    }
+    if (!r.ok || (parsed && parsed.exito === false)) {
+      console.warn("AutoNexus ficha falló", r.status);
+      return res.status(502).json({
+        ok: false,
+        error: (parsed && (parsed.error || parsed.mensaje_para_asistente)) ||
+          "No encontramos una ficha con esos datos.",
+      });
+    }
+    const ficha = extraerUrlFicha(parsed, texto);
+    if (!ficha) {
+      console.warn("AutoNexus ficha sin URL");
+      return res.status(502).json({
+        ok: false,
+        error: "AutoNexus respondió, pero no trajo el enlace de la ficha.",
+      });
+    }
+    return res.json({ ok: true, url: ficha });
+  } catch (e) {
+    console.warn("AutoNexus ficha error", e.message || e);
+    return res.status(502).json({ ok: false, error: "No se pudo abrir la ficha interactiva." });
+  }
+});
+
 app.post("/api/autonexus-ticket", async (req, res) => {
   const url = urlWebhookAutonexus();
   const token = process.env.AUTONEXUS_WEBHOOK_TOKEN || "";

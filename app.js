@@ -1463,19 +1463,34 @@ $("modal-informe").addEventListener("click", (e) => {
 
 $("btn-abrir-informe").addEventListener("click", async () => {
   const patente = normalizarPatente($("informe-patente").value);
-  const telefono = normalizarFono($("informe-telefono").value);
-  if (!patente || !telefono) {
+  const telefono = $("informe-telefono").value;
+  if (!patente || !normalizarFono(telefono)) {
     alert("Escribe la patente y el celular de tu visita.");
     return;
   }
-  const ticket = await buscarTicketVisita(patente, telefono);
-  if (!ticket) {
-    alert("No encontramos una visita con esa patente y ese celular. Tienen que ser los mismos que informaste al agendar.");
-    return;
+  const btn = $("btn-abrir-informe");
+  const texto = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Buscando ficha…";
+  try {
+    const r = await fetch("/api/autonexus-ficha", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ patente, telefono }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.url) {
+      alert(data.error || "No encontramos una ficha con esa patente y ese celular.");
+      return;
+    }
+    cerrarModalInforme();
+    window.open(data.url, "_blank", "noopener");
+  } catch (_e) {
+    alert("No se pudo abrir la ficha interactiva. Reintenta.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = texto;
   }
-  cerrarModalInforme();
-  abrirTicket(ticket);
-  window.open(`${INFORME_BASE}?entrada=${encodeURIComponent(ticket.patente || ticket.code)}`, "_blank", "noopener");
 });
 
 window.addEventListener("focus", async () => {
