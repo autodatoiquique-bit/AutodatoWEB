@@ -932,6 +932,7 @@ function abrirModalInforme() {
 }
 
 function cerrarModalInforme() {
+  guardarDatosFicha();
   $("modal-informe").hidden = true;
   if (overlayLibre()) $("overlay").hidden = true;
   marcarMenu();
