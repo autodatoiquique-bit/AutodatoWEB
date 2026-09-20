@@ -673,7 +673,7 @@ async function abrirEditorPortada() {
 }
 
 function htmlNavPortadaFalsa() {
-  return `<nav class="portada-nav" aria-hidden="true">${["Mis informes", "Ofertas", "Agendamiento", "Mantención preventiva"]
+  return `<nav class="portada-nav" aria-hidden="true">${["Ficha interactiva", "Ofertas", "Agendamiento", "Mantención preventiva"]
     .map((txt) => `<span><i></i><b>${txt}</b></span>`)
     .join("")}</nav>`;
 }
