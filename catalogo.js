@@ -70,21 +70,55 @@ function persistirTablero() {
   localStorage.setItem(TABLERO_KEY, JSON.stringify(TABLERO_COLUMNAS || []));
 }
 
+function normalizarCombustible(v) {
+  const t = String(v || "").toLowerCase();
+  if (t === "diesel" || t === "diésel" || t === "diesell") return "diesel";
+  if (t === "bencina" || t === "bencinero" || t === "gasolina") return "bencina";
+  return "ambos";
+}
+
+function etiquetaCombustible(v) {
+  const t = normalizarCombustible(v);
+  if (t === "diesel") return "Diésel";
+  if (t === "bencina") return "Bencina";
+  return "Diésel y bencina";
+}
+
+function combustibleCoincide(a, b) {
+  const x = normalizarCombustible(a);
+  const y = normalizarCombustible(b);
+  return x === "ambos" || y === "ambos" || x === y;
+}
+
+const COMBUSTIBLES = [
+  { value: "diesel", label: "Diésel" },
+  { value: "bencina", label: "Bencina" },
+  { value: "ambos", label: "Ambos (diésel y bencina)" },
+];
+
+function anioONull(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 1950 || n > 2100) return null;
+  return n;
+}
+
 function normalizarColumnaTablero(c) {
   if (!c || !c.marca || !c.modelo) return null;
-  const d = Number(c.ano_desde);
-  const h = Number(c.ano_hasta);
+  const d = anioONull(c.ano_desde);
+  const h = anioONull(c.ano_hasta);
   return {
     id: String(c.id || `col-${c.marca}-${c.modelo}-${d || ""}-${h || ""}`),
     marca: String(c.marca),
     modelo: String(c.modelo),
-    ano_desde: Number.isFinite(d) ? d : null,
-    ano_hasta: Number.isFinite(h) ? h : null,
+    ano_desde: d,
+    ano_hasta: h,
+    combustible: normalizarCombustible(c.combustible),
+    foto: String(c.foto || ""),
   };
 }
 
 function claveColumnaTablero(c) {
-  return `${c.marca}|${c.modelo}|${c.ano_desde || ""}|${c.ano_hasta || ""}`;
+  return `${c.marca}|${c.modelo}|${c.ano_desde || ""}|${c.ano_hasta || ""}|${normalizarCombustible(c && c.combustible)}`;
 }
 
 function aniosSeSolapan(a, b) {
@@ -98,8 +132,34 @@ function aniosSeSolapan(a, b) {
 function destinoEnColumna(dest, col) {
   if (!dest || !col) return false;
   if (dest.marca !== col.marca) return false;
-  if (dest.modelo !== "*" && dest.modelo !== col.modelo) return false;
-  return aniosSeSolapan(dest, col);
+  if (dest.modelo !== col.modelo) return false;
+  if (!aniosSeSolapan(dest, col)) return false;
+  return combustibleCoincide(dest.combustible, col.combustible);
+}
+
+function fotoPortadaColumna(col) {
+  if (col && col.foto) return col.foto;
+  const flyer = (typeof portadaSlides !== "undefined" ? portadaSlides : []).find((s) => s.foto && itemEnColumna(s, col));
+  if (flyer) return flyer.foto;
+  return fotoModeloDe(col && col.marca, col && col.modelo);
+}
+
+function columnaDeVehiculo(v) {
+  if (!v || !v.marca || !v.modelo) return null;
+  const cols = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  const mismoAuto = cols.filter((c) => c.marca === v.marca && c.modelo === v.modelo);
+  return (
+    mismoAuto.find((c) => anioEnRango(v.ano, c) && combustibleCoincide(c.combustible, v.combustible)) ||
+    mismoAuto.find((c) => anioEnRango(v.ano, c)) ||
+    mismoAuto[0] ||
+    null
+  );
+}
+
+function fotoPortadaVehiculo(v) {
+  const col = columnaDeVehiculo(v);
+  if (col) return fotoPortadaColumna(col);
+  return fotoModeloDe(v && v.marca, v && v.modelo);
 }
 
 function itemEnColumna(item, col) {
@@ -117,6 +177,7 @@ function sembrarColumnasTablero() {
       modelo: v.modelo === "*" ? "todos" : v.modelo,
       ano_desde: v.ano_desde,
       ano_hasta: v.ano_hasta,
+      combustible: v.combustible,
     });
     if (!col || col.modelo === "todos") return;
     const k = claveColumnaTablero(col);
@@ -170,6 +231,20 @@ function etiquetaRangoAnios(v) {
   return "todos los años";
 }
 
+function etiquetaColumnaAnios(col) {
+  if (!col) return "";
+  if (col.ano_desde != null && col.ano_hasta != null) return `${col.ano_desde}-${col.ano_hasta}`;
+  if (col.ano_desde != null) return `${col.ano_desde}+`;
+  if (col.ano_hasta != null) return `hasta ${col.ano_hasta}`;
+  return "";
+}
+
+function tituloColumna(col) {
+  if (!col) return "";
+  const anios = etiquetaColumnaAnios(col);
+  return anios ? `${col.marca} ${col.modelo} ${anios}` : `${col.marca} ${col.modelo}`;
+}
+
 function normalizarVehiculos(lista) {
   if (!Array.isArray(lista)) return [];
   return lista
@@ -185,13 +260,17 @@ function normalizarVehiculos(lista) {
       } else if (v && v.marca) {
         marca = String(v.marca);
         modelo = String(v.modelo || "*");
-        const d = Number(v.ano_desde);
-        const h = Number(v.ano_hasta);
-        ano_desde = Number.isFinite(d) ? d : null;
-        ano_hasta = Number.isFinite(h) ? h : null;
+        ano_desde = anioONull(v.ano_desde);
+        ano_hasta = anioONull(v.ano_hasta);
       }
       if (!marca) return null;
-      return { marca, modelo: modelo || "*", ano_desde, ano_hasta };
+      return {
+        marca,
+        modelo: modelo || "*",
+        ano_desde,
+        ano_hasta,
+        combustible: normalizarCombustible(v && v.combustible),
+      };
     })
     .filter(Boolean);
 }
@@ -212,7 +291,8 @@ function servicioAplicaAVehiculo(s, vehiculo) {
   return destinos.some((v) => {
     if (v.marca !== vehiculo.marca) return false;
     if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
-    return anioEnRango(vehiculo.ano, v);
+    if (!anioEnRango(vehiculo.ano, v)) return false;
+    return combustibleCoincide(v.combustible, vehiculo.combustible);
   });
 }
 
@@ -222,7 +302,7 @@ function etiquetaVehiculos(s) {
   return destinos
     .map((v) => {
       const modelo = v.modelo === "*" ? "todos los modelos" : v.modelo;
-      return `${v.marca} ${modelo} · ${etiquetaRangoAnios(v)}`;
+      return `${v.marca} ${modelo} · ${etiquetaRangoAnios(v)} · ${etiquetaCombustible(v.combustible)}`;
     })
     .join(" · ");
 }
@@ -444,6 +524,9 @@ function normalizarServicio(s) {
     vehiculos: normalizarVehiculos(s && s.vehiculos),
     dots_x: clampNum(s && s.dots_x, 6, 94, 50),
     dots_y: clampNum(s && s.dots_y, 6, 94, 62),
+    tiempo_min: Number(s && s.tiempo_min) > 0 ? Number(s.tiempo_min) : null,
+    mano_obra: Number(s && s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
+    insumos: normalizarInsumos(s && s.insumos),
   };
   return aplicarMediaServicio(base, mediaServicio(base));
 }
@@ -737,7 +820,7 @@ function encajarVehiculoTaller(raw) {
     modelos.find((m) => m.toLowerCase() === modeloTxt.toLowerCase()) ||
     modelos.find((m) => modeloTxt.toLowerCase().includes(m.toLowerCase()) || m.toLowerCase().includes(modeloTxt.toLowerCase()));
   if (!modelo) return null;
-  return { marca, modelo, ano };
+  return { marca, modelo, ano, combustible: normalizarCombustible(raw.combustible) };
 }
 
 function slideVacio(orden) {
@@ -856,6 +939,76 @@ function waMostrar() {
   const d = leerTaller().whatsapp.replace(/\D/g, "");
   if (d.startsWith("56") && d.length >= 11) return `+56 ${d.slice(2, 3)} ${d.slice(3, 7)} ${d.slice(7)}`;
   return `+${d}`;
+}
+
+const TIEMPOS_TRABAJO = [
+  { min: 15, label: "15 min" },
+  { min: 30, label: "30 min" },
+  { min: 45, label: "45 min" },
+  { min: 60, label: "1 hora" },
+  { min: 90, label: "1 h 30" },
+  { min: 120, label: "2 horas" },
+  { min: 150, label: "2 h 30" },
+  { min: 180, label: "3 horas" },
+  { min: 240, label: "4 horas" },
+  { min: 300, label: "5 horas" },
+  { min: 360, label: "6 horas" },
+  { min: 480, label: "8 horas" },
+];
+
+function etiquetaTiempo(min) {
+  const n = Number(min);
+  if (!Number.isFinite(n) || n <= 0) return "Sin definir";
+  const hit = TIEMPOS_TRABAJO.find((t) => t.min === n);
+  if (hit) return hit.label;
+  if (n < 60) return `${n} min`;
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return m ? `${h} h ${m}` : `${h} ${h === 1 ? "hora" : "horas"}`;
+}
+
+function htmlOpcionesTiempo(sel) {
+  const n = Number(sel);
+  return `<option value="">Sin definir</option>${TIEMPOS_TRABAJO.map(
+    (t) => `<option value="${t.min}" ${n === t.min ? "selected" : ""}>${t.label}</option>`
+  ).join("")}`;
+}
+
+function normalizarInsumo(x, i) {
+  const costo = Number(x && x.costo);
+  const pct = Number(x && x.porcentaje);
+  return {
+    id: String((x && x.id) || `ins-${i || 0}-${Math.random().toString(36).slice(2, 6)}`),
+    nombre: String((x && x.nombre) || "").trim(),
+    costo: Number.isFinite(costo) && costo > 0 ? costo : 0,
+    porcentaje: Number.isFinite(pct) ? pct : 30,
+  };
+}
+
+function normalizarInsumos(lista) {
+  if (!Array.isArray(lista)) return [];
+  return lista.map((x, i) => normalizarInsumo(x, i));
+}
+
+function ventaInsumo(ins) {
+  const costo = Number(ins && ins.costo) || 0;
+  const pct = Number(ins && ins.porcentaje) || 0;
+  return Math.round(costo * (1 + pct / 100));
+}
+
+function costoInsumosDe(s) {
+  return (s && s.insumos ? s.insumos : []).reduce((acc, ins) => acc + (Number(ins.costo) || 0), 0);
+}
+
+function valorNormalDe(s) {
+  const labor = Number(s && s.mano_obra) || 0;
+  const insumos = (s && s.insumos ? s.insumos : []).reduce((acc, ins) => acc + ventaInsumo(ins), 0);
+  if (labor > 0 || insumos > 0) return labor + insumos;
+  return Number(s && s.precio) || 0;
+}
+
+function utilidadDe(precio, s) {
+  return (Number(precio) || 0) - costoInsumosDe(s);
 }
 
 function tieneOferta(item) {

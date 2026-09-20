@@ -8,6 +8,10 @@ let comboEditIndex = -1;
 let slideEditIndex = 0;
 let mediaEditIndex = 0;
 let fotoModeloPendiente = "";
+let colFotoPendiente = "";
+let columnaEditId = "";
+let ofertaDraft = null;
+let tarjetaColId = "";
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -136,11 +140,22 @@ function servicioVacio() {
     precio_oferta: null,
     tiene_oferta: false,
     oferta_combo: false,
-    vehiculos: [],
+    vehiculos: [
+      {
+        marca: MARCAS[0],
+        modelo: modelosDe(MARCAS[0])[0],
+        combustible: "diesel",
+        ano_desde: ANIO_MIN,
+        ano_hasta: ANIO_MAX,
+      },
+    ],
     dots_x: 50,
     dots_y: 62,
     complementos: [],
     activo: true,
+    tiempo_min: null,
+    mano_obra: 0,
+    insumos: [],
   };
 }
 
@@ -151,8 +166,54 @@ function vehiculosDeColumna(col) {
       modelo: col.modelo,
       ano_desde: col.ano_desde,
       ano_hasta: col.ano_hasta,
+      combustible: col.combustible || "ambos",
     },
   ];
+}
+
+function htmlOpcionesCombustible(sel) {
+  return COMBUSTIBLES.map(
+    (c) => `<option value="${c.value}" ${normalizarCombustible(sel) === c.value ? "selected" : ""}>${c.label}</option>`
+  ).join("");
+}
+
+function htmlCamposColumna(col, id) {
+  const marca = (col && col.marca) || MARCAS[0];
+  const modelos = modelosDe(marca);
+  const modelo = (col && col.modelo) || modelos[0];
+  const adelante = !col || anioONull(col.ano_hasta) == null;
+  const desde = anioONull(col && col.ano_desde) || ANIO_MIN;
+  const hasta = anioONull(col && col.ano_hasta) || ANIO_MAX;
+  return `
+    <label class="field"><span>Marca</span>
+      <select data-col-campo="marca" data-col-id="${id}">${MARCAS.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m}</option>`).join("")}</select>
+    </label>
+    <label class="field"><span>Modelo</span>
+      <select data-col-campo="modelo" data-col-id="${id}">${modelos.map((m) => `<option value="${m}" ${m === modelo ? "selected" : ""}>${m}</option>`).join("")}</select>
+    </label>
+    <label class="field"><span>Desde el año</span>
+      <select data-col-campo="desde" data-col-id="${id}">${htmlOpcionesAnio(desde)}</select>
+    </label>
+    <label class="field"><span>Hasta el año</span>
+      <select data-col-campo="hasta" data-col-id="${id}" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta)}</select>
+    </label>
+    <label class="check"><input type="checkbox" data-col-campo="adelante" data-col-id="${id}" ${adelante ? "checked" : ""} /> En adelante (sin tope)</label>
+    <label class="field"><span>Combustible</span>
+      <select data-col-campo="combustible" data-col-id="${id}">${htmlOpcionesCombustible(col && col.combustible)}</select>
+    </label>
+  `;
+}
+
+function leerCamposColumna(id) {
+  const q = (campo) => document.querySelector(`[data-col-campo="${campo}"][data-col-id="${id}"]`);
+  const adelante = Boolean(q("adelante") && q("adelante").checked);
+  return {
+    marca: q("marca") && q("marca").value,
+    modelo: q("modelo") && q("modelo").value,
+    ano_desde: q("desde") ? Number(q("desde").value) : ANIO_MIN,
+    ano_hasta: adelante ? null : q("hasta") ? Number(q("hasta").value) : ANIO_MAX,
+    combustible: q("combustible") && q("combustible").value,
+  };
 }
 
 async function guardarTableroNube() {
@@ -163,19 +224,37 @@ async function guardarTableroNube() {
 }
 
 function htmlTarjetaKanbanServicio(s) {
-  const p = typeof precioPagado === "function" ? precioPagado(s, []) : { pagado: s.precio };
+  const normal = typeof valorNormalDe === "function" ? valorNormalDe(s) : s.precio;
+  const oferta = Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null;
+  const uN = typeof utilidadDe === "function" ? utilidadDe(normal, s) : null;
+  const uO = oferta != null && typeof utilidadDe === "function" ? utilidadDe(oferta, s) : null;
   return `<button class="kanban-card" type="button" data-kanban-servicio="${s.id}">
-    <div class="kanban-cover"${s.foto ? ` style="background-image:url('${s.foto}')"` : ""}></div>
+    <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" />` : ""}</div>
     <div class="kanban-body">
-      <strong>${s.nombre || "Sin nombre"}</strong>
-      <span>${clp(p.pagado != null ? p.pagado : s.precio)} · ${etiquetaCanales(s)}</span>
+      <strong>${escapeText(s.nombre || "Sin nombre")}</strong>
+      <div class="kanban-kpis">
+        <div>
+          <span>Normal</span>
+          <b>${clp(normal)}</b>
+          <em${uN != null && uN < 0 ? ` class="is-bad"` : ""}>Utilidad ${uN == null ? "—" : clp(uN)}</em>
+        </div>
+        <div>
+          <span>Oferta</span>
+          <b>${oferta != null ? clp(oferta) : "—"}</b>
+          <em${uO != null && uO < 0 ? ` class="is-bad"` : ""}>${uO == null ? "Sin oferta" : `Utilidad ${clp(uO)}`}</em>
+        </div>
+        <div>
+          <span>Tiempo</span>
+          <b>${etiquetaTiempo(s.tiempo_min)}</b>
+        </div>
+      </div>
     </div>
   </button>`;
 }
 
 function htmlTarjetaKanbanPortada(s, i) {
   return `<button class="kanban-card" type="button" data-kanban-portada="${s.id}">
-    <div class="kanban-cover"${s.foto ? ` style="background-image:url('${s.foto}')"` : ""}></div>
+    <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" />` : ""}</div>
     <div class="kanban-body">
       <strong>Portada</strong>
       <span>Flyer ${i + 1}${s.mostrar_boton ? " · con botón" : ""}</span>
@@ -184,54 +263,255 @@ function htmlTarjetaKanbanPortada(s, i) {
 }
 
 function htmlColumnaKanban(col) {
-  const foto = fotoModeloDe(col.marca, col.modelo);
+  const foto = fotoPortadaColumna(col);
   const portadas = (portadaSlides || [])
     .map((s, i) => ({ s, i }))
     .filter((x) => itemEnColumna(x.s, col));
   const servicios = (catalogo || []).filter((s) => itemEnColumna(s, col));
   return `
     <section class="kanban-col">
-      <header class="kanban-head">
-        ${foto ? `<img src="${foto}" alt="" />` : `<span class="kanban-ph"></span>`}
-        <div>
-          <strong>${col.marca} ${col.modelo}</strong>
-          <span>${etiquetaRangoAnios(col)}</span>
+      <div class="kanban-apex">
+        <div class="kanban-apex-foto">${foto ? `<img src="${foto}" alt="" />` : ""}</div>
+        <div class="kanban-apex-meta">
+          <strong>${tituloColumna(col)}</strong>
+          <span>${etiquetaCombustible(col.combustible)}</span>
         </div>
-        <button class="kanban-x" type="button" data-kanban-del-col="${col.id}" title="Quitar columna">×</button>
-      </header>
+        <button class="kanban-gear" type="button" data-kanban-config="${col.id}" title="Configurar columna" aria-label="Configurar columna">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.1 12.9a7.6 7.6 0 0 0 .1-.9 7.6 7.6 0 0 0-.1-.9l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.5-.9l-.4-2.6h-4l-.4 2.6a7.4 7.4 0 0 0-1.5.9l-2.5-1-2 3.4 2.1 1.6a7.6 7.6 0 0 0-.1.9 7.6 7.6 0 0 0 .1.9L2.8 14.5l2 3.4 2.5-1c.5.3 1 .7 1.5.9l.4 2.6h4l.4-2.6c.5-.2 1.1-.5 1.5-.9l2.5 1 2-3.4-2.1-1.6ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
+        </button>
+      </div>
       <div class="kanban-cards">
         ${portadas.map((x) => htmlTarjetaKanbanPortada(x.s, x.i)).join("")}
         ${servicios.map(htmlTarjetaKanbanServicio).join("")}
         ${!portadas.length && !servicios.length ? `<p class="kanban-vacio">Sin promociones para este auto.</p>` : ""}
       </div>
       <div class="kanban-add">
-        <button type="button" data-kanban-nuevo="${col.id}">+ Promoción</button>
-        <button type="button" data-kanban-portada-nueva="${col.id}">+ Portada</button>
+        <button type="button" class="kanban-add-card" data-kanban-tarjeta="${col.id}">Añadir tarjeta</button>
       </div>
     </section>
   `;
 }
 
+function pintarCarnetColumna(col) {
+  const img = $("col-carnet-img");
+  const vacio = $("col-carnet-vacio");
+  const src = col ? fotoPortadaColumna(col) : "";
+  if (img) {
+    img.hidden = !src;
+    if (src) img.src = src;
+  }
+  if (vacio) vacio.hidden = Boolean(src);
+}
+
+function abrirModalColumna(id) {
+  const col = TABLERO_COLUMNAS.find((c) => c.id === id);
+  if (!col || !$("modal-columna") || !$("col-campos")) return;
+  columnaEditId = id;
+  $("col-campos").innerHTML = htmlCamposColumna(col, id);
+  pintarCarnetColumna(col);
+  $("modal-columna").hidden = false;
+}
+
+function cerrarModalColumna() {
+  columnaEditId = "";
+  if ($("modal-columna")) $("modal-columna").hidden = true;
+}
+
+function htmlKpisOferta(s) {
+  const costo = costoInsumosDe(s);
+  const normal = valorNormalDe(s);
+  const oferta = Number(s && s.precio_oferta) > 0 ? Number(s.precio_oferta) : null;
+  const uN = utilidadDe(normal, s);
+  const uO = oferta != null ? utilidadDe(oferta, s) : null;
+  return `
+    <div class="kpi-oferta">
+      <div>
+        <span>Valor normal</span>
+        <strong>${clp(normal)}</strong>
+        <em class="${uN < 0 ? "is-bad" : ""}">Utilidad ${clp(uN)}</em>
+      </div>
+      <div>
+        <span>Valor oferta</span>
+        <strong>${oferta != null ? clp(oferta) : "—"}</strong>
+        <em class="${uO != null && uO < 0 ? "is-bad" : ""}">Utilidad ${uO != null ? clp(uO) : "—"}</em>
+      </div>
+      <div>
+        <span>Tiempo aproximado</span>
+        <strong>${etiquetaTiempo(s && s.tiempo_min)}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function htmlFilasInsumos(lista) {
+  const rows = lista || [];
+  if (!rows.length) return `<p class="muted">Todavía no hay insumos. Agrégalos con su costo y el porcentaje de margen.</p>`;
+  return rows
+    .map(
+      (ins, i) => `
+      <div class="insumo-row">
+        <input data-ins-nombre="${i}" type="text" placeholder="Insumo" value="${escapeAttr(ins.nombre)}" />
+        <input data-ins-costo="${i}" type="number" min="0" step="100" placeholder="Costo" value="${ins.costo || ""}" />
+        <input data-ins-pct="${i}" type="number" min="0" step="1" placeholder="%" value="${ins.porcentaje}" />
+        <span>${clp(ventaInsumo(ins))}</span>
+        <button type="button" data-ins-del="${i}" title="Quitar insumo">×</button>
+      </div>
+    `
+    )
+    .join("");
+}
+
+function leerModalOferta() {
+  if (!ofertaDraft) return;
+  if ($("o-nombre")) ofertaDraft.nombre = $("o-nombre").value.trim();
+  if ($("o-mano")) ofertaDraft.mano_obra = $("o-mano").value === "" ? 0 : Number($("o-mano").value);
+  if ($("o-tiempo")) ofertaDraft.tiempo_min = $("o-tiempo").value ? Number($("o-tiempo").value) : null;
+  const oferta = $("o-oferta") ? $("o-oferta").value : "";
+  ofertaDraft.precio_oferta = oferta !== "" ? Number(oferta) : null;
+  ofertaDraft.tiene_oferta = Number(ofertaDraft.precio_oferta) > 0;
+  ofertaDraft.insumos = [...document.querySelectorAll("#o-insumos .insumo-row")].map((row, i) =>
+    normalizarInsumo(
+      {
+        id: ofertaDraft.insumos[i] && ofertaDraft.insumos[i].id,
+        nombre: row.querySelector("[data-ins-nombre]") && row.querySelector("[data-ins-nombre]").value,
+        costo: row.querySelector("[data-ins-costo]") && row.querySelector("[data-ins-costo]").value,
+        porcentaje: row.querySelector("[data-ins-pct]") && row.querySelector("[data-ins-pct]").value,
+      },
+      i
+    )
+  );
+  ofertaDraft.precio = valorNormalDe(ofertaDraft);
+}
+
+function pintarModalOferta() {
+  if (!$("oferta-kpis") || !ofertaDraft) return;
+  $("oferta-kpis").innerHTML = htmlKpisOferta(ofertaDraft);
+  if ($("o-insumos")) $("o-insumos").innerHTML = htmlFilasInsumos(ofertaDraft.insumos);
+  if ($("o-normal")) $("o-normal").textContent = clp(valorNormalDe(ofertaDraft));
+}
+
+function abrirModalOferta(base) {
+  ofertaDraft = normalizarServicio(
+    JSON.parse(
+      JSON.stringify(
+        base || {
+          ...servicioVacio(),
+          canales: { ofertas: true, mantencion: false, diagnostico: false },
+        }
+      )
+    )
+  );
+  if (!$("modal-oferta")) return;
+  if ($("oferta-modal-titulo")) $("oferta-modal-titulo").textContent = "Calculadora del servicio";
+  if ($("o-nombre")) $("o-nombre").value = ofertaDraft.nombre || "";
+  if ($("o-mano")) $("o-mano").value = ofertaDraft.mano_obra || "";
+  if ($("o-oferta")) $("o-oferta").value = Number(ofertaDraft.precio_oferta) > 0 ? ofertaDraft.precio_oferta : "";
+  if ($("o-tiempo")) $("o-tiempo").innerHTML = htmlOpcionesTiempo(ofertaDraft.tiempo_min);
+  pintarModalOferta();
+  $("modal-oferta").hidden = false;
+}
+
+function cerrarModalOferta() {
+  ofertaDraft = null;
+  if ($("modal-oferta")) $("modal-oferta").hidden = true;
+}
+
+function guardarModalOferta() {
+  leerModalOferta();
+  ofertaDraft.precio = valorNormalDe(ofertaDraft);
+  if (ofertaDraft.tiene_oferta && ofertaDraft.precio && ofertaDraft.precio_oferta >= ofertaDraft.precio) {
+    alert("El precio oferta tiene que ser menor que el valor normal.");
+    return;
+  }
+  if (editando) {
+    editando.mano_obra = ofertaDraft.mano_obra;
+    editando.insumos = ofertaDraft.insumos;
+    editando.tiempo_min = ofertaDraft.tiempo_min;
+    editando.precio = ofertaDraft.precio;
+    if (Number(ofertaDraft.precio_oferta) > 0) {
+      editando.precio_oferta = ofertaDraft.precio_oferta;
+      editando.tiene_oferta = true;
+    }
+    if (ofertaDraft.nombre && !editando.nombre) editando.nombre = ofertaDraft.nombre;
+    cerrarModalOferta();
+    renderEditor();
+    return;
+  }
+  cerrarModalOferta();
+}
+
+function abrirModalTarjeta(colId) {
+  tarjetaColId = colId;
+  if ($("tarjeta-busca")) $("tarjeta-busca").value = "";
+  pintarListaTarjeta("");
+  if ($("modal-tarjeta")) $("modal-tarjeta").hidden = false;
+}
+
+function cerrarModalTarjeta() {
+  tarjetaColId = "";
+  if ($("modal-tarjeta")) $("modal-tarjeta").hidden = true;
+}
+
+function pintarListaTarjeta(q) {
+  const lista = $("tarjeta-lista");
+  if (!lista) return;
+  const col = TABLERO_COLUMNAS.find((c) => c.id === tarjetaColId);
+  const t = String(q || "").toLowerCase().trim();
+  const items = (catalogo || []).filter((s) => {
+    if (col && itemEnColumna(s, col)) return false;
+    return !t || String(s.nombre || "").toLowerCase().includes(t);
+  });
+  lista.innerHTML =
+    items
+      .map(
+        (s) => `<button type="button" data-tarjeta-serv="${s.id}">
+          <strong>${escapeText(s.nombre || "Sin nombre")}</strong>
+          <span>${clp(s.precio)}${s.tiempo_min ? ` · ${etiquetaTiempo(s.tiempo_min)}` : ""} · ${etiquetaCanales(s)}</span>
+        </button>`
+      )
+      .join("") ||
+    `<p class="muted">${
+      t ? "No hay servicios con ese nombre." : "Todos los servicios de esta lista ya están en la columna."
+    }</p>`;
+}
+
+async function asignarServicioAColumna(sid, colId) {
+  const s = catalogo.find((x) => x.id === sid);
+  const col = TABLERO_COLUMNAS.find((c) => c.id === colId);
+  if (!s || !col) return;
+  const dest = vehiculosDeColumna(col)[0];
+  const actuales = normalizarVehiculos(s.vehiculos);
+  const ya = actuales.some(
+    (v) =>
+      v.marca === dest.marca &&
+      v.modelo === dest.modelo &&
+      combustibleCoincide(v.combustible, dest.combustible) &&
+      aniosSeSolapan(v, dest)
+  );
+  if (!ya) s.vehiculos = [...actuales, dest];
+  try {
+    await guardarCatalogo(catalogo);
+  } catch (e) {
+    alert((e && e.message) || "No se pudo agregar la tarjeta.");
+    return;
+  }
+  cerrarModalTarjeta();
+  renderTablero();
+}
+
+function aplicarFotoColumna(col, src) {
+  if (!col || !src) return;
+  col.foto = src;
+  FOTOS_MODELOS[claveVehiculo(col.marca, col.modelo)] = src;
+  persistirFotosModelos();
+}
+
 function htmlFormColumna() {
-  const marca = MARCAS[0];
-  const modelos = modelosDe(marca);
   return `
     <section class="kanban-col kanban-col-add">
       <h3>Nueva columna</h3>
-      <p>Una columna es un auto: marca, modelo y años. Ahí juntas sus ofertas y su flyer.</p>
-      <label class="field"><span>Marca</span>
-        <select id="col-marca">${MARCAS.map((m) => `<option value="${m}">${m}</option>`).join("")}</select>
-      </label>
-      <label class="field"><span>Modelo</span>
-        <select id="col-modelo">${modelos.map((m) => `<option value="${m}">${m}</option>`).join("")}</select>
-      </label>
-      <label class="field"><span>Desde el año</span>
-        <select id="col-desde">${anios().map((y) => `<option value="${y}" ${y === ANIO_MIN ? "selected" : ""}>${y}</option>`).join("")}</select>
-      </label>
-      <label class="field"><span>Hasta el año</span>
-        <select id="col-hasta">${anios().map((y) => `<option value="${y}" ${y === ANIO_MAX ? "selected" : ""}>${y}</option>`).join("")}</select>
-      </label>
-      <label class="check"><input id="col-adelante" type="checkbox" /> En adelante (sin tope)</label>
+      <p>Marca, modelo, años y combustible. La foto de arriba es la portada de ese auto.</p>
+      ${htmlCamposColumna(null, "nueva")}
       <button class="btn-primary btn-block" type="button" id="btn-col-add">Agregar columna</button>
     </section>
   `;
@@ -248,7 +528,7 @@ function renderTablero() {
       <div class="kanban-top">
         <div>
           <h2>Tablero de promociones</h2>
-          <p>Cada columna es un modelo. Las tarjetas son las ofertas y la portada de ese auto.</p>
+          <p>Cada columna es un auto: marca, modelo, años y combustible. Arriba va la foto de portada de ese modelo.</p>
         </div>
       </div>
       <div class="kanban-track">
@@ -262,19 +542,14 @@ function renderTablero() {
 }
 
 async function agregarColumnaTablero() {
-  const marca = $("col-marca") && $("col-marca").value;
-  const modelo = $("col-modelo") && $("col-modelo").value;
-  if (!marca || !modelo) {
+  const raw = leerCamposColumna("nueva");
+  if (!raw.marca || !raw.modelo) {
     alert("Elige marca y modelo.");
     return;
   }
-  const adelante = Boolean($("col-adelante") && $("col-adelante").checked);
   const col = normalizarColumnaTablero({
     id: `col-${Date.now()}`,
-    marca,
-    modelo,
-    ano_desde: $("col-desde") ? Number($("col-desde").value) : ANIO_MIN,
-    ano_hasta: adelante ? null : $("col-hasta") ? Number($("col-hasta").value) : ANIO_MAX,
+    ...raw,
   });
   if (TABLERO_COLUMNAS.some((c) => claveColumnaTablero(c) === claveColumnaTablero(col))) {
     alert("Esa columna ya está en el tablero.");
@@ -286,6 +561,32 @@ async function agregarColumnaTablero() {
   } catch (e) {
     alert((e && e.message) || "No se pudo guardar la columna.");
   }
+  renderTablero();
+}
+
+async function guardarColumnaTablero(id) {
+  const i = TABLERO_COLUMNAS.findIndex((c) => c.id === id);
+  if (i < 0) return;
+  const raw = leerCamposColumna(id);
+  if (!raw.marca || !raw.modelo) {
+    alert("Elige marca y modelo.");
+    return;
+  }
+  const previa = TABLERO_COLUMNAS[i];
+  TABLERO_COLUMNAS[i] = normalizarColumnaTablero({
+    ...previa,
+    ...raw,
+    id,
+    foto: previa.foto,
+  });
+  if (previa.foto) aplicarFotoColumna(TABLERO_COLUMNAS[i], previa.foto);
+  try {
+    await guardarTableroNube();
+  } catch (e) {
+    alert((e && e.message) || "No se pudo guardar la columna.");
+    return;
+  }
+  cerrarModalColumna();
   renderTablero();
 }
 
@@ -354,8 +655,7 @@ function leerEditor() {
   editando.tipo = tipoDesdeCanales(editando.canales);
   editando.resumen = $("e-resumen").value.trim();
   editando.detalle = $("e-detalle").value.trim();
-  const precio = $("e-precio").value;
-  editando.precio = precio === "" ? null : Number(precio);
+  leerCostosEditor();
   editando.tiene_oferta = Boolean($("e-oferta-fija") && $("e-oferta-fija").checked);
   editando.oferta_combo = Boolean($("e-oferta-combo") && $("e-oferta-combo").checked);
   const oferta = $("e-precio-oferta") ? $("e-precio-oferta").value : "";
@@ -376,31 +676,109 @@ function leerAnioCampo(sel) {
   return Number.isFinite(n) ? n : null;
 }
 
-function leerRangoVeh(clave) {
-  const adelante = document.querySelector(`[data-veh-adelante="${clave}"]`);
-  const desde = document.querySelector(`[data-veh-desde="${clave}"]`);
-  const hasta = document.querySelector(`[data-veh-hasta="${clave}"]`);
+function destinoVacio() {
+  const marca = MARCAS[0];
   return {
-    ano_desde: leerAnioCampo(desde),
-    ano_hasta: adelante && adelante.checked ? null : leerAnioCampo(hasta),
+    marca,
+    modelo: modelosDe(marca)[0],
+    combustible: "diesel",
+    ano_desde: ANIO_MIN,
+    ano_hasta: ANIO_MAX,
   };
 }
 
+function modoVehiculosDe(s) {
+  const dest = normalizarVehiculos(s && s.vehiculos);
+  if (!dest.length) return { modo: s && s.id ? "todos" : "filas", dest: s && s.id ? [] : [destinoVacio()] };
+  if (dest.every((v) => v.modelo === "*")) return { modo: dest[0] && dest[0].marca ? "marca" : "todos", dest };
+  return { modo: "filas", dest: dest.filter((v) => v.modelo !== "*") };
+}
+
+function htmlFilaCompat(dest, i) {
+  const marca = (dest && dest.marca) || MARCAS[0];
+  const modelos = modelosDe(marca);
+  const modelo = dest && dest.modelo && dest.modelo !== "*" && modelos.includes(dest.modelo) ? dest.modelo : modelos[0];
+  const desde = dest && dest.ano_desde != null ? dest.ano_desde : 2013;
+  const hasta = dest && dest.ano_hasta != null ? dest.ano_hasta : 2017;
+  return `
+    <div class="veh-linea" data-veh-i="${i}">
+      <select data-compat-marca aria-label="Marca">${MARCAS.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m.toUpperCase()}</option>`).join("")}</select>
+      <select data-compat-modelo aria-label="Modelo">${modelos.map((m) => `<option value="${m}" ${m === modelo ? "selected" : ""}>${m.toUpperCase()}</option>`).join("")}</select>
+      <select data-compat-combustible aria-label="Combustible">${htmlOpcionesCombustible(dest && dest.combustible)}</select>
+      <select data-compat-desde aria-label="Desde">${htmlOpcionesAnio(desde)}</select>
+      <span class="veh-guion">-</span>
+      <select data-compat-hasta aria-label="Hasta">${htmlOpcionesAnio(hasta)}</select>
+      <button class="veh-linea-x" type="button" data-compat-del="${i}" title="Quitar" ${i === 0 ? "hidden" : ""}>×</button>
+    </div>
+  `;
+}
+
+function htmlFilaMarca(dest, i) {
+  const marca = (dest && dest.marca) || MARCAS[0];
+  const desde = dest && dest.ano_desde != null ? dest.ano_desde : ANIO_MIN;
+  const hasta = dest && dest.ano_hasta != null ? dest.ano_hasta : ANIO_MAX;
+  return `
+    <div class="veh-linea veh-marca-linea" data-marca-i="${i}">
+      <select data-marca-compat aria-label="Marca">${MARCAS.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m.toUpperCase()}</option>`).join("")}</select>
+      <select data-marca-comb aria-label="Combustible">${htmlOpcionesCombustible(dest && dest.combustible)}</select>
+      <select data-marca-desde aria-label="Desde">${htmlOpcionesAnio(desde)}</select>
+      <span class="veh-guion">-</span>
+      <select data-marca-hasta aria-label="Hasta">${htmlOpcionesAnio(hasta)}</select>
+      <button class="veh-linea-x" type="button" data-marca-del="${i}" title="Quitar" ${i === 0 ? "hidden" : ""}>×</button>
+    </div>
+  `;
+}
+
+function htmlVehiculosEditor(s, hint) {
+  const { modo, dest } = modoVehiculosDe(s);
+  const multi = modo === "todos" || modo === "marca";
+  const filas = dest.filter((v) => v.modelo !== "*");
+  const marcas = dest.filter((v) => v.modelo === "*");
+  const visibles = filas.length ? filas : [destinoVacio()];
+  const marcasVis = marcas.length ? marcas : [destinoVacio()];
+  return `
+    <fieldset class="canales veh-box">
+      <legend>Modelos compatibles</legend>
+      <p class="hint">${hint || "Un auto por línea. Puedes sumar Hyundai y también Kia, u otro modelo de la misma marca."}</p>
+      <div id="e-veh-filas" ${modo === "todos" || modo === "marca" ? "hidden" : ""}>
+        ${visibles.map((v, i) => htmlFilaCompat(v, i)).join("")}
+      </div>
+      <button class="btn-line veh-add-btn" type="button" id="btn-add-compat" ${modo === "todos" || modo === "marca" ? "hidden" : ""}>Añadir modelo compatible</button>
+      <label class="check veh-multi-check"><input id="e-veh-multi" type="checkbox" ${multi ? "checked" : ""} /> Multi modelo</label>
+      <div id="e-veh-multi-ops" class="veh-multi-ops" ${multi ? "" : "hidden"}>
+        <label class="check"><input type="radio" name="e-veh-alcance" id="e-veh-todos" value="todos" ${modo === "todos" ? "checked" : ""} /> Todos los vehículos</label>
+        <label class="check"><input type="radio" name="e-veh-alcance" id="e-veh-marca" value="marca" ${modo === "marca" || (multi && modo !== "todos") ? "checked" : ""} /> Marcas completas</label>
+        <div id="e-veh-marca-campos" ${modo === "marca" || (multi && modo !== "todos") ? "" : "hidden"}>
+          <div id="e-veh-marcas">${marcasVis.map((v, i) => htmlFilaMarca(v, i)).join("")}</div>
+          <button class="btn-line veh-add-btn" type="button" id="btn-add-marca">Añadir marca</button>
+        </div>
+      </div>
+    </fieldset>
+  `;
+}
+
 function leerVehiculosEditor() {
-  if ($("e-veh-todos") && $("e-veh-todos").checked) return [];
-  const out = [];
-  const marcasTodas = new Set();
-  document.querySelectorAll("[data-veh-marca]:checked").forEach((el) => {
-    const marca = el.dataset.vehMarca;
-    marcasTodas.add(marca);
-    out.push({ marca, modelo: "*", ...leerRangoVeh(`${marca}|*`) });
-  });
-  document.querySelectorAll("[data-veh]:checked").forEach((el) => {
-    const [marca, modelo] = String(el.dataset.veh || "").split("|");
-    if (!marca || !modelo || marcasTodas.has(marca)) return;
-    out.push({ marca, modelo, ...leerRangoVeh(el.dataset.veh) });
-  });
-  return normalizarVehiculos(out);
+  if ($("e-veh-multi") && $("e-veh-multi").checked && $("e-veh-todos") && $("e-veh-todos").checked) return [];
+  if ($("e-veh-multi") && $("e-veh-multi").checked && $("e-veh-marca") && $("e-veh-marca").checked) {
+    return normalizarVehiculos(
+      [...document.querySelectorAll(".veh-marca-linea")].map((row) => ({
+        marca: row.querySelector("[data-marca-compat]") && row.querySelector("[data-marca-compat]").value,
+        modelo: "*",
+        combustible: row.querySelector("[data-marca-comb]") && row.querySelector("[data-marca-comb]").value,
+        ano_desde: leerAnioCampo(row.querySelector("[data-marca-desde]")),
+        ano_hasta: leerAnioCampo(row.querySelector("[data-marca-hasta]")),
+      }))
+    );
+  }
+  return normalizarVehiculos(
+    [...document.querySelectorAll(".veh-linea:not(.veh-marca-linea)")].map((row) => ({
+      marca: row.querySelector("[data-compat-marca]") && row.querySelector("[data-compat-marca]").value,
+      modelo: row.querySelector("[data-compat-modelo]") && row.querySelector("[data-compat-modelo]").value,
+      combustible: row.querySelector("[data-compat-combustible]") && row.querySelector("[data-compat-combustible]").value,
+      ano_desde: leerAnioCampo(row.querySelector("[data-compat-desde]")),
+      ano_hasta: leerAnioCampo(row.querySelector("[data-compat-hasta]")),
+    }))
+  );
 }
 
 function mediaEditando() {
@@ -451,66 +829,6 @@ function htmlOpcionesAnio(sel) {
     .join("");
 }
 
-function htmlAniosVeh(clave, dest, visible) {
-  const desde = dest && dest.ano_desde != null ? dest.ano_desde : ANIO_MIN;
-  const adelante = !dest || dest.ano_hasta == null;
-  const hasta = dest && dest.ano_hasta != null ? dest.ano_hasta : ANIO_MAX;
-  return `
-    <div class="veh-anios" data-veh-anios="${escapeAttr(clave)}" ${visible ? "" : "hidden"}>
-      <label><span>Desde el año</span><select data-veh-desde="${escapeAttr(clave)}">${htmlOpcionesAnio(desde)}</select></label>
-      <label><span>Hasta el año</span><select data-veh-hasta="${escapeAttr(clave)}" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta)}</select></label>
-      <label class="check veh-adelante"><input type="checkbox" data-veh-adelante="${escapeAttr(clave)}" ${adelante ? "checked" : ""} /> En adelante (sin tope)</label>
-    </div>
-  `;
-}
-
-function htmlVehiculosEditor(s, hint) {
-  const destinos = normalizarVehiculos(s && s.vehiculos);
-  const porClave = {};
-  destinos.forEach((v) => {
-    porClave[claveVehiculo(v.marca, v.modelo)] = v;
-  });
-  const todos = destinos.length === 0;
-  const marcas = MARCAS.map((marca) => {
-    const modelos = modelosDe(marca);
-    const toda = Boolean(porClave[claveVehiculo(marca, "*")]);
-    const n = modelos.filter((m) => porClave[claveVehiculo(marca, m)]).length;
-    return `
-      <details class="veh-marca" ${todos || (!toda && !n) ? "" : "open"}>
-        <summary>${marca}${toda ? " · toda la marca" : n ? ` · ${n} modelos` : ""}</summary>
-        <label class="check"><input type="checkbox" data-veh-marca="${marca}" ${toda ? "checked" : ""} /> Toda la marca, en este rango de años</label>
-        ${htmlAniosVeh(claveVehiculo(marca, "*"), porClave[claveVehiculo(marca, "*")], toda)}
-        <p class="veh-ayuda">O elige modelos uno a uno. Cada modelo tiene su propio rango: por ejemplo Santa Fe hasta 2021, y otro servicio Santa Fe 2022 en adelante.</p>
-        <div class="veh-modelos">
-          ${modelos
-            .map((m) => {
-              const clave = claveVehiculo(marca, m);
-              const dest = porClave[clave];
-              const on = Boolean(dest) && !toda;
-              return `<div class="veh-fila">
-                <label class="check"><input type="checkbox" data-veh="${escapeAttr(clave)}" ${on ? "checked" : ""} /> ${m}</label>
-                ${htmlAniosVeh(clave, dest, on)}
-              </div>`;
-            })
-            .join("")}
-        </div>
-        <div class="veh-add">
-          <input type="text" data-nuevo-modelo="${marca}" placeholder="Agregar modelo de ${marca}" />
-          <button class="btn-line" type="button" data-add-modelo="${marca}">Agregar modelo</button>
-        </div>
-      </details>
-    `;
-  }).join("");
-  return `
-    <fieldset class="canales">
-      <legend>Para qué vehículos</legend>
-      <p class="hint">${hint || "Hay que indicar marca, modelo y años. El año cambia el producto: un filtro diésel hasta 2021 no es el de 2022 en adelante, y tiene otro precio. Si no aparece un modelo, agrégalo en esa marca."}</p>
-      <label class="check"><input id="e-veh-todos" type="checkbox" ${todos ? "checked" : ""} /> Todos los vehículos que atiende el taller (cualquier año)</label>
-      <div id="e-veh-lista" ${todos ? "hidden" : ""}>${marcas}</div>
-    </fieldset>
-  `;
-}
-
 function pintarPrecioPreview() {
   if (!$("pv-precios") || !editando) return;
   const dummy = {
@@ -547,6 +865,56 @@ function htmlCombosEntrantes(s) {
     .join("<br />")}<br />Eso se edita en el servicio que da el descuento, no aquí.</div>`;
 }
 
+function htmlCalculadoraServicio(s) {
+  const dummy = {
+    ...s,
+    mano_obra: Number(s && s.mano_obra) || 0,
+    insumos: normalizarInsumos(s && s.insumos),
+    tiempo_min: s && s.tiempo_min,
+    precio_oferta: s && s.precio_oferta,
+  };
+  dummy.precio = valorNormalDe(dummy);
+  return `
+    <fieldset class="canales calc-box">
+      <legend>Calculadora del servicio</legend>
+      <p class="hint">Arma el valor normal: mano de obra más cada insumo con su costo y el porcentaje de margen.</p>
+      <div id="e-kpis">${htmlKpisOferta(dummy)}</div>
+      <div class="grid-2">
+        <label class="field"><span>Mano de obra</span><input id="e-mano" type="number" min="0" step="1000" value="${dummy.mano_obra || ""}" /></label>
+        <label class="field"><span>Tiempo aproximado</span><select id="e-tiempo">${htmlOpcionesTiempo(dummy.tiempo_min)}</select></label>
+      </div>
+      <h4 class="oferta-h">Insumos</h4>
+      <div class="insumo-head"><span>Insumo</span><span>Costo</span><span>%</span><span>Venta</span><span></span></div>
+      <div id="e-insumos">${htmlFilasInsumos(dummy.insumos)}</div>
+      <button class="btn-line" type="button" id="btn-add-insumo-editor">Agregar insumo</button>
+      <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${dummy.precio || ""}" /></label>
+    </fieldset>
+  `;
+}
+
+function leerCostosEditor() {
+  if (!editando) return;
+  if ($("e-tiempo")) editando.tiempo_min = $("e-tiempo").value ? Number($("e-tiempo").value) : null;
+  if ($("e-precio-oferta") && $("e-oferta-fija") && $("e-oferta-fija").checked) {
+    const oferta = $("e-precio-oferta").value;
+    editando.precio_oferta = oferta === "" ? null : Number(oferta);
+    editando.tiene_oferta = Number(editando.precio_oferta) > 0;
+  }
+  if ($("e-precio")) editando.precio = $("e-precio").value === "" ? null : Number($("e-precio").value);
+}
+
+function pintarCalculadoraEditor() {
+  if (!editando || !$("e-kpis")) return;
+  leerCostosEditor();
+  $("e-kpis").innerHTML = htmlKpisOferta(editando);
+  document.querySelectorAll("#e-insumos .insumo-row").forEach((row, i) => {
+    const ins = editando.insumos[i];
+    const span = row.querySelector("span");
+    if (span && ins) span.textContent = clp(ventaInsumo(ins));
+  });
+  pintarPrecioPreview();
+}
+
 function pintarFotoServicio() {
   const img = $("e-img");
   const m = mediaActual();
@@ -563,8 +931,13 @@ function renderEditor() {
   $("stage").innerHTML = `
     <article class="editor editor-portada editor-servicio">
       <div class="editor-head">
-        <h2>${s.id ? "Editar servicio" : "Nuevo servicio"}</h2>
-        <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra la cápsula de puntos para ubicarla. Arrastra la foto para el recorte.</p>
+        <div class="editor-head-row">
+          <div>
+            <h2>${s.id ? "Editar servicio" : "Nuevo servicio"}</h2>
+            <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra la cápsula de puntos para ubicarla. Arrastra la foto para el recorte.</p>
+          </div>
+          <button type="button" id="btn-volver-tablero" class="btn-line">Volver al tablero</button>
+        </div>
       </div>
       <div class="editor-board">
         <div class="portada-phone editor-phone-sticky">
@@ -598,18 +971,20 @@ function renderEditor() {
             <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
             <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
             <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
+            ${htmlVehiculosEditor(s)}
             <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
+            <label class="field"><span>Tiempo aproximado</span><select id="e-tiempo">${htmlOpcionesTiempo(s.tiempo_min)}</select></label>
+            <button class="btn-line btn-block" type="button" id="btn-armar-oferta">Calculadora del servicio</button>
             <fieldset class="canales">
               <legend>Criterio de la oferta</legend>
-              <p class="hint">Puedes marcar las dos. El cliente se queda con el precio más bajo que le corresponda. Ejemplo: refrigerante $90.000, esta semana $85.000, y si además lleva descarbonización baja a $50.000.</p>
-              <label class="check"><input id="e-oferta-fija" type="checkbox" ${s.tiene_oferta ? "checked" : ""} /> Oferta fija (descuento porque sí)</label>
+              <p class="hint">Puedes marcar las dos. El cliente se queda con el precio más bajo que le corresponda.</p>
+              <label class="check"><input id="e-oferta-fija" type="checkbox" ${s.tiene_oferta ? "checked" : ""} /> Descuento de ocasión</label>
               <div id="e-oferta-wrap" ${s.tiene_oferta ? "" : "hidden"}>
                 <label class="field"><span>Precio oferta</span><input id="e-precio-oferta" type="number" min="0" step="1000" value="${s.precio_oferta == null || Number(s.precio_oferta) <= 0 ? "" : s.precio_oferta}" /></label>
               </div>
               <label class="check"><input id="e-oferta-combo" type="checkbox" ${s.oferta_combo ? "checked" : ""} /> Oferta por complemento de servicio</label>
-              <p class="hint">La oferta fija vale siempre. La de complemento solo si el cliente lleva el otro servicio. Si aplican las dos, se usa la más conveniente.</p>
+              <p class="hint">El descuento de ocasión vale siempre. El de complemento solo si el cliente lleva el otro servicio. Si aplican las dos, se usa la más conveniente.</p>
             </fieldset>
-            ${htmlVehiculosEditor(s)}
           </div>
           <div class="editor-col">
             <h3>Fotos y videos</h3>
@@ -881,8 +1256,13 @@ function renderEditorFotosModelos() {
   $("stage").innerHTML = `
     <article class="editor editor-portada">
       <div class="editor-head">
-        <h2>Fotos de modelos</h2>
-        <p class="muted">Una foto por modelo. El cliente la ve en el botón flotante de su auto y al elegir marca y modelo. Así reconoce de inmediato de qué vehículo son las ofertas.</p>
+        <div class="editor-head-row">
+          <div>
+            <h2>Fotos de modelos</h2>
+            <p class="muted">Una foto por modelo. El cliente la ve en el botón flotante de su auto y al elegir marca y modelo. Así reconoce de inmediato de qué vehículo son las ofertas.</p>
+          </div>
+          <button type="button" id="btn-volver-tablero" class="btn-line">Volver al tablero</button>
+        </div>
       </div>
       <div class="editor-fields editor-fields-single" style="max-width:none">
         ${bloques}
@@ -912,8 +1292,13 @@ function renderEditorPortada() {
   $("stage").innerHTML = `
     <article class="editor editor-portada">
       <div class="editor-head">
-        <h2>Configurar portada</h2>
-        <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra foto, logo, botón y puntos.</p>
+        <div class="editor-head-row">
+          <div>
+            <h2>Configurar portada</h2>
+            <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra foto, logo, botón y puntos.</p>
+          </div>
+          <button type="button" id="btn-volver-tablero" class="btn-line">Volver al tablero</button>
+        </div>
       </div>
       <div class="editor-board">
         <div class="portada-phone editor-phone-sticky">
@@ -1028,7 +1413,7 @@ function leerEditorPortada() {
   if ($("p-logo-zoom")) portadaUi.logo_zoom = Number($("p-logo-zoom").value) / 100;
   if ($("p-logo-ancho")) portadaUi.logo_scale_x = Number($("p-logo-ancho").value) / 100;
   if ($("p-logo-alto")) portadaUi.logo_scale_y = Number($("p-logo-alto").value) / 100;
-  if ($("e-veh-todos") || document.querySelector("[data-veh]")) s.vehiculos = leerVehiculosEditor();
+  if ($("e-veh-multi") || document.querySelector(".veh-linea")) s.vehiculos = leerVehiculosEditor();
 }
 
 function pintarLogoPortada() {
@@ -1288,6 +1673,27 @@ $("foto-modelo-file")?.addEventListener("change", async (e) => {
     alert((err && err.message) || "No se pudo subir la foto del modelo.");
   }
 });
+$("col-foto-file")?.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  const id = colFotoPendiente || columnaEditId;
+  e.target.value = "";
+  colFotoPendiente = "";
+  if (!file || !id) return;
+  const col = TABLERO_COLUMNAS.find((c) => c.id === id);
+  if (!col) return;
+  try {
+    let src = await leerImagen(file, 1400);
+    if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+    aplicarFotoColumna(col, src);
+    await guardarTableroNube();
+    pintarCarnetColumna(col);
+    const seguir = id;
+    renderTablero();
+    abrirModalColumna(seguir);
+  } catch (err) {
+    alert((err && err.message) || "No se pudo subir la foto de portada.");
+  }
+});
 $("btn-taller").addEventListener("click", () => {
   guardarTaller({
     direccion: $("taller-dir").value,
@@ -1322,6 +1728,85 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-borrar") borrarServicio();
   if (t.id === "btn-guardar-portada") guardarEditorPortada();
   if (t.id === "btn-col-add") agregarColumnaTablero();
+  if (t.id === "btn-volver-tablero") {
+    renderTablero();
+    return;
+  }
+  if (t.id === "btn-armar-oferta") {
+    leerEditor();
+    abrirModalOferta(editando);
+    return;
+  }
+  if (t.id === "btn-add-marca") {
+    const caja = $("e-veh-marcas");
+    if (!caja) return;
+    caja.insertAdjacentHTML("beforeend", htmlFilaMarca(destinoVacio(), document.querySelectorAll(".veh-marca-linea").length));
+    document.querySelectorAll("[data-marca-del]").forEach((b, i) => {
+      b.hidden = document.querySelectorAll(".veh-marca-linea").length < 2;
+      b.dataset.marcaDel = String(i);
+    });
+    return;
+  }
+  if (t.dataset.marcaDel != null && t.dataset.marcaDel !== "") {
+    const row = t.closest(".veh-marca-linea");
+    if (row && document.querySelectorAll(".veh-marca-linea").length > 1) row.remove();
+    document.querySelectorAll("[data-marca-del]").forEach((b, i) => {
+      b.hidden = document.querySelectorAll(".veh-marca-linea").length < 2;
+      b.dataset.marcaDel = String(i);
+    });
+    return;
+  }
+  if (t.id === "btn-add-compat") {
+    const caja = $("e-veh-filas");
+    if (!caja) return;
+    caja.insertAdjacentHTML("beforeend", htmlFilaCompat(destinoVacio(), document.querySelectorAll(".veh-linea").length));
+    document.querySelectorAll("[data-compat-del]").forEach((b, i) => {
+      b.hidden = document.querySelectorAll(".veh-linea").length < 2;
+      b.dataset.compatDel = String(i);
+    });
+    return;
+  }
+  if (t.dataset.compatDel != null && t.dataset.compatDel !== "") {
+    const row = t.closest(".veh-linea");
+    if (row && document.querySelectorAll(".veh-linea").length > 1) row.remove();
+    document.querySelectorAll("[data-compat-del]").forEach((b, i) => {
+      b.hidden = document.querySelectorAll(".veh-linea").length < 2;
+      b.dataset.compatDel = String(i);
+    });
+    return;
+  }
+  if (t.dataset.insDel != null && t.dataset.insDel !== "" && $("e-insumos")) {
+    leerCostosEditor();
+    editando.insumos.splice(Number(t.dataset.insDel), 1);
+    $("e-insumos").innerHTML = htmlFilasInsumos(editando.insumos);
+    pintarCalculadoraEditor();
+    return;
+  }
+  if (t.id === "btn-add-insumo-editor") {
+    leerCostosEditor();
+    if (!editando.insumos) editando.insumos = [];
+    editando.insumos.push(normalizarInsumo({ nombre: "", costo: 0, porcentaje: 30 }, editando.insumos.length));
+    if ($("e-insumos")) $("e-insumos").innerHTML = htmlFilasInsumos(editando.insumos);
+    pintarCalculadoraEditor();
+    return;
+  }
+  if (t.dataset.kanbanTarjeta) {
+    abrirModalTarjeta(t.dataset.kanbanTarjeta);
+    return;
+  }
+  if (t.dataset.kanbanConfig) {
+    abrirModalColumna(t.dataset.kanbanConfig);
+    return;
+  }
+  if (t.dataset.kanbanGuardarCol) {
+    guardarColumnaTablero(t.dataset.kanbanGuardarCol);
+    return;
+  }
+  if (t.dataset.colFoto) {
+    colFotoPendiente = t.dataset.colFoto;
+    $("col-foto-file")?.click();
+    return;
+  }
   if (t.dataset.kanbanServicio) {
     abrirServicio(t.dataset.kanbanServicio);
     return;
@@ -1506,7 +1991,18 @@ $("stage").addEventListener("input", (e) => {
   if (e.target.id === "e-nombre" && $("pv-nombre")) $("pv-nombre").textContent = e.target.value || "Nombre del servicio";
   if (e.target.id === "e-resumen" && $("pv-resumen")) $("pv-resumen").textContent = e.target.value || "Resumen de la tarjeta";
   if (e.target.id === "e-detalle" && $("pv-detalle")) $("pv-detalle").textContent = e.target.value || "La descripción se ve aquí, como en el celular.";
-  if (e.target.id === "e-precio" || e.target.id === "e-precio-oferta") pintarPrecioPreview();
+  if (
+    e.target.id === "e-precio" ||
+    e.target.id === "e-precio-oferta" ||
+    e.target.id === "e-mano" ||
+    e.target.id === "e-tiempo" ||
+    e.target.dataset.insNombre != null ||
+    e.target.dataset.insCosto != null ||
+    e.target.dataset.insPct != null
+  ) {
+    pintarCalculadoraEditor();
+    pintarPrecioPreview();
+  }
 });
 
 $("stage").addEventListener("change", async (e) => {
@@ -1526,55 +2022,44 @@ $("stage").addEventListener("change", async (e) => {
     slideActual().mostrar_boton = e.target.checked;
     renderEditorPortada();
   }
-  if (e.target.id === "col-marca") {
+  if (e.target.dataset.colCampo === "marca") {
+    const id = e.target.dataset.colId;
     const modelos = modelosDe(e.target.value);
-    if ($("col-modelo")) {
-      $("col-modelo").innerHTML = modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
-    }
+    const sel = document.querySelector(`[data-col-campo="modelo"][data-col-id="${id}"]`);
+    if (sel) sel.innerHTML = modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
   }
-  if (e.target.id === "col-adelante" && $("col-hasta")) $("col-hasta").disabled = e.target.checked;
+  if (e.target.dataset.colCampo === "adelante") {
+    const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);
+    if (hasta) hasta.disabled = e.target.checked;
+  }
+  if (e.target.id === "e-tiempo") pintarCalculadoraEditor();
   if (e.target.id === "e-oferta-fija") {
     if ($("e-oferta-wrap")) $("e-oferta-wrap").hidden = !e.target.checked;
     pintarPrecioPreview();
+    pintarCalculadoraEditor();
   }
-  if (e.target.id === "e-veh-todos") {
-    if ($("e-veh-lista")) $("e-veh-lista").hidden = e.target.checked;
-    if (e.target.checked) {
-      document.querySelectorAll("[data-veh], [data-veh-marca]").forEach((el) => {
-        el.checked = false;
-      });
-      document.querySelectorAll("[data-veh-anios]").forEach((el) => {
-        el.hidden = true;
-      });
+  if (e.target.id === "e-veh-multi") {
+    const on = e.target.checked;
+    if ($("e-veh-multi-ops")) $("e-veh-multi-ops").hidden = !on;
+    const todos = on && $("e-veh-todos") && $("e-veh-todos").checked;
+    const marcas = on && $("e-veh-marca") && $("e-veh-marca").checked;
+    if (on && $("e-veh-todos") && $("e-veh-marca") && !$("e-veh-marca").checked && !$("e-veh-todos").checked) {
+      $("e-veh-marca").checked = true;
     }
+    if ($("e-veh-filas")) $("e-veh-filas").hidden = on;
+    if ($("btn-add-compat")) $("btn-add-compat").hidden = on;
+    if ($("e-veh-marca-campos")) $("e-veh-marca-campos").hidden = !(on && ($("e-veh-marca") && $("e-veh-marca").checked));
   }
-  if (e.target.dataset.vehMarca) {
-    const marca = e.target.dataset.vehMarca;
-    const aniosMarca = document.querySelector(`[data-veh-anios="${marca}|*"]`);
-    if (aniosMarca) aniosMarca.hidden = !e.target.checked;
-    document.querySelectorAll(`[data-veh^="${marca}|"]`).forEach((el) => {
-      el.checked = false;
-      const fila = document.querySelector(`[data-veh-anios="${el.dataset.veh}"]`);
-      if (fila) fila.hidden = true;
-    });
-    if ($("e-veh-todos")) $("e-veh-todos").checked = false;
-    if ($("e-veh-lista")) $("e-veh-lista").hidden = false;
+  if (e.target.name === "e-veh-alcance") {
+    const marcas = e.target.value === "marca";
+    if ($("e-veh-marca-campos")) $("e-veh-marca-campos").hidden = !marcas;
+    if ($("e-veh-filas")) $("e-veh-filas").hidden = true;
+    if ($("btn-add-compat")) $("btn-add-compat").hidden = true;
   }
-  if (e.target.dataset.veh) {
-    const clave = e.target.dataset.veh;
-    const marca = String(clave).split("|")[0];
-    const fila = document.querySelector(`[data-veh-anios="${clave}"]`);
-    if (fila) fila.hidden = !e.target.checked;
-    const brand = document.querySelector(`[data-veh-marca="${marca}"]`);
-    if (brand) brand.checked = false;
-    const aniosMarca = document.querySelector(`[data-veh-anios="${marca}|*"]`);
-    if (aniosMarca) aniosMarca.hidden = true;
-    if ($("e-veh-todos")) $("e-veh-todos").checked = false;
-    if ($("e-veh-lista")) $("e-veh-lista").hidden = false;
-  }
-  if (e.target.dataset.vehAdelante) {
-    const hasta = document.querySelector(`[data-veh-hasta="${e.target.dataset.vehAdelante}"]`);
-    if (hasta) hasta.disabled = e.target.checked;
+  if (e.target.dataset.compatMarca) {
+    const modelos = modelosDe(e.target.value);
+    const sel = e.target.closest(".veh-linea") && e.target.closest(".veh-linea").querySelector("[data-compat-modelo]");
+    if (sel) sel.innerHTML = modelos.map((m) => `<option value="${m}">${m.toUpperCase()}</option>`).join("");
   }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
   if (e.target.id === "p-foto" && e.target.files[0]) {
@@ -1645,6 +2130,88 @@ $("combo-id").addEventListener("change", pintarPreviewCombo);
 $("combo-precio").addEventListener("input", pintarPreviewCombo);
 $("modal-combo").addEventListener("click", (e) => {
   if (e.target.id === "modal-combo") $("modal-combo").hidden = true;
+});
+$("cerrar-columna")?.addEventListener("click", cerrarModalColumna);
+$("btn-col-foto")?.addEventListener("click", () => {
+  colFotoPendiente = columnaEditId;
+  $("col-foto-file")?.click();
+});
+$("btn-guardar-columna")?.addEventListener("click", () => {
+  if (columnaEditId) guardarColumnaTablero(columnaEditId);
+});
+$("btn-quitar-columna")?.addEventListener("click", () => {
+  if (!columnaEditId) return;
+  TABLERO_COLUMNAS = TABLERO_COLUMNAS.filter((c) => c.id !== columnaEditId);
+  guardarTableroNube().then(() => {
+    cerrarModalColumna();
+    renderTablero();
+  });
+});
+$("modal-columna")?.addEventListener("click", (e) => {
+  if (e.target.id === "modal-columna") cerrarModalColumna();
+});
+$("cerrar-oferta")?.addEventListener("click", cerrarModalOferta);
+$("btn-guardar-oferta")?.addEventListener("click", guardarModalOferta);
+$("btn-add-insumo")?.addEventListener("click", () => {
+  if (!ofertaDraft) return;
+  leerModalOferta();
+  ofertaDraft.insumos.push(normalizarInsumo({ nombre: "", costo: 0, porcentaje: 30 }, ofertaDraft.insumos.length));
+  pintarModalOferta();
+});
+$("modal-oferta")?.addEventListener("click", (e) => {
+  if (e.target.id === "modal-oferta") cerrarModalOferta();
+  const del = e.target.closest("[data-ins-del]");
+  if (!del || !ofertaDraft) return;
+  leerModalOferta();
+  ofertaDraft.insumos.splice(Number(del.dataset.insDel), 1);
+  pintarModalOferta();
+});
+function refrescarKpisOfertaVivo() {
+  if (!ofertaDraft) return;
+  leerModalOferta();
+  if ($("oferta-kpis")) $("oferta-kpis").innerHTML = htmlKpisOferta(ofertaDraft);
+  if ($("o-normal")) $("o-normal").textContent = clp(valorNormalDe(ofertaDraft));
+  document.querySelectorAll("#o-insumos .insumo-row").forEach((row, i) => {
+    const ins = ofertaDraft.insumos[i];
+    const span = row.querySelector("span");
+    if (span && ins) span.textContent = clp(ventaInsumo(ins));
+  });
+}
+$("modal-oferta")?.addEventListener("input", (e) => {
+  if (e.target.id === "o-nombre") return;
+  refrescarKpisOfertaVivo();
+});
+$("modal-oferta")?.addEventListener("change", refrescarKpisOfertaVivo);
+$("cerrar-tarjeta")?.addEventListener("click", cerrarModalTarjeta);
+$("modal-tarjeta")?.addEventListener("click", (e) => {
+  if (e.target.id === "modal-tarjeta") cerrarModalTarjeta();
+});
+$("btn-tarjeta-nueva")?.addEventListener("click", () => {
+  const id = tarjetaColId;
+  cerrarModalTarjeta();
+  if (id) nuevoServicioEnColumna(id);
+});
+$("btn-tarjeta-portada")?.addEventListener("click", () => {
+  const id = tarjetaColId;
+  cerrarModalTarjeta();
+  if (id) nuevaPortadaEnColumna(id);
+});
+$("tarjeta-busca")?.addEventListener("input", (e) => pintarListaTarjeta(e.target.value));
+$("tarjeta-lista")?.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-tarjeta-serv]");
+  if (t && tarjetaColId) asignarServicioAColumna(t.dataset.tarjetaServ, tarjetaColId);
+});
+$("modal-columna")?.addEventListener("change", (e) => {
+  if (e.target.dataset.colCampo === "marca") {
+    const id = e.target.dataset.colId;
+    const modelos = modelosDe(e.target.value);
+    const sel = document.querySelector(`[data-col-campo="modelo"][data-col-id="${id}"]`);
+    if (sel) sel.innerHTML = modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
+  }
+  if (e.target.dataset.colCampo === "adelante") {
+    const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);
+    if (hasta) hasta.disabled = e.target.checked;
+  }
 });
 
 $("acceso-email")?.addEventListener("keydown", (e) => {

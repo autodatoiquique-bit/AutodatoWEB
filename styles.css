@@ -131,6 +131,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .main-col { position: relative; min-width: 0; }
+.barra-auto { display: none; }
 
 .chip-auto {
   position: absolute;
@@ -1073,7 +1074,7 @@ body.hay-auto .home-float { top: 68px; }
     width: 100%;
     height: 72px;
     padding: 0;
-    overflow: visible;
+    overflow: hidden;
     background: var(--yellow);
     color-scheme: only light;
     forced-color-adjust: none;
@@ -1094,10 +1095,45 @@ body.hay-auto .home-float { top: 68px; }
     color-scheme: only light;
     forced-color-adjust: none;
   }
+  .home-logo.con-auto {
+    height: 148px;
+    background: #111;
+  }
+  .home-logo.con-auto .logo-auto {
+    inset: 0;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: none;
+  }
   .home-pill { font-size: 0.78rem; padding: 7px 12px; }
   .wa-logo,
   .wa-logo svg { width: 26px; height: 26px; }
 
+  .barra-auto {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 8;
+    height: 148px;
+    overflow: hidden;
+    background: #111;
+  }
+  .barra-auto[hidden] { display: none !important; }
+  .barra-auto img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  body.en-portada.hay-auto-foto .home-logo { display: none; }
+  body.hay-auto-foto:not(.en-portada) .stage {
+    padding-top: 204px;
+  }
   .chip-auto {
     left: 10px;
     top: auto;
@@ -1109,6 +1145,14 @@ body.hay-auto .home-float { top: 68px; }
     top: 82px;
     bottom: auto;
   }
+  body.hay-auto-foto .chip-auto {
+    top: 156px;
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 16px;
+  }
+  body.hay-auto-foto .chip-auto img { display: none; }
   body.hay-auto .home-float { top: 10px; }
   .home-float {
     top: 10px;

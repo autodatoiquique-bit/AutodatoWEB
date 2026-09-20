@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css" />
+  <link rel="stylesheet" href="admin.css?v=compat6" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -61,12 +61,64 @@
       <button class="btn-yellow" type="button" id="btn-fotos-modelos">Fotos de modelos</button>
       <button class="btn-yellow" type="button" id="btn-nuevo">Nuevo servicio</button>
       <input id="foto-modelo-file" type="file" accept="image/*" hidden />
+      <input id="col-foto-file" type="file" accept="image/*" hidden />
       <div id="lista-servicios" class="lista"></div>
       <button class="btn-soft" type="button" id="btn-salir">Cerrar sesión</button>
     </aside>
     <main class="stage" id="stage">
       <p class="vacio">Elige un servicio o crea uno nuevo.</p>
     </main>
+  </div>
+
+  <div id="modal-columna" class="modal" hidden>
+    <div class="modal-card modal-columna">
+      <button class="x" type="button" id="cerrar-columna">×</button>
+      <h3>Configurar columna</h3>
+      <p class="muted">Foto tipo carnet de este modelo. Es la misma que se ve arriba en la columna.</p>
+      <div class="col-carnet" id="col-carnet">
+        <img id="col-carnet-img" alt="" hidden />
+        <span id="col-carnet-vacio">Sin foto</span>
+      </div>
+      <button class="btn-line btn-block" type="button" id="btn-col-foto">Subir foto de portada</button>
+      <div id="col-campos"></div>
+      <button class="btn-primary btn-block" type="button" id="btn-guardar-columna">Guardar columna</button>
+      <button class="btn-soft btn-block" type="button" id="btn-quitar-columna">Quitar columna</button>
+    </div>
+  </div>
+
+  <div id="modal-oferta" class="modal" hidden>
+    <div class="modal-card modal-oferta">
+      <button class="x" type="button" id="cerrar-oferta">×</button>
+      <h3 id="oferta-modal-titulo">Nueva oferta</h3>
+      <div id="oferta-kpis" class="kpi-oferta"></div>
+      <label class="field"><span>Nombre</span><input id="o-nombre" type="text" /></label>
+      <div class="grid-2">
+        <label class="field"><span>Mano de obra</span><input id="o-mano" type="number" min="0" step="1000" /></label>
+        <label class="field"><span>Tiempo aproximado</span><select id="o-tiempo"></select></label>
+      </div>
+      <h4 class="oferta-h">Insumos</h4>
+      <p class="muted">Costo real y el porcentaje que le sumas. Ese margen entra al valor normal.</p>
+      <div class="insumo-head"><span>Insumo</span><span>Costo</span><span>%</span><span>Venta</span><span></span></div>
+      <div id="o-insumos"></div>
+      <button class="btn-line btn-block" type="button" id="btn-add-insumo">Agregar insumo</button>
+      <label class="field"><span>Precio oferta (opcional)</span><input id="o-oferta" type="number" min="0" step="1000" /></label>
+      <p class="muted">Valor normal: <strong id="o-normal">$0</strong></p>
+      <button class="btn-primary btn-block" type="button" id="btn-guardar-oferta">Aplicar al servicio</button>
+    </div>
+  </div>
+
+  <div id="modal-tarjeta" class="modal" hidden>
+    <div class="modal-card modal-tarjeta">
+      <button class="x" type="button" id="cerrar-tarjeta">×</button>
+      <h3>Añadir tarjeta</h3>
+      <p class="muted">Elige un servicio que ya existe o crea uno nuevo para esta columna.</p>
+      <div class="btn-row">
+        <button class="btn-primary" type="button" id="btn-tarjeta-nueva">Crear servicio nuevo</button>
+        <button class="btn-line" type="button" id="btn-tarjeta-portada">Nueva portada</button>
+      </div>
+      <label class="field"><span>Buscar servicio</span><input id="tarjeta-busca" type="search" placeholder="Nombre del servicio" /></label>
+      <div id="tarjeta-lista" class="tarjeta-lista"></div>
+    </div>
   </div>
 
   <div id="modal-combo" class="modal" hidden>
@@ -91,7 +143,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="nube.js"></script>
-  <script src="catalogo.js"></script>
-  <script src="admin.js"></script>
+  <script src="catalogo.js?v=compat6"></script>
+  <script src="admin.js?v=compat6"></script>
 </body>
 </html>

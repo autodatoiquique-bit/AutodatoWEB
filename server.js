@@ -121,10 +121,12 @@ function extraerVehiculoFicha(parsed) {
   let marca = "";
   let modelo = "";
   let ano = "";
+  let combustible = "";
   bloques.forEach((b) => {
     if (!marca) marca = valorAnidado(b, ["marca", "brand"]);
     if (!modelo) modelo = valorAnidado(b, ["modelo", "model"]);
     if (!ano) ano = valorAnidado(b, ["ano", "anio", "año", "year", "ano_vehiculo"]);
+    if (!combustible) combustible = valorAnidado(b, ["combustible", "tipo_combustible", "fuel"]);
   });
   const texto = String(
     valorAnidado(parsed, ["vehiculo", "marca_modelo_ano", "marca_modelo_anio"]) ||
@@ -144,7 +146,7 @@ function extraerVehiculoFicha(parsed) {
   marca = String(marca || "").trim();
   modelo = String(modelo || "").trim();
   if (!marca || !modelo || !Number.isFinite(n)) return null;
-  return { marca, modelo, ano: n };
+  return { marca, modelo, ano: n, combustible: combustible || "ambos" };
 }
 
 function cuerpoIdentificarCliente(payload, token) {

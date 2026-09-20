@@ -73,12 +73,19 @@ function calcular(carrito = state.carrito) {
 }
 
 function vehiculoOk() {
-  return Boolean(state.vehiculo && state.vehiculo.marca && state.vehiculo.modelo && state.vehiculo.ano);
+  return Boolean(
+    state.vehiculo &&
+      state.vehiculo.marca &&
+      state.vehiculo.modelo &&
+      state.vehiculo.ano &&
+      state.vehiculo.combustible
+  );
 }
 
 function textoVehiculo() {
   if (!state.vehiculo) return "";
-  return `${state.vehiculo.marca} ${state.vehiculo.modelo} ${state.vehiculo.ano}`;
+  const fuel = state.vehiculo.combustible ? ` · ${etiquetaCombustible(state.vehiculo.combustible)}` : "";
+  return `${state.vehiculo.marca} ${state.vehiculo.modelo} ${state.vehiculo.ano}${fuel}`;
 }
 
 function textoVehiculoCorto() {
@@ -88,23 +95,41 @@ function textoVehiculoCorto() {
 
 function fotoVehiculoActual() {
   if (!vehiculoOk()) return "";
-  return fotoModeloDe(state.vehiculo.marca, state.vehiculo.modelo);
+  return typeof fotoPortadaVehiculo === "function"
+    ? fotoPortadaVehiculo(state.vehiculo)
+    : fotoModeloDe(state.vehiculo.marca, state.vehiculo.modelo);
+}
+
+function ocultaFotoModelo() {
+  const v = state.vista;
+  if (v === "agendamiento" || v === "carrito-agenda") return true;
+  if ($("modal-informe") && !$("modal-informe").hidden) return true;
+  return false;
 }
 
 function pintarChipAuto() {
   const chip = $("chip-auto");
+  const barra = $("barra-auto");
+  const src = fotoVehiculoActual();
+  const mostrarFoto = Boolean(vehiculoOk() && src && !ocultaFotoModelo());
+  const fichaAbierta = Boolean($("modal-informe") && !$("modal-informe").hidden);
   document.body.classList.toggle("hay-auto", vehiculoOk());
+  document.body.classList.toggle("hay-auto-foto", mostrarFoto);
+  if (barra) {
+    barra.hidden = !mostrarFoto;
+    const img = $("barra-auto-foto");
+    if (img && src) img.src = src;
+  }
   if (!chip) return;
-  if (!vehiculoOk()) {
+  if (!vehiculoOk() || fichaAbierta) {
     chip.hidden = true;
     return;
   }
   chip.hidden = false;
   const foto = $("chip-auto-foto");
   const texto = $("chip-auto-texto");
-  const src = fotoVehiculoActual();
   if (foto) {
-    foto.hidden = !src;
+    foto.hidden = mostrarFoto || !src;
     if (src) foto.src = src;
   }
   if (texto) texto.textContent = textoVehiculoCorto();
@@ -128,7 +153,9 @@ function opciones(lista, valor, placeholder) {
 }
 
 function htmlDrop(id, label, lista, valor, placeholder, disabled) {
-  const texto = valor || placeholder;
+  const items = (lista || []).map((v) => (v && typeof v === "object" ? v : { value: v, label: v }));
+  const actual = items.find((x) => String(x.value) === String(valor));
+  const texto = actual ? actual.label : placeholder;
   return `
     <div class="dd">
       <span class="dd-label">${label}</span>
@@ -138,12 +165,12 @@ function htmlDrop(id, label, lista, valor, placeholder, disabled) {
         <b aria-hidden="true">▾</b>
       </button>
       <ul class="dd-list" id="dd-list-${id}" hidden>
-        ${lista
+        ${items
           .map(
             (v) =>
-              `<li><button type="button" data-dd-pick="${id}" data-value="${v}" class="${
-                String(valor) === String(v) ? "is-on" : ""
-              }">${v}</button></li>`
+              `<li><button type="button" data-dd-pick="${id}" data-value="${v.value}" class="${
+                String(valor) === String(v.value) ? "is-on" : ""
+              }">${v.label}</button></li>`
           )
           .join("")}
       </ul>
@@ -155,14 +182,16 @@ function htmlFiltro(contexto) {
   const marca = state.vehiculo?.marca || "";
   const modelo = state.vehiculo?.modelo || "";
   const ano = state.vehiculo?.ano || "";
+  const combustible = state.vehiculo?.combustible || "";
   const modelos = marca ? modelosDe(marca) : [];
   return `
     <div class="filtro">
       <h2>${contexto === "editar" ? "Cambia tu vehículo" : "¿Qué vehículo tienes?"}</h2>
-      <p class="lead">Marca, modelo y año. Si tu auto no está en la lista, no podemos abrirte el servicio. El año importa: un mismo trabajo puede ser otro producto según el año.</p>
+      <p class="lead">Marca, modelo, año y combustible. Si tu auto no está en la lista, no podemos abrirte el servicio. El año y el combustible importan: un mismo trabajo puede ser otro producto.</p>
       ${htmlDrop("marca", "Marca", MARCAS, marca, "Elige la marca", false)}
       ${htmlDrop("modelo", "Modelo", modelos, modelo, marca ? "Elige el modelo" : "Primero elige la marca", !marca)}
       ${htmlDrop("ano", "Año", anios(), ano, "Elige el año", false)}
+      ${htmlDrop("combustible", "Combustible", COMBUSTIBLES, combustible, "Elige el combustible", false)}
       ${marca && modelo && fotoModeloDe(marca, modelo) ? `<div class="filtro-foto"><img src="${fotoModeloDe(marca, modelo)}" alt="${modelo}" /></div>` : ""}
       <button class="btn-primary btn-block" type="button" data-filtrar="${contexto}">${contexto === "editar" ? "Guardar auto" : "Continuar"}</button>
     </div>
@@ -203,7 +232,8 @@ function elegirDrop(id, valor) {
   if (hidden) hidden.value = valor;
   if (btn) {
     const span = btn.querySelector("[data-dd-texto]");
-    if (span) span.textContent = valor;
+    const pick = list && list.querySelector(`[data-dd-pick][data-value="${valor}"]`);
+    if (span) span.textContent = (pick && pick.textContent) || valor;
   }
   if (list) {
     list.hidden = true;
@@ -216,6 +246,8 @@ function elegirDrop(id, valor) {
     state.vehiculo = { ...(state.vehiculo || {}), modelo: valor };
   } else if (id === "ano") {
     state.vehiculo = { ...(state.vehiculo || {}), ano: Number(valor) };
+  } else if (id === "combustible") {
+    state.vehiculo = { ...(state.vehiculo || {}), combustible: valor };
   }
 }
 
@@ -300,7 +332,10 @@ function hidratar() {
         x.tipo === "oferta" ? Boolean(oferta(x.id)) : Boolean(servicioAgenda(x.id))
       );
     }
-    if (raw.vehiculo) state.vehiculo = raw.vehiculo;
+    if (raw.vehiculo) {
+      state.vehiculo = raw.vehiculo;
+      if (state.vehiculo && !state.vehiculo.combustible) state.vehiculo.combustible = "ambos";
+    }
     if (raw.cliente) state.cliente = { ...state.cliente, ...raw.cliente };
     if (raw.cita) state.cita = { ...state.cita, ...raw.cita };
   } catch (e) {
@@ -416,6 +451,7 @@ function renderPortada() {
     </section>
   `;
   armarCarruselPortada(lista.length);
+  pintarChipAuto();
 }
 
 function idsComboPara(id) {
@@ -851,6 +887,7 @@ function abrirModalInforme() {
   $("overlay").hidden = true;
   marcarMenu();
   syncSeguirKpi();
+  pintarChipAuto();
 }
 
 function cerrarModalInforme() {
@@ -858,6 +895,7 @@ function cerrarModalInforme() {
   if (overlayLibre()) $("overlay").hidden = true;
   marcarMenu();
   syncSeguirKpi();
+  pintarChipAuto();
 }
 
 function normalizarPatente(v) {
@@ -929,7 +967,7 @@ function escapeAttr(v) {
 function faltantesTicket() {
   const falta = [];
   if (!state.carrito.length) falta.push("al menos un servicio");
-  if (!vehiculoOk()) falta.push("marca, modelo y año del vehículo");
+  if (!vehiculoOk()) falta.push("marca, modelo, año y combustible del vehículo");
   if (!state.cliente.nombre.trim()) falta.push("nombre");
   if (!state.cliente.telefono.trim()) falta.push("teléfono");
   if (!state.cita.fecha) falta.push("día de visita");
@@ -958,11 +996,12 @@ function aplicarFiltro(contexto) {
   const marca = $("f-marca").value;
   const modelo = $("f-modelo").value;
   const ano = $("f-ano").value;
-  if (!marca || !modelo || !ano) {
-    alert("Elige marca, modelo y año. Si tu auto no está en la lista, no podemos abrirte el servicio.");
+  const combustible = $("f-combustible") && $("f-combustible").value;
+  if (!marca || !modelo || !ano || !combustible) {
+    alert("Elige marca, modelo, año y combustible. Si tu auto no está en la lista, no podemos abrirte el servicio.");
     return;
   }
-  state.vehiculo = { marca, modelo, ano: Number(ano) };
+  state.vehiculo = { marca, modelo, ano: Number(ano), combustible };
   persistir();
   pintarChipAuto();
 
@@ -1225,6 +1264,7 @@ async function generarTicket() {
     marca: state.vehiculo.marca,
     modelo: state.vehiculo.modelo,
     ano: state.vehiculo.ano,
+    combustible: state.vehiculo.combustible,
     nombre_cliente: state.cliente.nombre.trim(),
     telefono: state.cliente.telefono.trim(),
     patente: state.cliente.patente.trim().toUpperCase() || null,
