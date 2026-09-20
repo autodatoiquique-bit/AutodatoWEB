@@ -658,6 +658,7 @@ body.hay-perfil .panel { padding-top: 88px; }
   transform: translate(-50%, -50%);
   z-index: 6;
 }
+.detalle-fade { display: none; }
 .precio-fila {
   display: flex;
   align-items: flex-end;
@@ -1232,13 +1233,42 @@ body.hay-perfil .panel { padding-top: 88px; }
   .card .ahorro-tag { font-size: 0.68rem; padding: 3px 6px; }
   .tag { font-size: 0.58rem; padding: 3px 6px; }
 
-  .detalle-full { display: block; background: #111; }
+  .detalle-full {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    background: #111;
+  }
   .detalle-media,
-  .detalle-foto { min-height: 0; height: 52vh; }
+  .detalle-foto {
+    position: relative;
+    flex: 0 0 58vh;
+    height: 58vh;
+    min-height: 58vh;
+    background: #111;
+  }
+  .detalle-slide { background: #111; }
+  .detalle-fade {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 42%;
+    z-index: 5;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(17, 17, 17, 0) 0%, rgba(17, 17, 17, 0.72) 52%, #111 100%);
+  }
   .precio-fila { align-items: center; }
   .btn-add-precio,
   .btn-en-carro { font-size: 0.72rem; padding: 9px 12px; }
-  .detalle-copy { padding: 18px 14px 120px; }
+  .detalle-copy {
+    position: relative;
+    z-index: 6;
+    margin-top: -64px;
+    padding: 8px 14px 120px;
+    background: #111;
+  }
   .detalle-copy .lead { font-size: 0.92rem; }
   .suma-ofertas h3 {
     font-size: 1.05rem;
