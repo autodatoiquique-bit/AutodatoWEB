@@ -528,15 +528,18 @@ function serviciosParaVehiculo(lista) {
   return (lista || []).filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
 }
 
-function htmlListaCotizacion(titulo, lead, lista) {
+function htmlListaCotizacion(titulo, lead, lista, opts = {}) {
   const hayCarro = state.carrito.some((x) => x.tipo === "oferta");
   const vacio = vehiculoOk()
     ? `<p class="muted">No hay servicios para ${textoVehiculo()}.</p>`
     : `<p class="muted">Aún no hay servicios en esta sección.</p>`;
+  const texto = opts.fijo || !hayCarro
+    ? lead
+    : "Los servicios con etiqueta En carrito ya están seleccionados. En el resto ves el descuento de combo si aplica.";
   return `
     <section class="panel claro">
       <h2>${titulo}</h2>
-      <p class="lead">${hayCarro ? "Los servicios con etiqueta En carrito ya están seleccionados. En el resto ves el descuento de combo si aplica." : lead}</p>
+      <p class="lead">${texto}</p>
       <div class="grid">
         ${lista.length ? lista.map(htmlTarjetaOferta).join("") : vacio}
       </div>
@@ -555,8 +558,9 @@ function renderOfertas() {
 function renderMantencion() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Mantención preventiva",
-    "Listado de mantenciones. Si hay combo, el descuento aparece al armar la cotización.",
-    serviciosParaVehiculo(serviciosMantencion())
+    "¡Arma tu combo y ahorra en mano de obra! Al realizar varios servicios en una misma visita optimizamos los tiempos de taller y desarme, permitiéndonos ofrecerte un descuento especial en cada mantención adicional que sumes al carrito.",
+    serviciosParaVehiculo(serviciosMantencion()),
+    { fijo: true }
   );
 }
 
