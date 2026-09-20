@@ -1768,11 +1768,9 @@ function animarScrollX(el, from, to, ms) {
 }
 
 function pistaMenuDesplazable() {
-  if (localStorage.getItem("autodato_menu_hint")) return;
   const menu = $("menu-principal");
   if (!menu || window.innerWidth > 860) return;
   if (menu.scrollWidth <= menu.clientWidth + 12) return;
-  localStorage.setItem("autodato_menu_hint", "1");
   const extra = Math.min(84, menu.scrollWidth - menu.clientWidth);
   setTimeout(async () => {
     await animarScrollX(menu, 0, extra, 450);
