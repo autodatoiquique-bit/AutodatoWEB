@@ -1753,6 +1753,33 @@ window.addEventListener("resize", syncTecladoFicha);
   });
 });
 
+function animarScrollX(el, from, to, ms) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const paso = (now) => {
+      const p = Math.min(1, (now - t0) / ms);
+      const ease = p < 0.5 ? 2 * p * p : 1 - ((-2 * p + 2) ** 2) / 2;
+      el.scrollLeft = from + (to - from) * ease;
+      if (p < 1) requestAnimationFrame(paso);
+      else resolve();
+    };
+    requestAnimationFrame(paso);
+  });
+}
+
+function pistaMenuDesplazable() {
+  if (localStorage.getItem("autodato_menu_hint")) return;
+  const menu = $("menu-principal");
+  if (!menu || window.innerWidth > 860) return;
+  if (menu.scrollWidth <= menu.clientWidth + 12) return;
+  localStorage.setItem("autodato_menu_hint", "1");
+  const extra = Math.min(84, menu.scrollWidth - menu.clientWidth);
+  setTimeout(async () => {
+    await animarScrollX(menu, 0, extra, 450);
+    await animarScrollX(menu, extra, 0, 550);
+  }, 500);
+}
+
 async function arrancar() {
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   await cargarCatalogo();
@@ -1762,6 +1789,7 @@ async function arrancar() {
   pintarDatosFicha();
   renderVista({ quedarse: true });
   renderTotales(false);
+  pistaMenuDesplazable();
 }
 
 arrancar();
