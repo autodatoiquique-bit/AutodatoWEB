@@ -686,6 +686,8 @@ body.hay-perfil .panel { padding-top: 88px; }
   background: var(--green);
   color: #042;
 }
+.detalle-hero { display: contents; }
+.detalle-resumen { color: #ddd; margin: 0 0 8px; }
 .detalle-copy { padding: 72px 32px 48px; }
 .suma-ofertas { margin-top: 22px; }
 .suma-ofertas h3 { font-size: 1.15rem; }
@@ -1234,40 +1236,62 @@ body.hay-perfil .panel { padding-top: 88px; }
   .tag { font-size: 0.58rem; padding: 3px 6px; }
 
   .detalle-full {
-    display: flex;
-    flex-direction: column;
+    display: block;
+    background: #111;
+  }
+  .detalle-hero {
+    display: block;
+    position: relative;
+    height: 100dvh;
     min-height: 100dvh;
+    overflow: hidden;
     background: #111;
   }
   .detalle-media,
   .detalle-foto {
-    position: relative;
-    flex: 0 0 58vh;
-    height: 58vh;
-    min-height: 58vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(210px + env(safe-area-inset-bottom, 0px));
+    height: auto;
+    min-height: 0;
     background: #111;
   }
   .detalle-slide { background: #111; }
-  .detalle-fade {
-    display: block;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 42%;
-    z-index: 5;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(17, 17, 17, 0) 0%, rgba(17, 17, 17, 0.72) 52%, #111 100%);
-  }
+  .detalle-fade { display: none; }
   .precio-fila { align-items: center; }
   .btn-add-precio,
   .btn-en-carro { font-size: 0.72rem; padding: 9px 12px; }
   .detalle-copy {
-    position: relative;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
     z-index: 6;
-    margin-top: -64px;
-    padding: 8px 14px 120px;
-    background: #111;
+    margin: 0;
+    padding: 48px 14px 12px;
+    background: linear-gradient(180deg, transparent 0%, #111 28%);
+    color: #fff;
+  }
+  .detalle-copy h2 {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+  }
+  .detalle-resumen {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    color: #ddd;
+  }
+  .detalle-copy .lead {
+    max-height: 4.6em;
+    overflow: hidden;
+    font-size: 0.78rem;
+    color: #ddd;
+  }
+  .detalle-full .suma-ofertas {
+    padding: 18px 14px 120px;
+    margin: 0;
   }
   .detalle-copy .lead { font-size: 0.92rem; }
   .suma-ofertas h3 {

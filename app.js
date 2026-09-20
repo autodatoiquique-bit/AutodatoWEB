@@ -579,30 +579,31 @@ function renderDetalleOferta() {
 
   $("stage").innerHTML = `
     <article class="detalle-full">
-      ${htmlCarruselServicio(s)}
-      <div class="detalle-copy">
-        <p class="muted">${textoVehiculo()}</p>
-        ${normalizarVehiculos(s.vehiculos).length ? `<p class="muted">${etiquetaVehiculos(s)}</p>` : ""}
-        <h2>${s.nombre}</h2>
-        <p class="lead">${s.detalle}</p>
-        <div class="precio-fila">
-          <div class="precio-col">
-            <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(s.precio)}</div>
+      <div class="detalle-hero">
+        ${htmlCarruselServicio(s)}
+        <div class="detalle-copy">
+          <h2>${s.nombre}</h2>
+          ${s.resumen ? `<p class="detalle-resumen">${s.resumen}</p>` : ""}
+          <p class="lead">${s.detalle}</p>
+          <div class="precio-fila">
+            <div class="precio-col">
+              <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(s.precio)}</div>
+              ${
+                mostrarDesc
+                  ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla && p.regla.si ? p.regla.etiqueta : ""}</div>`
+                  : ""
+              }
+              ${htmlHintCombo(s, p.pagado)}
+            </div>
             ${
-              mostrarDesc
-                ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla && p.regla.si ? p.regla.etiqueta : ""}</div>`
-                : ""
+              enCarro
+                ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En carrito</button>`
+                : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
             }
-            ${htmlHintCombo(s, p.pagado)}
           </div>
-          ${
-            enCarro
-              ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En carrito</button>`
-              : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
-          }
         </div>
-        ${htmlSumaRelacionados(s, enCarro)}
       </div>
+      ${htmlSumaRelacionados(s, enCarro)}
     </article>
   `;
   armarCarruselDetalle();
