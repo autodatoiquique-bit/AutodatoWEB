@@ -103,6 +103,50 @@ function extraerUrlFicha(parsed, texto) {
   return walk(parsed, 0);
 }
 
+const MARCAS_FICHA = ["Hyundai", "Kia", "Mazda", "Suzuki", "Nissan", "Toyota", "Mitsubishi", "Honda"];
+
+function valorAnidado(obj, claves) {
+  if (!obj || typeof obj !== "object") return "";
+  for (const k of claves) {
+    if (obj[k] != null && obj[k] !== "") return obj[k];
+  }
+  return "";
+}
+
+function extraerVehiculoFicha(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+  const bloques = [parsed, parsed.data, parsed.cliente, parsed.vehiculo, parsed.auto].filter(
+    (x) => x && typeof x === "object" && !Array.isArray(x)
+  );
+  let marca = "";
+  let modelo = "";
+  let ano = "";
+  bloques.forEach((b) => {
+    if (!marca) marca = valorAnidado(b, ["marca", "brand"]);
+    if (!modelo) modelo = valorAnidado(b, ["modelo", "model"]);
+    if (!ano) ano = valorAnidado(b, ["ano", "anio", "año", "year", "ano_vehiculo"]);
+  });
+  const texto = String(
+    valorAnidado(parsed, ["vehiculo", "marca_modelo_ano", "marca_modelo_anio"]) ||
+      (parsed.vehiculo && typeof parsed.vehiculo === "string" ? parsed.vehiculo : "")
+  ).trim();
+  if ((!marca || !modelo || !ano) && texto) {
+    const marcaHit = MARCAS_FICHA.find((m) => new RegExp(`^${m}\\b`, "i").test(texto));
+    const anioHit = texto.match(/(19|20)\d{2}/);
+    if (marcaHit) {
+      marca = marca || marcaHit;
+      const resto = texto.replace(new RegExp(`^${marcaHit}\\s+`, "i"), "").replace(/\s+(19|20)\d{2}.*$/, "").trim();
+      modelo = modelo || resto;
+    }
+    if (anioHit) ano = ano || anioHit[0];
+  }
+  const n = Number(ano);
+  marca = String(marca || "").trim();
+  modelo = String(modelo || "").trim();
+  if (!marca || !modelo || !Number.isFinite(n)) return null;
+  return { marca, modelo, ano: n };
+}
+
 function cuerpoIdentificarCliente(payload, token) {
   return {
     accion: "identificar_cliente",
@@ -154,7 +198,7 @@ app.post("/api/autonexus-ficha", async (req, res) => {
         error: "AutoNexus respondió, pero no trajo el enlace de la ficha.",
       });
     }
-    return res.json({ ok: true, url: ficha });
+    return res.json({ ok: true, url: ficha, vehiculo: extraerVehiculoFicha(parsed) });
   } catch (e) {
     console.warn("AutoNexus ficha error", e.message || e);
     return res.status(502).json({ ok: false, error: "No se pudo abrir la ficha interactiva." });

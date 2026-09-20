@@ -26,6 +26,7 @@ const state = {
   vistaAnterior: "ofertas",
   origenLista: "ofertas",
   agregarTrasFiltro: false,
+  vistaPendiente: "",
 };
 
 let quitarPendiente = null;
@@ -80,6 +81,46 @@ function textoVehiculo() {
   return `${state.vehiculo.marca} ${state.vehiculo.modelo} ${state.vehiculo.ano}`;
 }
 
+function textoVehiculoCorto() {
+  if (!vehiculoOk()) return "Tu auto";
+  return `${state.vehiculo.modelo} ${state.vehiculo.ano}`;
+}
+
+function fotoVehiculoActual() {
+  if (!vehiculoOk()) return "";
+  return fotoModeloDe(state.vehiculo.marca, state.vehiculo.modelo);
+}
+
+function pintarChipAuto() {
+  const chip = $("chip-auto");
+  document.body.classList.toggle("hay-auto", vehiculoOk());
+  if (!chip) return;
+  if (!vehiculoOk()) {
+    chip.hidden = true;
+    return;
+  }
+  chip.hidden = false;
+  const foto = $("chip-auto-foto");
+  const texto = $("chip-auto-texto");
+  const src = fotoVehiculoActual();
+  if (foto) {
+    foto.hidden = !src;
+    if (src) foto.src = src;
+  }
+  if (texto) texto.textContent = textoVehiculoCorto();
+}
+
+function abrirModalAuto() {
+  if (!$("modal-auto-cuerpo")) return;
+  $("modal-auto-cuerpo").innerHTML = htmlFiltro("editar");
+  $("modal-auto").hidden = false;
+  $("overlay").hidden = true;
+}
+
+function cerrarModalAuto() {
+  if ($("modal-auto")) $("modal-auto").hidden = true;
+}
+
 function opciones(lista, valor, placeholder) {
   return `<option value="">${placeholder}</option>${lista
     .map((v) => `<option value="${v}" ${String(valor) === String(v) ? "selected" : ""}>${v}</option>`)
@@ -117,12 +158,13 @@ function htmlFiltro(contexto) {
   const modelos = marca ? modelosDe(marca) : [];
   return `
     <div class="filtro">
-      <h2>¿Qué vehículo tienes?</h2>
-      <p class="lead">Marca, modelo y año. El año importa: un mismo servicio puede ser otro producto y otro precio según el año del auto.</p>
+      <h2>${contexto === "editar" ? "Cambia tu vehículo" : "¿Qué vehículo tienes?"}</h2>
+      <p class="lead">Marca, modelo y año. Si tu auto no está en la lista, no podemos abrirte el servicio. El año importa: un mismo trabajo puede ser otro producto según el año.</p>
       ${htmlDrop("marca", "Marca", MARCAS, marca, "Elige la marca", false)}
       ${htmlDrop("modelo", "Modelo", modelos, modelo, marca ? "Elige el modelo" : "Primero elige la marca", !marca)}
       ${htmlDrop("ano", "Año", anios(), ano, "Elige el año", false)}
-      <button class="btn-primary btn-block" type="button" data-filtrar="${contexto}">Continuar</button>
+      ${marca && modelo && fotoModeloDe(marca, modelo) ? `<div class="filtro-foto"><img src="${fotoModeloDe(marca, modelo)}" alt="${modelo}" /></div>` : ""}
+      <button class="btn-primary btn-block" type="button" data-filtrar="${contexto}">${contexto === "editar" ? "Guardar auto" : "Continuar"}</button>
     </div>
   `;
 }
@@ -361,8 +403,7 @@ function armarCarruselPortada(nReal) {
 }
 
 function renderPortada() {
-  const slides = (portadaSlides || []).filter((s) => s.foto);
-  const lista = slides.length ? slides : PORTADA_DEFECTO.map(normalizarSlide);
+  const lista = slidesPortadaPara(state.vehiculo);
   const loop = lista.length > 1;
   const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
   $("stage").innerHTML = `
@@ -483,6 +524,10 @@ function renderMantencion() {
 
 function renderFiltroOferta() {
   $("stage").innerHTML = `<section class="panel claro">${htmlFiltro("oferta")}</section>`;
+}
+
+function renderFiltroMenu() {
+  $("stage").innerHTML = `<section class="panel claro">${htmlFiltro("menu")}</section>`;
 }
 
 function renderDetalleOferta() {
@@ -896,10 +941,12 @@ function renderVista(opts = {}) {
   syncCromo();
   marcarMenu();
   syncSeguirKpi();
+  pintarChipAuto();
   if (state.vista === "portada") renderPortada();
   else if (state.vista === "ofertas") renderOfertas();
   else if (state.vista === "mantencion") renderMantencion();
   else if (state.vista === "filtro-oferta") renderFiltroOferta();
+  else if (state.vista === "filtro-menu") renderFiltroMenu();
   else if (state.vista === "oferta-detalle") renderDetalleOferta();
   else if (state.vista === "diagnostico") renderDiagnostico();
   else if (state.vista === "agendamiento" || state.vista === "carrito-agenda") renderAgendamiento();
@@ -917,6 +964,32 @@ function aplicarFiltro(contexto) {
   }
   state.vehiculo = { marca, modelo, ano: Number(ano) };
   persistir();
+  pintarChipAuto();
+
+  if (contexto === "editar") {
+    cerrarModalAuto();
+    renderVista({ quedarse: true });
+    return;
+  }
+  if (contexto === "menu") {
+    const dest = state.vistaPendiente || "ofertas";
+    state.vistaPendiente = "";
+    if (dest === "agendamiento") {
+      state.vista = "agendamiento";
+      if (state.carrito.length) {
+        state.origenAgenda = state.carrito.some((x) => x.tipo === "oferta") ? "ofertas" : "menu";
+        state.pasoAgenda = "datos";
+      } else {
+        state.origenAgenda = "menu";
+        state.pasoAgenda = state.servicioAgenda ? "datos" : "servicio";
+      }
+    } else {
+      if (dest === "ofertas" || dest === "mantencion" || dest === "diagnostico") state.origenLista = dest;
+      state.vista = dest;
+    }
+    renderVista();
+    return;
+  }
 
   if (contexto === "oferta") {
     state.vista = "oferta-detalle";
@@ -969,7 +1042,29 @@ function iniciarOfertaDesdePortada(id) {
   if (!oferta(id)) return;
   state.ofertaPendiente = id;
   state.agregarTrasFiltro = true;
+  if (vehiculoOk()) {
+    aplicarFiltroTrasPortada();
+    return;
+  }
   state.vista = "filtro-oferta";
+  renderVista();
+}
+
+function aplicarFiltroTrasPortada() {
+  const id = state.ofertaPendiente;
+  const s = oferta(id);
+  state.agregarTrasFiltro = false;
+  if (s && !servicioAplicaAVehiculo(s, state.vehiculo)) {
+    alert(`Esta oferta no aplica para ${textoVehiculo()}.`);
+    return;
+  }
+  if (s && !state.carrito.some((x) => x.id === id)) {
+    state.carrito.push({ tipo: "oferta", id });
+    persistir();
+    renderTotales(true);
+  }
+  state.ofertaAbierta = id;
+  state.vista = "oferta-detalle";
   renderVista();
 }
 
@@ -1332,6 +1427,7 @@ function cerrar() {
   $("modal-kpi").hidden = true;
   $("modal-quitar").hidden = true;
   $("modal-informe").hidden = true;
+  if ($("modal-auto")) $("modal-auto").hidden = true;
   quitarPendiente = null;
   marcarMenu();
   syncSeguirKpi();
@@ -1348,7 +1444,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], #btn-ticket"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], #btn-ticket, #chip-auto"
   );
   if (!t) return;
 
@@ -1369,6 +1465,14 @@ document.addEventListener("click", (e) => {
   if (t.dataset.vista || t.dataset.open) cerrar();
 
   if (t.dataset.vista) {
+    const pideAuto = ["ofertas", "mantencion", "diagnostico", "agendamiento"].includes(t.dataset.vista);
+    if (pideAuto && !vehiculoOk()) {
+      state.vistaPendiente = t.dataset.vista;
+      if (t.dataset.vista !== "agendamiento") state.origenLista = t.dataset.vista;
+      state.vista = "filtro-menu";
+      renderVista();
+      return;
+    }
     if (t.dataset.vista === "ofertas" || t.dataset.vista === "mantencion" || t.dataset.vista === "diagnostico") {
       state.origenLista = t.dataset.vista;
     }
@@ -1399,6 +1503,8 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-seguir-explorando")) seguirExplorandoOfertas();
   if (t.dataset.open === "informe") abrirModalInforme();
   if (t.hasAttribute("data-cerrar-informe")) cerrarModalInforme();
+  if (t.id === "chip-auto" || t.hasAttribute("data-editar-auto")) abrirModalAuto();
+  if (t.hasAttribute("data-cerrar-auto")) cerrarModalAuto();
   if (t.hasAttribute("data-close")) cerrar();
   if (t.hasAttribute("data-guardar-ticket")) descargarTicket();
   if (t.hasAttribute("data-compartir-ticket")) compartirTicket();
@@ -1459,6 +1565,11 @@ $("overlay").addEventListener("click", () => {
 $("modal-informe").addEventListener("click", (e) => {
   if (e.target.id === "modal-informe") cerrarModalInforme();
 });
+if ($("modal-auto")) {
+  $("modal-auto").addEventListener("click", (e) => {
+    if (e.target.id === "modal-auto") cerrarModalAuto();
+  });
+}
 
 $("btn-abrir-informe").addEventListener("click", async () => {
   const patente = normalizarPatente($("informe-patente").value);
@@ -1482,8 +1593,15 @@ $("btn-abrir-informe").addEventListener("click", async () => {
       alert(data.error || "No encontramos una ficha con esa patente y ese celular.");
       return;
     }
+    const auto = typeof encajarVehiculoTaller === "function" ? encajarVehiculoTaller(data.vehiculo) : null;
+    if (auto) {
+      state.vehiculo = auto;
+      persistir();
+      pintarChipAuto();
+    }
     cerrarModalInforme();
     window.open(data.url, "_blank", "noopener");
+    if (auto && state.vista === "portada") renderPortada();
   } catch (_e) {
     alert("No se pudo abrir la ficha interactiva. Reintenta.");
   } finally {

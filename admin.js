@@ -7,6 +7,7 @@ let editando = null;
 let comboEditIndex = -1;
 let slideEditIndex = 0;
 let mediaEditIndex = 0;
+let fotoModeloPendiente = "";
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -284,7 +285,7 @@ function htmlAniosVeh(clave, dest, visible) {
   `;
 }
 
-function htmlVehiculosEditor(s) {
+function htmlVehiculosEditor(s, hint) {
   const destinos = normalizarVehiculos(s && s.vehiculos);
   const porClave = {};
   destinos.forEach((v) => {
@@ -324,7 +325,7 @@ function htmlVehiculosEditor(s) {
   return `
     <fieldset class="canales">
       <legend>Para qué vehículos</legend>
-      <p class="hint">Hay que indicar marca, modelo y años. El año cambia el producto: un filtro diésel hasta 2021 no es el de 2022 en adelante, y tiene otro precio. Si no aparece un modelo, agrégalo en esa marca.</p>
+      <p class="hint">${hint || "Hay que indicar marca, modelo y años. El año cambia el producto: un filtro diésel hasta 2021 no es el de 2022 en adelante, y tiene otro precio. Si no aparece un modelo, agrégalo en esa marca."}</p>
       <label class="check"><input id="e-veh-todos" type="checkbox" ${todos ? "checked" : ""} /> Todos los vehículos que atiende el taller (cualquier año)</label>
       <div id="e-veh-lista" ${todos ? "hidden" : ""}>${marcas}</div>
     </fieldset>
@@ -672,6 +673,44 @@ async function abrirEditorPortada() {
   renderEditorPortada();
 }
 
+function renderEditorFotosModelos() {
+  editando = null;
+  hidratarFotosModelos();
+  const bloques = MARCAS.map((marca) => {
+    const modelos = modelosDe(marca);
+    return `
+      <details class="veh-marca" open>
+        <summary>${marca}</summary>
+        <div class="fotos-modelos">
+          ${modelos
+            .map((m) => {
+              const clave = claveVehiculo(marca, m);
+              const src = fotoModeloDe(marca, m);
+              return `<div class="foto-modelo">
+                <div class="foto-modelo-img">${src ? `<img src="${src}" alt="${m}" />` : `<span>Sin foto</span>`}</div>
+                <strong>${m}</strong>
+                <button class="btn-line" type="button" data-foto-modelo="${escapeAttr(clave)}">${src ? "Cambiar foto" : "Agregar foto"}</button>
+              </div>`;
+            })
+            .join("")}
+        </div>
+      </details>
+    `;
+  }).join("");
+  $("stage").innerHTML = `
+    <article class="editor editor-portada">
+      <div class="editor-head">
+        <h2>Fotos de modelos</h2>
+        <p class="muted">Una foto por modelo. El cliente la ve en el botón flotante de su auto y al elegir marca y modelo. Así reconoce de inmediato de qué vehículo son las ofertas.</p>
+      </div>
+      <div class="editor-fields editor-fields-single" style="max-width:none">
+        ${bloques}
+        <p class="hint">Si falta un modelo, agrégalo en un servicio (Para qué vehículos) y vuelve aquí.</p>
+      </div>
+    </article>
+  `;
+}
+
 function htmlNavPortadaFalsa() {
   return `<nav class="portada-nav" aria-hidden="true">${["Ficha interactiva", "Ofertas", "Agendamiento", "Mantención preventiva"]
     .map((txt) => `<span><i></i><b>${txt}</b></span>`)
@@ -784,6 +823,7 @@ function renderEditorPortada() {
               <input id="p-texto" type="text" value="${escapeAttr(s.btn_texto)}" />
             </label>
           </div>
+          ${htmlVehiculosEditor(s, "Este flyer se muestra solo a esos vehículos. Si dejas todos, lo ven todos, incluso quien aún no eligió auto. Así cada modelo puede tener su propia publicidad.")}
           <div class="btn-row">
             <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
           </div>
@@ -806,6 +846,7 @@ function leerEditorPortada() {
   if ($("p-logo-zoom")) portadaUi.logo_zoom = Number($("p-logo-zoom").value) / 100;
   if ($("p-logo-ancho")) portadaUi.logo_scale_x = Number($("p-logo-ancho").value) / 100;
   if ($("p-logo-alto")) portadaUi.logo_scale_y = Number($("p-logo-alto").value) / 100;
+  if ($("e-veh-todos") || document.querySelector("[data-veh]")) s.vehiculos = leerVehiculosEditor();
 }
 
 function pintarLogoPortada() {
@@ -1044,7 +1085,26 @@ $("logo-file")?.addEventListener("change", async (e) => {
 });
 
 $("btn-portada").addEventListener("click", abrirEditorPortada);
+$("btn-fotos-modelos").addEventListener("click", renderEditorFotosModelos);
 $("btn-nuevo").addEventListener("click", nuevoServicio);
+$("foto-modelo-file")?.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  const clave = fotoModeloPendiente;
+  e.target.value = "";
+  fotoModeloPendiente = "";
+  if (!file || !clave) return;
+  const [marca, modelo] = clave.split("|");
+  try {
+    let src = await leerImagen(file, 900);
+    if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+    FOTOS_MODELOS[claveVehiculo(marca, modelo)] = src;
+    persistirFotosModelos();
+    if (typeof nubeActiva === "function" && nubeActiva()) await nubeGuardarCatalogoCanales(catalogo);
+    renderEditorFotosModelos();
+  } catch (err) {
+    alert((err && err.message) || "No se pudo subir la foto del modelo.");
+  }
+});
 $("btn-taller").addEventListener("click", () => {
   guardarTaller({
     direccion: $("taller-dir").value,
@@ -1078,6 +1138,11 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-guardar") guardarServicio();
   if (t.id === "btn-borrar") borrarServicio();
   if (t.id === "btn-guardar-portada") guardarEditorPortada();
+  if (t.dataset.fotoModelo) {
+    fotoModeloPendiente = t.dataset.fotoModelo;
+    $("foto-modelo-file")?.click();
+    return;
+  }
   if (t.id === "btn-cambiar-logo-editor") {
     $("logo-file")?.click();
     return;
@@ -1118,7 +1183,9 @@ $("stage").addEventListener("click", (e) => {
     renderEditorPortada();
   }
   if (t.dataset.addModelo) {
-    leerEditor();
+    const enServicio = Boolean(editando && $("e-nombre"));
+    if (enServicio) leerEditor();
+    else leerEditorPortada();
     const marca = t.dataset.addModelo;
     const input = document.querySelector(`[data-nuevo-modelo="${marca}"]`);
     const nombre = input && input.value.trim();
@@ -1127,12 +1194,14 @@ $("stage").addEventListener("click", (e) => {
       return;
     }
     registrarModelo(marca, nombre);
-    if (!editando.vehiculos) editando.vehiculos = [];
-    if (!editando.vehiculos.some((v) => v.marca === marca && v.modelo === nombre)) {
-      editando.vehiculos.push({ marca, modelo: nombre, ano_desde: ANIO_MIN, ano_hasta: null });
+    const destino = enServicio ? editando : slideActual();
+    if (!destino.vehiculos) destino.vehiculos = [];
+    if (!destino.vehiculos.some((v) => v.marca === marca && v.modelo === nombre)) {
+      destino.vehiculos.push({ marca, modelo: nombre, ano_desde: ANIO_MIN, ano_hasta: null });
     }
     if ($("e-veh-todos")) $("e-veh-todos").checked = false;
-    renderEditor();
+    if (enServicio) renderEditor();
+    else renderEditorPortada();
     return;
   }
   if (t.id === "btn-add-combo") abrirCombo(-1);

@@ -132,6 +132,44 @@ button { font-family: inherit; cursor: pointer; }
 
 .main-col { position: relative; min-width: 0; }
 
+.chip-auto {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 200px);
+  border: 2px solid #111;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  padding: 4px 14px 4px 4px;
+  font-weight: 800;
+  font-size: 0.86rem;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+.chip-auto[hidden] { display: none !important; }
+.chip-auto img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #111;
+}
+.filtro-foto {
+  margin-top: 16px;
+  text-align: center;
+}
+.filtro-foto img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 18px;
+  background: #111;
+}
+body.hay-auto .home-float { top: 68px; }
 .home-float {
   position: absolute;
   top: 16px;
@@ -1060,6 +1098,18 @@ button { font-family: inherit; cursor: pointer; }
   .wa-logo,
   .wa-logo svg { width: 26px; height: 26px; }
 
+  .chip-auto {
+    left: 10px;
+    top: auto;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    font-size: 0.78rem;
+    max-width: calc(100vw - 24px);
+  }
+  body.en-portada .chip-auto {
+    top: 82px;
+    bottom: auto;
+  }
+  body.hay-auto .home-float { top: 10px; }
   .home-float {
     top: 10px;
     left: 10px;

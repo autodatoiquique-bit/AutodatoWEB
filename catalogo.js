@@ -14,7 +14,9 @@ const MODELOS = {
 const ANIO_MIN = 2010;
 const ANIO_MAX = new Date().getFullYear();
 const MODELOS_EXTRA_KEY = "autodato_modelos_extra";
+const FOTOS_MODELOS_KEY = "autodato_fotos_modelos";
 let MODELOS_EXTRA = {};
+let FOTOS_MODELOS = {};
 
 function anios() {
   const out = [];
@@ -33,6 +35,24 @@ function hidratarModelosExtra() {
 
 function persistirModelosExtra() {
   localStorage.setItem(MODELOS_EXTRA_KEY, JSON.stringify(MODELOS_EXTRA || {}));
+}
+
+function hidratarFotosModelos() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FOTOS_MODELOS_KEY) || "{}");
+    if (raw && typeof raw === "object") FOTOS_MODELOS = { ...FOTOS_MODELOS, ...raw };
+  } catch (e) {
+    FOTOS_MODELOS = FOTOS_MODELOS || {};
+  }
+}
+
+function persistirFotosModelos() {
+  localStorage.setItem(FOTOS_MODELOS_KEY, JSON.stringify(FOTOS_MODELOS || {}));
+}
+
+function fotoModeloDe(marca, modelo) {
+  if (!marca || !modelo) return "";
+  return FOTOS_MODELOS[claveVehiculo(marca, modelo)] || "";
 }
 
 function registrarModelo(marca, modelo) {
@@ -373,6 +393,7 @@ function etiquetaCanales(s) {
 
 async function cargarCatalogo() {
   hidratarModelosExtra();
+  hidratarFotosModelos();
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {
@@ -381,6 +402,7 @@ async function cargarCatalogo() {
         catalogo = remoto.map(normalizarServicio);
         recolectarModelosExtra(catalogo);
         persistirModelosExtra();
+        persistirFotosModelos();
         return catalogo;
       }
     } catch (e) {
@@ -390,6 +412,7 @@ async function cargarCatalogo() {
   catalogo = hidratarCatalogo().map(normalizarServicio);
   recolectarModelosExtra(catalogo);
   persistirModelosExtra();
+  persistirFotosModelos();
   return catalogo;
 }
 
@@ -600,8 +623,44 @@ function normalizarSlide(s, i) {
     off_x: clampNum(s && s.off_x, -160, 160, 0),
     off_y: clampNum(s && s.off_y, -160, 160, 0),
     orden: Number(s && s.orden) || i,
+    vehiculos: normalizarVehiculos(s && s.vehiculos),
     ...normalizarUi(s),
   };
+}
+
+function slideAplicaAVehiculo(slide, vehiculo) {
+  return servicioAplicaAVehiculo({ vehiculos: slide && slide.vehiculos }, vehiculo);
+}
+
+function slidesPortadaPara(vehiculo) {
+  const todos = (portadaSlides || []).filter((s) => s.foto);
+  const base = todos.length ? todos : PORTADA_DEFECTO.map(normalizarSlide);
+  const genericos = base.filter((s) => !normalizarVehiculos(s.vehiculos).length);
+  if (!vehiculo || !vehiculo.marca || !vehiculo.modelo || !vehiculo.ano) {
+    return genericos.length ? genericos : base;
+  }
+  const propios = base.filter((s) => {
+    const dest = normalizarVehiculos(s.vehiculos);
+    return dest.length && slideAplicaAVehiculo(s, vehiculo);
+  });
+  const lista = [...propios, ...genericos];
+  return lista.length ? lista : genericos.length ? genericos : base;
+}
+
+function encajarVehiculoTaller(raw) {
+  if (!raw) return null;
+  const marcaTxt = String(raw.marca || "").trim();
+  const modeloTxt = String(raw.modelo || "").trim();
+  const ano = Number(raw.ano);
+  const marca = MARCAS.find((m) => m.toLowerCase() === marcaTxt.toLowerCase());
+  if (!marca || !modeloTxt || !Number.isFinite(ano)) return null;
+  if (ano < ANIO_MIN || ano > ANIO_MAX) return null;
+  const modelos = modelosDe(marca);
+  const modelo =
+    modelos.find((m) => m.toLowerCase() === modeloTxt.toLowerCase()) ||
+    modelos.find((m) => modeloTxt.toLowerCase().includes(m.toLowerCase()) || m.toLowerCase().includes(modeloTxt.toLowerCase()));
+  if (!modelo) return null;
+  return { marca, modelo, ano };
 }
 
 function slideVacio(orden) {

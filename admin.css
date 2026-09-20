@@ -386,6 +386,37 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 12px;
   font: inherit;
 }
+.fotos-modelos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 10px 0 6px;
+}
+.foto-modelo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.foto-modelo-img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+  display: grid;
+  place-items: center;
+  color: #bbb;
+  font-size: 0.75rem;
+}
+.foto-modelo-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .portada-thumbs {
   display: flex;
   flex-wrap: wrap;

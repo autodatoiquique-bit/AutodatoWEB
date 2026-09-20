@@ -51,6 +51,10 @@
     </aside>
 
     <div class="main-col">
+      <button id="chip-auto" class="chip-auto" type="button" hidden data-editar-auto title="Cambiar vehículo">
+        <img id="chip-auto-foto" alt="" hidden />
+        <span id="chip-auto-texto">Tu auto</span>
+      </button>
       <button class="home-float" type="button" data-vista="portada" title="Ir al inicio" aria-label="Inicio">
         <svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
       </button>
@@ -105,6 +109,12 @@
         <button class="btn-primary btn-block" type="button" data-confirmar-quitar>Quitar y continuar</button>
         <button class="btn-soft btn-block" type="button" data-cerrar-quitar>Seguir con el ticket</button>
       </div>
+    </div>
+  </div>
+  <div id="modal-auto" class="modal-modulo" hidden>
+    <div class="modal-modulo-card">
+      <button class="drawer-close" type="button" data-cerrar-auto>×</button>
+      <div id="modal-auto-cuerpo"></div>
     </div>
   </div>
   <div id="modal-informe" class="modal-modulo" hidden>

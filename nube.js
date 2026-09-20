@@ -76,6 +76,7 @@ async function nubeGuardarCatalogoCanales(lista) {
     };
   });
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
+  mapa._fotos_modelos = typeof FOTOS_MODELOS !== "undefined" ? FOTOS_MODELOS : {};
   const { error } = await sb.storage.from("servicios").upload(
     "catalogo-canales.json",
     new Blob([JSON.stringify(mapa)], { type: "application/json" }),
@@ -113,9 +114,13 @@ async function nubeLeerCatalogo() {
   if (extra && extra._modelos && typeof extra._modelos === "object") {
     MODELOS_EXTRA = extra._modelos;
   }
+  if (extra && extra._fotos_modelos && typeof extra._fotos_modelos === "object") {
+    FOTOS_MODELOS = extra._fotos_modelos;
+    if (typeof persistirFotosModelos === "function") persistirFotosModelos();
+  }
   return (rows || []).map((row) => {
     const s = filaAServicio(row, comps || []);
-    if (extra && extra[s.id] && s.id !== "_modelos") {
+    if (extra && extra[s.id] && String(s.id).charAt(0) !== "_") {
       s.canales = extra[s.id];
       if (extra[s.id].tiene_oferta != null) s.tiene_oferta = Boolean(extra[s.id].tiene_oferta) && Number(extra[s.id].precio_oferta) > 0;
       if (extra[s.id].oferta_combo != null) s.oferta_combo = Boolean(extra[s.id].oferta_combo);
@@ -244,6 +249,7 @@ function extraPortada(s) {
     wa_y: Number(s.wa_y) || 84,
     dots_x: Number(s.dots_x) || 50,
     dots_y: Number(s.dots_y) || 68,
+    vehiculos: Array.isArray(s.vehiculos) ? s.vehiculos : [],
   };
 }
 
