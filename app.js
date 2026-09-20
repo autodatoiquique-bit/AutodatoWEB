@@ -3,7 +3,6 @@ const BLOQUES = [
   { hora: "11:00", etiqueta: "Mañana 11:00" },
   { hora: "15:00", etiqueta: "Tarde 15:00" },
 ];
-const INFORME_BASE = "https://app.autonexus.cl/";
 
 const PAGINAS = {
   flotas: {
