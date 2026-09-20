@@ -601,9 +601,9 @@ function renderDetalleOferta() {
                 : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
             }
           </div>
+          ${htmlSumaRelacionados(s, enCarro)}
         </div>
       </div>
-      ${htmlSumaRelacionados(s, enCarro)}
     </article>
   `;
   armarCarruselDetalle();

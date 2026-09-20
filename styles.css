@@ -1242,20 +1242,20 @@ body.hay-perfil .panel { padding-top: 88px; }
   .detalle-hero {
     display: block;
     position: relative;
-    height: 100dvh;
-    min-height: 100dvh;
-    overflow: hidden;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
     background: #111;
   }
   .detalle-media,
   .detalle-foto {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: calc(210px + env(safe-area-inset-bottom, 0px));
-    height: auto;
-    min-height: 0;
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    height: 46vh;
+    min-height: 220px;
     background: #111;
   }
   .detalle-slide { background: #111; }
@@ -1264,14 +1264,14 @@ body.hay-perfil .panel { padding-top: 88px; }
   .btn-add-precio,
   .btn-en-carro { font-size: 0.72rem; padding: 9px 12px; }
   .detalle-copy {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
     z-index: 6;
-    margin: 0;
-    padding: 48px 14px 12px;
-    background: linear-gradient(180deg, transparent 0%, #111 28%);
+    margin-top: -72px;
+    padding: 56px 14px 110px;
+    background: linear-gradient(180deg, transparent 0%, #111 20%);
     color: #fff;
   }
   .detalle-copy h2 {
@@ -1284,16 +1284,16 @@ body.hay-perfil .panel { padding-top: 88px; }
     color: #ddd;
   }
   .detalle-copy .lead {
-    max-height: 4.6em;
-    overflow: hidden;
-    font-size: 0.78rem;
+    max-height: none;
+    overflow: visible;
+    font-size: 0.86rem;
     color: #ddd;
   }
   .detalle-full .suma-ofertas {
-    padding: 18px 14px 120px;
-    margin: 0;
+    margin: 12px 0 0;
+    padding: 0;
   }
-  .detalle-copy .lead { font-size: 0.92rem; }
+  .detalle-full .suma-ofertas .minis { margin-top: 8px; }
   .suma-ofertas h3 {
     font-size: 1.05rem;
     margin-bottom: 10px;
