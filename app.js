@@ -549,7 +549,7 @@ function htmlListaCotizacion(titulo, lead, lista, opts = {}) {
 
 function renderOfertas() {
   $("stage").innerHTML = htmlListaCotizacion(
-    "Ofertas",
+    "Promociones",
     "Promociones de ocasión. Las mantenciones regulares están en Mantención preventiva.",
     serviciosParaVehiculo(serviciosOferta())
   );
