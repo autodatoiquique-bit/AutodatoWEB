@@ -827,12 +827,16 @@ body.hay-perfil .panel { padding-top: 88px; }
 }
 
 #modal-informe {
-  display: block;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.modal-modulo[hidden] { display: none; }
+#modal-informe:not([hidden]) {
+  display: block;
+}
+
+#modal-informe[hidden],
+.modal-modulo[hidden] { display: none !important; }
 
 .modal-modulo .drawer-close {
   top: 18px;
@@ -1060,6 +1064,7 @@ body.hay-perfil .panel { padding-top: 88px; }
   body:not(.en-portada) .sidebar {
     background: rgba(47, 47, 47, 0.88);
   }
+  body.teclado-abierto .sidebar { display: none !important; }
   .sidebar .logo-btn,
   .sidebar-note { display: none; }
   .menu [data-vista="portada"] .ico svg {

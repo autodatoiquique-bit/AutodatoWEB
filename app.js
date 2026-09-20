@@ -880,6 +880,16 @@ function cerrarModalKpi() {
   if (overlayLibre()) $("overlay").hidden = true;
 }
 
+function tecladoFichaActivo() {
+  const a = document.activeElement;
+  return Boolean(
+    $("modal-informe") &&
+    !$("modal-informe").hidden &&
+    a &&
+    (a.id === "informe-patente" || a.id === "informe-telefono")
+  );
+}
+
 function syncTecladoFicha() {
   const modal = $("modal-informe");
   const abierta = Boolean(modal && !modal.hidden);
@@ -889,9 +899,10 @@ function syncTecladoFicha() {
     cubierto = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
   }
   document.documentElement.style.setProperty("--teclado", `${cubierto}px`);
-  if (abierta && cubierto > 80) {
+  document.body.classList.toggle("teclado-abierto", abierta && (cubierto > 80 || tecladoFichaActivo()));
+  if (abierta && (cubierto > 80 || tecladoFichaActivo())) {
     const btn = $("btn-abrir-informe");
-    if (btn) btn.scrollIntoView({ block: "end", behavior: "auto" });
+    if (btn) btn.scrollIntoView({ block: "nearest", behavior: "auto" });
   }
 }
 
@@ -1488,6 +1499,8 @@ function cerrar() {
   quitarPendiente = null;
   marcarMenu();
   syncSeguirKpi();
+  pintarChipAuto();
+  syncTecladoFicha();
 }
 
 function guardarClienteDesdeForma() {
@@ -1683,7 +1696,11 @@ window.addEventListener("resize", syncTecladoFicha);
 ["informe-patente", "informe-telefono"].forEach((id) => {
   const el = $(id);
   if (!el) return;
-  el.addEventListener("focus", () => setTimeout(syncTecladoFicha, 80));
+  el.addEventListener("focus", () => {
+    document.body.classList.add("teclado-abierto");
+    setTimeout(syncTecladoFicha, 80);
+  });
+  el.addEventListener("blur", () => setTimeout(syncTecladoFicha, 80));
 });
 
 async function arrancar() {
