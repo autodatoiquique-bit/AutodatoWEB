@@ -109,17 +109,20 @@ function ocultaFotoModelo() {
 
 function pintarChipAuto() {
   const chip = $("chip-auto");
-  const barra = $("barra-auto");
   const src = fotoVehiculoActual();
-  const mostrarFoto = Boolean(vehiculoOk() && src && !ocultaFotoModelo());
+  const enAgenda = state.vista === "agendamiento" || state.vista === "carrito-agenda";
   const fichaAbierta = Boolean($("modal-informe") && !$("modal-informe").hidden);
+  const mostrarMini = Boolean(vehiculoOk() && src && !ocultaFotoModelo());
+  const mostrarBarra = !enAgenda;
   document.body.classList.toggle("hay-auto", vehiculoOk());
-  document.body.classList.toggle("hay-auto-foto", mostrarFoto);
-  if (barra) {
-    barra.hidden = !mostrarFoto;
-    const img = $("barra-auto-foto");
-    if (img && src) img.src = src;
-  }
+  document.body.classList.toggle("hay-marca", mostrarBarra);
+  document.body.classList.toggle("hay-marca-mini", mostrarMini);
+  const marca = $("marca-fija");
+  if (marca) marca.classList.toggle("sin-marca", !mostrarBarra);
+  document.querySelectorAll("[data-marca-mini]").forEach((img) => {
+    img.hidden = !mostrarMini;
+    if (src) img.src = src;
+  });
   if (!chip) return;
   if (!vehiculoOk() || fichaAbierta) {
     chip.hidden = true;
@@ -129,7 +132,7 @@ function pintarChipAuto() {
   const foto = $("chip-auto-foto");
   const texto = $("chip-auto-texto");
   if (foto) {
-    foto.hidden = mostrarFoto || !src;
+    foto.hidden = true;
     if (src) foto.src = src;
   }
   if (texto) texto.textContent = textoVehiculoCorto();
@@ -443,9 +446,6 @@ function renderPortada() {
   const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
   $("stage").innerHTML = `
     <section class="home-screen">
-      <header class="home-logo">
-        <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
-      </header>
       <div class="home-slides" id="home-slides">${pista.map(htmlSlidePortada).join("")}</div>
       ${htmlCapaPortada(portadaUi, lista.length, 0, false)}
     </section>

@@ -9,13 +9,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=autofoto2" />
+  <link rel="stylesheet" href="styles.css?v=autofoto3" />
 </head>
 <body>
   <div class="split">
     <aside class="sidebar">
       <button class="logo-btn" type="button" data-vista="portada" title="Inicio">
-        <img data-logo src="imagenes/logo.jpg" alt="AutoDato" />
+        <span class="logo-btn-caja">
+          <img data-logo src="imagenes/logo.jpg" alt="AutoDato" />
+          <img class="marca-mini" data-marca-mini alt="" hidden />
+        </span>
       </button>
       <button class="home-btn" type="button" data-vista="portada" title="Ir al inicio">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
@@ -51,9 +54,12 @@
     </aside>
 
     <div class="main-col">
-      <div id="barra-auto" class="barra-auto" hidden>
-        <img id="barra-auto-foto" alt="" />
-      </div>
+      <header id="marca-fija" class="home-logo marca-fija">
+        <div class="marca-caja" id="marca-caja">
+          <img data-logo src="imagenes/logo.jpg" alt="AutoDato" />
+          <img class="marca-mini" data-marca-mini alt="" hidden />
+        </div>
+      </header>
       <button id="chip-auto" class="chip-auto" type="button" hidden data-editar-auto title="Cambiar vehículo">
         <img id="chip-auto-foto" alt="" hidden />
         <span id="chip-auto-texto">Tu auto</span>
@@ -149,7 +155,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="nube.js"></script>
-  <script src="catalogo.js?v=autofoto2"></script>
-  <script src="app.js?v=autofoto2"></script>
+  <script src="catalogo.js?v=autofoto3"></script>
+  <script src="app.js?v=autofoto3"></script>
 </body>
 </html>

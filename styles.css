@@ -55,10 +55,28 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
 }
 
+.logo-btn-caja {
+  position: relative;
+  display: block;
+}
+
 .logo-btn img {
   width: 100%;
   display: block;
 }
+
+.logo-btn .marca-mini {
+  position: absolute;
+  left: 1.17%;
+  top: 5.08%;
+  width: 17.48%;
+  height: 60.59%;
+  object-fit: cover;
+  border-radius: 11%;
+  background: #111;
+}
+
+.logo-btn .marca-mini[hidden] { display: none !important; }
 
 .home-btn {
   display: flex;
@@ -131,7 +149,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .main-col { position: relative; min-width: 0; }
-.barra-auto { display: none; }
+.marca-fija { display: none; }
+.marca-mini { display: none; }
 
 .chip-auto {
   position: absolute;
@@ -1095,45 +1114,47 @@ body.hay-auto .home-float { top: 68px; }
     color-scheme: only light;
     forced-color-adjust: none;
   }
-  .home-logo.con-auto {
-    height: 148px;
-    background: #111;
+  .marca-fija {
+    display: block;
+    z-index: 8;
   }
-  .home-logo.con-auto .logo-auto {
-    inset: 0;
-    left: 0;
-    top: 0;
+  .marca-fija.sin-marca { display: none !important; }
+  .marca-caja {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 78%;
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+  }
+  .marca-fija img[data-logo] {
+    position: static;
+    left: auto;
+    top: auto;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
     transform: none;
+  }
+  .marca-fija .marca-mini {
+    display: block;
+    position: absolute;
+    left: 1.17%;
+    top: 5.08%;
+    width: 17.48%;
+    height: 60.59%;
+    object-fit: cover;
+    border-radius: 11%;
+    background: #111;
+    transform: none;
+  }
+  .marca-fija .marca-mini[hidden] { display: none !important; }
+  body.hay-marca:not(.en-portada) .panel {
+    padding-top: 124px;
   }
   .home-pill { font-size: 0.78rem; padding: 7px 12px; }
   .wa-logo,
   .wa-logo svg { width: 26px; height: 26px; }
 
-  .barra-auto {
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 8;
-    height: 148px;
-    overflow: hidden;
-    background: #111;
-  }
-  .barra-auto[hidden] { display: none !important; }
-  .barra-auto img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  body.en-portada.hay-auto-foto .home-logo { display: none; }
-  body.hay-auto-foto:not(.en-portada) .stage {
-    padding-top: 204px;
-  }
   .chip-auto {
     left: 10px;
     top: auto;
@@ -1141,18 +1162,11 @@ body.hay-auto .home-float { top: 68px; }
     font-size: 0.78rem;
     max-width: calc(100vw - 24px);
   }
-  body.en-portada .chip-auto {
-    top: 82px;
+  body.en-portada .chip-auto,
+  body.hay-marca .chip-auto {
+    top: 80px;
     bottom: auto;
   }
-  body.hay-auto-foto .chip-auto {
-    top: 156px;
-    bottom: auto;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 6px 16px;
-  }
-  body.hay-auto-foto .chip-auto img { display: none; }
   body.hay-auto .home-float { top: 10px; }
   .home-float {
     top: 10px;
