@@ -102,6 +102,16 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--yellow);
   color: var(--ink);
 }
+.menu button.is-on .ico {
+  background: #111;
+}
+.menu button.is-on .ico svg {
+  stroke: var(--yellow);
+}
+.menu button.is-on[data-vista="portada"] .ico svg {
+  fill: var(--yellow);
+  stroke: none;
+}
 
 .ico {
   width: 36px;
@@ -138,10 +148,10 @@ button { font-family: inherit; cursor: pointer; }
 .main-col { position: relative; min-width: 0; }
 
 .perfil-auto {
-  position: absolute;
+  position: fixed;
   left: 16px;
   top: 16px;
-  z-index: 75;
+  z-index: 80;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -187,7 +197,7 @@ button { font-family: inherit; cursor: pointer; }
   position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 70;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1119,7 +1129,17 @@ body.hay-perfil .panel { padding-top: 88px; }
     color-scheme: only light;
     forced-color-adjust: none;
   }
-  .menu button.is-on .ico { box-shadow: 0 0 0 2px var(--yellow); }
+  .menu button.is-on .ico {
+    background: #111;
+    box-shadow: 0 0 0 2px var(--yellow);
+  }
+  .menu button.is-on .ico svg {
+    stroke: var(--yellow);
+  }
+  .menu button.is-on[data-vista="portada"] .ico svg {
+    fill: var(--yellow);
+    stroke: none;
+  }
 
   .home-logo {
     display: block;
