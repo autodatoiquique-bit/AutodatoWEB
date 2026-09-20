@@ -762,11 +762,8 @@ function aplicarLogos() {
   const estilo = estiloLogoPortada(portadaUi);
   document.querySelectorAll("[data-logo]").forEach((img) => {
     img.src = src;
-    if (img.closest(".marca-caja")) img.style.cssText = "";
-    else if (img.closest(".home-logo")) img.style.cssText = estilo;
+    if (img.closest(".home-logo")) img.style.cssText = estilo;
   });
-  const caja = document.getElementById("marca-caja");
-  if (caja) caja.style.cssText = estilo;
 }
 
 function normalizarSlide(s, i) {

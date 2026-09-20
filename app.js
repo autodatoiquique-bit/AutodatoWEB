@@ -100,42 +100,29 @@ function fotoVehiculoActual() {
     : fotoModeloDe(state.vehiculo.marca, state.vehiculo.modelo);
 }
 
-function ocultaFotoModelo() {
+function vistaConPerfilModelo() {
   const v = state.vista;
-  if (v === "agendamiento" || v === "carrito-agenda") return true;
-  if ($("modal-informe") && !$("modal-informe").hidden) return true;
-  return false;
+  return v === "ofertas" || v === "mantencion" || v === "diagnostico" || v === "oferta-detalle" || v === "filtro-oferta";
 }
 
 function pintarChipAuto() {
+  const caja = $("perfil-auto");
   const chip = $("chip-auto");
   const src = fotoVehiculoActual();
-  const enAgenda = state.vista === "agendamiento" || state.vista === "carrito-agenda";
   const fichaAbierta = Boolean($("modal-informe") && !$("modal-informe").hidden);
-  const mostrarMini = Boolean(vehiculoOk() && src && !ocultaFotoModelo());
-  const mostrarBarra = !enAgenda;
+  const mostrar = Boolean(vehiculoOk() && vistaConPerfilModelo() && !fichaAbierta);
   document.body.classList.toggle("hay-auto", vehiculoOk());
-  document.body.classList.toggle("hay-marca", mostrarBarra);
-  document.body.classList.toggle("hay-marca-mini", mostrarMini);
-  const marca = $("marca-fija");
-  if (marca) marca.classList.toggle("sin-marca", !mostrarBarra);
-  document.querySelectorAll("[data-marca-mini]").forEach((img) => {
-    img.hidden = !mostrarMini;
-    if (src) img.src = src;
-  });
-  if (!chip) return;
-  if (!vehiculoOk() || fichaAbierta) {
-    chip.hidden = true;
-    return;
-  }
-  chip.hidden = false;
-  const foto = $("chip-auto-foto");
-  const texto = $("chip-auto-texto");
+  document.body.classList.toggle("hay-perfil", mostrar);
+  if (caja) caja.hidden = !mostrar;
+  if (!mostrar) return;
+  const foto = $("perfil-auto-foto");
   if (foto) {
-    foto.hidden = true;
+    foto.hidden = !src;
     if (src) foto.src = src;
   }
+  const texto = $("chip-auto-texto");
   if (texto) texto.textContent = textoVehiculoCorto();
+  if (chip) chip.hidden = false;
 }
 
 function abrirModalAuto() {
@@ -293,9 +280,7 @@ function syncSeguirKpi() {
   const enPortada = state.vista === "portada";
   const ticket = ticketAbierto();
   const stack = document.querySelector(".kpi-stack");
-  const home = document.querySelector(".home-float");
   if (stack) stack.hidden = historial || enPortada || ticket;
-  if (home) home.hidden = historial || enPortada || ticket;
   const btn = $("btn-seguir-kpi");
   if (!btn) return;
   const enAgenda = state.vista === "agendamiento" || state.vista === "carrito-agenda";
@@ -446,6 +431,9 @@ function renderPortada() {
   const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
   $("stage").innerHTML = `
     <section class="home-screen">
+      <header class="home-logo">
+        <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
+      </header>
       <div class="home-slides" id="home-slides">${pista.map(htmlSlidePortada).join("")}</div>
       ${htmlCapaPortada(portadaUi, lista.length, 0, false)}
     </section>

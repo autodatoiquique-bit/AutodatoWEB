@@ -55,28 +55,10 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
 }
 
-.logo-btn-caja {
-  position: relative;
-  display: block;
-}
-
 .logo-btn img {
   width: 100%;
   display: block;
 }
-
-.logo-btn .marca-mini {
-  position: absolute;
-  left: 1.17%;
-  top: 5.08%;
-  width: 17.48%;
-  height: 60.59%;
-  object-fit: cover;
-  border-radius: 11%;
-  background: #111;
-}
-
-.logo-btn .marca-mini[hidden] { display: none !important; }
 
 .home-btn {
   display: flex;
@@ -141,6 +123,11 @@ button { font-family: inherit; cursor: pointer; }
   stroke-linejoin: round;
 }
 
+.menu [data-vista="portada"] .ico svg {
+  fill: var(--ink);
+  stroke: none;
+}
+
 .sidebar-note {
   margin-top: auto;
   color: #c8c8c8;
@@ -149,10 +136,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .main-col { position: relative; min-width: 0; }
-.marca-fija { display: none; }
-.marca-mini { display: none; }
 
-.chip-auto {
+.perfil-auto {
   position: absolute;
   left: 16px;
   top: 16px;
@@ -161,23 +146,29 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   gap: 8px;
   max-width: calc(100vw - 200px);
+}
+.perfil-auto[hidden] { display: none !important; }
+.perfil-auto img {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #111;
+  border: 2px solid #111;
+  flex: 0 0 44px;
+}
+.chip-auto {
   border: 2px solid #111;
   border-radius: 999px;
   background: #fff;
   color: #111;
-  padding: 4px 14px 4px 4px;
+  padding: 8px 14px;
   font-weight: 800;
   font-size: 0.86rem;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  white-space: nowrap;
 }
 .chip-auto[hidden] { display: none !important; }
-.chip-auto img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #111;
-}
 .filtro-foto {
   margin-top: 16px;
   text-align: center;
@@ -189,24 +180,6 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 18px;
   background: #111;
 }
-body.hay-auto .home-float { top: 68px; }
-.home-float {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 30;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--yellow);
-  box-shadow: var(--shadow);
-  display: grid;
-  place-items: center;
-}
-
-.home-float svg { width: 22px; height: 22px; fill: var(--ink); }
-
 .kpi-stack {
   position: fixed;
   top: 16px;
@@ -218,8 +191,8 @@ body.hay-auto .home-float { top: 68px; }
   gap: 8px;
 }
 
-.kpi-stack[hidden],
-.home-float[hidden] { display: none !important; }
+.kpi-stack[hidden] { display: none !important; }
+body.hay-perfil .panel { padding-top: 88px; }
 
 .totales-bar {
   display: flex;
@@ -1034,8 +1007,11 @@ body.hay-auto .home-float { top: 68px; }
     background: rgba(47, 47, 47, 0.88);
   }
   .sidebar .logo-btn,
-  .sidebar .home-btn,
   .sidebar-note { display: none; }
+  .menu [data-vista="portada"] .ico svg {
+    fill: var(--ink);
+    stroke: none;
+  }
 
   .menu {
     flex-direction: row;
@@ -1114,66 +1090,26 @@ body.hay-auto .home-float { top: 68px; }
     color-scheme: only light;
     forced-color-adjust: none;
   }
-  .marca-fija {
-    display: block;
-    z-index: 8;
-  }
-  .marca-fija.sin-marca { display: none !important; }
-  .marca-caja {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 78%;
-    transform: translate(-50%, -50%);
-    transform-origin: center center;
-  }
-  .marca-fija img[data-logo] {
-    position: static;
-    left: auto;
-    top: auto;
-    width: 100%;
-    height: auto;
-    transform: none;
-  }
-  .marca-fija .marca-mini {
-    display: block;
-    position: absolute;
-    left: 1.17%;
-    top: 5.08%;
-    width: 17.48%;
-    height: 60.59%;
-    object-fit: cover;
-    border-radius: 11%;
-    background: #111;
-    transform: none;
-  }
-  .marca-fija .marca-mini[hidden] { display: none !important; }
-  body.hay-marca:not(.en-portada) .panel {
-    padding-top: 124px;
-  }
   .home-pill { font-size: 0.78rem; padding: 7px 12px; }
   .wa-logo,
   .wa-logo svg { width: 26px; height: 26px; }
 
-  .chip-auto {
+  .perfil-auto {
     left: 10px;
-    top: auto;
-    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
-    font-size: 0.78rem;
-    max-width: calc(100vw - 24px);
-  }
-  body.en-portada .chip-auto,
-  body.hay-marca .chip-auto {
-    top: 80px;
-    bottom: auto;
-  }
-  body.hay-auto .home-float { top: 10px; }
-  .home-float {
     top: 10px;
-    left: 10px;
+    max-width: calc(100vw - 168px);
+  }
+  .perfil-auto img {
     width: 40px;
     height: 40px;
+    flex-basis: 40px;
+    border-radius: 10px;
   }
+  .chip-auto {
+    font-size: 0.78rem;
+    padding: 7px 12px;
+  }
+  body.hay-perfil .panel { padding-top: 72px; }
 
   .kpi-stack {
     top: 10px;
