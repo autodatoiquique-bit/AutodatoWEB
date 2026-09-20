@@ -259,15 +259,17 @@ function syncCromo() {
 }
 
 function marcarMenu() {
+  const fichaAbierta = Boolean($("modal-informe") && !$("modal-informe").hidden);
   document.querySelectorAll(".menu [data-vista]").forEach((btn) => {
     const on =
-      btn.dataset.vista === state.vista ||
-      ((state.vista === "oferta-detalle" || state.vista === "filtro-oferta") && btn.dataset.vista === state.origenLista) ||
-      (state.vista === "carrito-agenda" && btn.dataset.vista === "agendamiento");
+      !fichaAbierta &&
+      (btn.dataset.vista === state.vista ||
+        ((state.vista === "oferta-detalle" || state.vista === "filtro-oferta") && btn.dataset.vista === state.origenLista) ||
+        (state.vista === "carrito-agenda" && btn.dataset.vista === "agendamiento"));
     btn.classList.toggle("is-on", on);
   });
   const inf = document.querySelector('.menu [data-open="informe"]');
-  if (inf) inf.classList.toggle("is-on", Boolean($("modal-informe") && !$("modal-informe").hidden));
+  if (inf) inf.classList.toggle("is-on", fichaAbierta);
 }
 
 function ticketAbierto() {
