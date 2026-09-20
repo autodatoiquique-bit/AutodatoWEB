@@ -15,8 +15,10 @@ const ANIO_MIN = 2010;
 const ANIO_MAX = new Date().getFullYear();
 const MODELOS_EXTRA_KEY = "autodato_modelos_extra";
 const FOTOS_MODELOS_KEY = "autodato_fotos_modelos";
+const TABLERO_KEY = "autodato_tablero_columnas";
 let MODELOS_EXTRA = {};
 let FOTOS_MODELOS = {};
+let TABLERO_COLUMNAS = [];
 
 function anios() {
   const out = [];
@@ -53,6 +55,80 @@ function persistirFotosModelos() {
 function fotoModeloDe(marca, modelo) {
   if (!marca || !modelo) return "";
   return FOTOS_MODELOS[claveVehiculo(marca, modelo)] || "";
+}
+
+function hidratarTablero() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TABLERO_KEY) || "[]");
+    if (Array.isArray(raw)) TABLERO_COLUMNAS = raw.map(normalizarColumnaTablero).filter(Boolean);
+  } catch (e) {
+    TABLERO_COLUMNAS = TABLERO_COLUMNAS || [];
+  }
+}
+
+function persistirTablero() {
+  localStorage.setItem(TABLERO_KEY, JSON.stringify(TABLERO_COLUMNAS || []));
+}
+
+function normalizarColumnaTablero(c) {
+  if (!c || !c.marca || !c.modelo) return null;
+  const d = Number(c.ano_desde);
+  const h = Number(c.ano_hasta);
+  return {
+    id: String(c.id || `col-${c.marca}-${c.modelo}-${d || ""}-${h || ""}`),
+    marca: String(c.marca),
+    modelo: String(c.modelo),
+    ano_desde: Number.isFinite(d) ? d : null,
+    ano_hasta: Number.isFinite(h) ? h : null,
+  };
+}
+
+function claveColumnaTablero(c) {
+  return `${c.marca}|${c.modelo}|${c.ano_desde || ""}|${c.ano_hasta || ""}`;
+}
+
+function aniosSeSolapan(a, b) {
+  const a1 = a.ano_desde != null ? a.ano_desde : ANIO_MIN;
+  const a2 = a.ano_hasta != null ? a.ano_hasta : ANIO_MAX;
+  const b1 = b.ano_desde != null ? b.ano_desde : ANIO_MIN;
+  const b2 = b.ano_hasta != null ? b.ano_hasta : ANIO_MAX;
+  return a1 <= b2 && b1 <= a2;
+}
+
+function destinoEnColumna(dest, col) {
+  if (!dest || !col) return false;
+  if (dest.marca !== col.marca) return false;
+  if (dest.modelo !== "*" && dest.modelo !== col.modelo) return false;
+  return aniosSeSolapan(dest, col);
+}
+
+function itemEnColumna(item, col) {
+  const destinos = normalizarVehiculos(item && item.vehiculos);
+  if (!destinos.length) return false;
+  return destinos.some((v) => destinoEnColumna(v, col));
+}
+
+function sembrarColumnasTablero() {
+  const vistos = new Set((TABLERO_COLUMNAS || []).map(claveColumnaTablero));
+  const agregar = (v) => {
+    const col = normalizarColumnaTablero({
+      id: `col-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      marca: v.marca,
+      modelo: v.modelo === "*" ? "todos" : v.modelo,
+      ano_desde: v.ano_desde,
+      ano_hasta: v.ano_hasta,
+    });
+    if (!col || col.modelo === "todos") return;
+    const k = claveColumnaTablero(col);
+    if (vistos.has(k)) return;
+    vistos.add(k);
+    TABLERO_COLUMNAS.push(col);
+  };
+  (catalogo || []).forEach((s) => normalizarVehiculos(s.vehiculos).forEach(agregar));
+  (typeof portadaSlides !== "undefined" ? portadaSlides : []).forEach((s) =>
+    normalizarVehiculos(s.vehiculos).forEach(agregar)
+  );
+  persistirTablero();
 }
 
 function registrarModelo(marca, modelo) {
@@ -394,6 +470,7 @@ function etiquetaCanales(s) {
 async function cargarCatalogo() {
   hidratarModelosExtra();
   hidratarFotosModelos();
+  hidratarTablero();
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {

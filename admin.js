@@ -70,7 +70,7 @@ async function mostrarPanel() {
   pintarTaller();
   renderLista();
   if (editando) renderEditor();
-  else $("stage").innerHTML = `<p class="vacio">Elige un servicio o crea uno nuevo.</p>`;
+  else renderTablero();
 }
 
 async function intentarAcceso() {
@@ -142,6 +142,185 @@ function servicioVacio() {
     complementos: [],
     activo: true,
   };
+}
+
+function vehiculosDeColumna(col) {
+  return [
+    {
+      marca: col.marca,
+      modelo: col.modelo,
+      ano_desde: col.ano_desde,
+      ano_hasta: col.ano_hasta,
+    },
+  ];
+}
+
+async function guardarTableroNube() {
+  persistirTablero();
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    await nubeGuardarCatalogoCanales(catalogo);
+  }
+}
+
+function htmlTarjetaKanbanServicio(s) {
+  const p = typeof precioPagado === "function" ? precioPagado(s, []) : { pagado: s.precio };
+  return `<button class="kanban-card" type="button" data-kanban-servicio="${s.id}">
+    <div class="kanban-cover"${s.foto ? ` style="background-image:url('${s.foto}')"` : ""}></div>
+    <div class="kanban-body">
+      <strong>${s.nombre || "Sin nombre"}</strong>
+      <span>${clp(p.pagado != null ? p.pagado : s.precio)} · ${etiquetaCanales(s)}</span>
+    </div>
+  </button>`;
+}
+
+function htmlTarjetaKanbanPortada(s, i) {
+  return `<button class="kanban-card" type="button" data-kanban-portada="${s.id}">
+    <div class="kanban-cover"${s.foto ? ` style="background-image:url('${s.foto}')"` : ""}></div>
+    <div class="kanban-body">
+      <strong>Portada</strong>
+      <span>Flyer ${i + 1}${s.mostrar_boton ? " · con botón" : ""}</span>
+    </div>
+  </button>`;
+}
+
+function htmlColumnaKanban(col) {
+  const foto = fotoModeloDe(col.marca, col.modelo);
+  const portadas = (portadaSlides || [])
+    .map((s, i) => ({ s, i }))
+    .filter((x) => itemEnColumna(x.s, col));
+  const servicios = (catalogo || []).filter((s) => itemEnColumna(s, col));
+  return `
+    <section class="kanban-col">
+      <header class="kanban-head">
+        ${foto ? `<img src="${foto}" alt="" />` : `<span class="kanban-ph"></span>`}
+        <div>
+          <strong>${col.marca} ${col.modelo}</strong>
+          <span>${etiquetaRangoAnios(col)}</span>
+        </div>
+        <button class="kanban-x" type="button" data-kanban-del-col="${col.id}" title="Quitar columna">×</button>
+      </header>
+      <div class="kanban-cards">
+        ${portadas.map((x) => htmlTarjetaKanbanPortada(x.s, x.i)).join("")}
+        ${servicios.map(htmlTarjetaKanbanServicio).join("")}
+        ${!portadas.length && !servicios.length ? `<p class="kanban-vacio">Sin promociones para este auto.</p>` : ""}
+      </div>
+      <div class="kanban-add">
+        <button type="button" data-kanban-nuevo="${col.id}">+ Promoción</button>
+        <button type="button" data-kanban-portada-nueva="${col.id}">+ Portada</button>
+      </div>
+    </section>
+  `;
+}
+
+function htmlFormColumna() {
+  const marca = MARCAS[0];
+  const modelos = modelosDe(marca);
+  return `
+    <section class="kanban-col kanban-col-add">
+      <h3>Nueva columna</h3>
+      <p>Una columna es un auto: marca, modelo y años. Ahí juntas sus ofertas y su flyer.</p>
+      <label class="field"><span>Marca</span>
+        <select id="col-marca">${MARCAS.map((m) => `<option value="${m}">${m}</option>`).join("")}</select>
+      </label>
+      <label class="field"><span>Modelo</span>
+        <select id="col-modelo">${modelos.map((m) => `<option value="${m}">${m}</option>`).join("")}</select>
+      </label>
+      <label class="field"><span>Desde el año</span>
+        <select id="col-desde">${anios().map((y) => `<option value="${y}" ${y === ANIO_MIN ? "selected" : ""}>${y}</option>`).join("")}</select>
+      </label>
+      <label class="field"><span>Hasta el año</span>
+        <select id="col-hasta">${anios().map((y) => `<option value="${y}" ${y === ANIO_MAX ? "selected" : ""}>${y}</option>`).join("")}</select>
+      </label>
+      <label class="check"><input id="col-adelante" type="checkbox" /> En adelante (sin tope)</label>
+      <button class="btn-primary btn-block" type="button" id="btn-col-add">Agregar columna</button>
+    </section>
+  `;
+}
+
+function renderTablero() {
+  editando = null;
+  hidratarTablero();
+  const sembrar = !TABLERO_COLUMNAS.length;
+  if (sembrar) sembrarColumnasTablero();
+  $("stage").classList.add("stage-board");
+  $("stage").innerHTML = `
+    <div class="kanban">
+      <div class="kanban-top">
+        <div>
+          <h2>Tablero de promociones</h2>
+          <p>Cada columna es un modelo. Las tarjetas son las ofertas y la portada de ese auto.</p>
+        </div>
+      </div>
+      <div class="kanban-track">
+        ${TABLERO_COLUMNAS.map(htmlColumnaKanban).join("")}
+        ${htmlFormColumna()}
+      </div>
+    </div>
+  `;
+  renderLista();
+  if (sembrar) guardarTableroNube();
+}
+
+async function agregarColumnaTablero() {
+  const marca = $("col-marca") && $("col-marca").value;
+  const modelo = $("col-modelo") && $("col-modelo").value;
+  if (!marca || !modelo) {
+    alert("Elige marca y modelo.");
+    return;
+  }
+  const adelante = Boolean($("col-adelante") && $("col-adelante").checked);
+  const col = normalizarColumnaTablero({
+    id: `col-${Date.now()}`,
+    marca,
+    modelo,
+    ano_desde: $("col-desde") ? Number($("col-desde").value) : ANIO_MIN,
+    ano_hasta: adelante ? null : $("col-hasta") ? Number($("col-hasta").value) : ANIO_MAX,
+  });
+  if (TABLERO_COLUMNAS.some((c) => claveColumnaTablero(c) === claveColumnaTablero(col))) {
+    alert("Esa columna ya está en el tablero.");
+    return;
+  }
+  TABLERO_COLUMNAS.push(col);
+  try {
+    await guardarTableroNube();
+  } catch (e) {
+    alert((e && e.message) || "No se pudo guardar la columna.");
+  }
+  renderTablero();
+}
+
+function nuevoServicioEnColumna(id) {
+  const col = TABLERO_COLUMNAS.find((c) => c.id === id);
+  editando = servicioVacio();
+  if (col) editando.vehiculos = vehiculosDeColumna(col);
+  mediaEditIndex = 0;
+  $("stage").classList.remove("stage-board");
+  renderEditor();
+}
+
+async function nuevaPortadaEnColumna(id) {
+  const col = TABLERO_COLUMNAS.find((c) => c.id === id);
+  await cargarPortada();
+  const s = slideVacio(portadaSlides.length);
+  if (col) s.vehiculos = vehiculosDeColumna(col);
+  portadaSlides.push(s);
+  slideEditIndex = portadaSlides.length - 1;
+  editando = null;
+  $("stage").classList.remove("stage-board");
+  renderEditorPortada();
+}
+
+async function abrirPortadaDesdeTablero(id) {
+  await cargarPortada();
+  const i = portadaSlides.findIndex((s) => s.id === id);
+  if (i < 0) {
+    abrirEditorPortada();
+    return;
+  }
+  slideEditIndex = i;
+  editando = null;
+  $("stage").classList.remove("stage-board");
+  renderEditorPortada();
 }
 
 function renderLista() {
@@ -375,6 +554,7 @@ function pintarFotoServicio() {
 }
 
 function renderEditor() {
+  $("stage").classList.remove("stage-board");
   const s = editando;
   if (!s.media) s.media = mediaServicio(s);
   const lista = mediaEditando();
@@ -674,6 +854,7 @@ async function abrirEditorPortada() {
 }
 
 function renderEditorFotosModelos() {
+  $("stage").classList.remove("stage-board");
   editando = null;
   hidratarFotosModelos();
   const bloques = MARCAS.map((marca) => {
@@ -725,6 +906,7 @@ function pintarFotoPortada() {
 }
 
 function renderEditorPortada() {
+  $("stage").classList.remove("stage-board");
   const s = slideActual();
   const ofertas = serviciosCotizacion();
   $("stage").innerHTML = `
@@ -1084,6 +1266,7 @@ $("logo-file")?.addEventListener("change", async (e) => {
   }
 });
 
+$("btn-tablero").addEventListener("click", renderTablero);
 $("btn-portada").addEventListener("click", abrirEditorPortada);
 $("btn-fotos-modelos").addEventListener("click", renderEditorFotosModelos);
 $("btn-nuevo").addEventListener("click", nuevoServicio);
@@ -1138,6 +1321,28 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-guardar") guardarServicio();
   if (t.id === "btn-borrar") borrarServicio();
   if (t.id === "btn-guardar-portada") guardarEditorPortada();
+  if (t.id === "btn-col-add") agregarColumnaTablero();
+  if (t.dataset.kanbanServicio) {
+    abrirServicio(t.dataset.kanbanServicio);
+    return;
+  }
+  if (t.dataset.kanbanPortada) {
+    abrirPortadaDesdeTablero(t.dataset.kanbanPortada);
+    return;
+  }
+  if (t.dataset.kanbanNuevo) {
+    nuevoServicioEnColumna(t.dataset.kanbanNuevo);
+    return;
+  }
+  if (t.dataset.kanbanPortadaNueva) {
+    nuevaPortadaEnColumna(t.dataset.kanbanPortadaNueva);
+    return;
+  }
+  if (t.dataset.kanbanDelCol) {
+    TABLERO_COLUMNAS = TABLERO_COLUMNAS.filter((c) => c.id !== t.dataset.kanbanDelCol);
+    guardarTableroNube().then(renderTablero);
+    return;
+  }
   if (t.dataset.fotoModelo) {
     fotoModeloPendiente = t.dataset.fotoModelo;
     $("foto-modelo-file")?.click();
@@ -1321,6 +1526,13 @@ $("stage").addEventListener("change", async (e) => {
     slideActual().mostrar_boton = e.target.checked;
     renderEditorPortada();
   }
+  if (e.target.id === "col-marca") {
+    const modelos = modelosDe(e.target.value);
+    if ($("col-modelo")) {
+      $("col-modelo").innerHTML = modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
+    }
+  }
+  if (e.target.id === "col-adelante" && $("col-hasta")) $("col-hasta").disabled = e.target.checked;
   if (e.target.id === "e-oferta-fija") {
     if ($("e-oferta-wrap")) $("e-oferta-wrap").hidden = !e.target.checked;
     pintarPrecioPreview();
