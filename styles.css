@@ -894,6 +894,30 @@ body.hay-perfil .panel { padding-top: 88px; }
   padding-bottom: calc(28px + var(--teclado, 0px) + env(safe-area-inset-bottom, 0px));
 }
 
+#modal-auto {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#modal-auto:not([hidden]) {
+  display: block;
+}
+#modal-auto .modal-modulo-card {
+  justify-content: flex-start;
+  min-height: 100%;
+  padding: 52px 22px 36px;
+}
+#modal-auto .filtro {
+  width: min(480px, 100%);
+  margin: 0 auto;
+  padding: 0;
+}
+#modal-auto .filtro h2 {
+  margin: 0 0 8px;
+}
+#modal-auto .filtro .lead {
+  margin: 0 0 10px;
+}
+
 .modal-modulo-card .lead { margin-left: auto; margin-right: auto; }
 
 .informe-form { width: min(380px, 100%); margin: 32px auto 0; text-align: left; }
@@ -1383,4 +1407,24 @@ body.hay-perfil .panel { padding-top: 88px; }
 
   .filtro { padding: 18px 16px 16px; }
   .dd-list { max-height: 200px; }
+
+  #modal-auto .modal-modulo-card {
+    padding: 44px 16px calc(118px + env(safe-area-inset-bottom, 0px));
+  }
+  #modal-auto .filtro h2 {
+    font-size: 1.35rem;
+    margin-bottom: 6px;
+  }
+  #modal-auto .filtro .lead {
+    margin-bottom: 8px;
+    font-size: 0.86rem;
+    line-height: 1.35;
+  }
+  #modal-auto .dd { margin-top: 10px; }
+  #modal-auto .filtro-foto { margin-top: 8px; }
+  #modal-auto .filtro-foto img {
+    width: 64px;
+    height: 64px;
+  }
+  #modal-auto .filtro .btn-block { margin-top: 12px; }
 }
