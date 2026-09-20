@@ -906,9 +906,23 @@ function syncTecladoFicha() {
   }
 }
 
+function guardarDatosFicha() {
+  const pat = $("informe-patente");
+  const tel = $("informe-telefono");
+  if (pat) state.cliente.patente = normalizarPatente(pat.value);
+  if (tel) state.cliente.telefono = String(tel.value || "").trim();
+  persistir();
+}
+
+function pintarDatosFicha() {
+  const pat = $("informe-patente");
+  const tel = $("informe-telefono");
+  if (pat) pat.value = state.cliente.patente || "";
+  if (tel) tel.value = state.cliente.telefono || "";
+}
+
 function abrirModalInforme() {
-  $("informe-patente").value = state.cliente.patente || $("informe-patente").value;
-  $("informe-telefono").value = state.cliente.telefono || $("informe-telefono").value;
+  pintarDatosFicha();
   $("modal-informe").hidden = false;
   $("overlay").hidden = true;
   marcarMenu();
@@ -1642,6 +1656,7 @@ if ($("modal-auto")) {
 }
 
 $("btn-abrir-informe").addEventListener("click", async () => {
+  guardarDatosFicha();
   const patente = normalizarPatente($("informe-patente").value);
   const telefono = $("informe-telefono").value;
   if (!patente || !normalizarFono(telefono)) {
@@ -1696,11 +1711,16 @@ window.addEventListener("resize", syncTecladoFicha);
 ["informe-patente", "informe-telefono"].forEach((id) => {
   const el = $(id);
   if (!el) return;
+  el.addEventListener("input", guardarDatosFicha);
+  el.addEventListener("change", guardarDatosFicha);
   el.addEventListener("focus", () => {
     document.body.classList.add("teclado-abierto");
     setTimeout(syncTecladoFicha, 80);
   });
-  el.addEventListener("blur", () => setTimeout(syncTecladoFicha, 80));
+  el.addEventListener("blur", () => {
+    guardarDatosFicha();
+    setTimeout(syncTecladoFicha, 80);
+  });
 });
 
 async function arrancar() {
@@ -1709,6 +1729,7 @@ async function arrancar() {
   await cargarPortada();
   aplicarLogos();
   hidratar();
+  pintarDatosFicha();
   renderVista({ quedarse: true });
   renderTotales(false);
 }
