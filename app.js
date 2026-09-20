@@ -739,8 +739,9 @@ function renderAgendamiento() {
 function renderDiagnostico() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Diagnóstico automotriz",
-    "Elige el diagnóstico. Se suma a la misma cotización que mantención y ofertas.",
-    serviciosParaVehiculo(serviciosDiagnostico())
+    "Revisión enfocada en tu problema real. Para garantizar un diagnóstico certero, cada sistema se analiza por separado: escáner electrónico, ruidos mecánicos o inspección de fugas. Selecciona el servicio correspondiente según la falla que notes en tu vehículo.",
+    serviciosParaVehiculo(serviciosDiagnostico()),
+    { fijo: true }
   );
 }
 
