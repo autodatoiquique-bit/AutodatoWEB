@@ -106,14 +106,14 @@ function vistaConPerfilModelo() {
 }
 
 function pintarChipAuto() {
-  const caja = $("perfil-auto");
   const chip = $("chip-auto");
   const src = fotoVehiculoActual();
   const fichaAbierta = Boolean($("modal-informe") && !$("modal-informe").hidden);
   const mostrar = Boolean(vehiculoOk() && vistaConPerfilModelo() && !fichaAbierta);
   document.body.classList.toggle("hay-auto", vehiculoOk());
   document.body.classList.toggle("hay-perfil", mostrar);
-  if (caja) caja.hidden = !mostrar;
+  if (!chip) return;
+  chip.hidden = !mostrar;
   if (!mostrar) return;
   const foto = $("perfil-auto-foto");
   if (foto) {
@@ -122,7 +122,6 @@ function pintarChipAuto() {
   }
   const texto = $("chip-auto-texto");
   if (texto) texto.textContent = textoVehiculoCorto();
-  if (chip) chip.hidden = false;
 }
 
 function abrirModalAuto() {
@@ -480,33 +479,46 @@ function htmlSumaRelacionados(s, enCarro) {
   return bloques.join("");
 }
 
+function htmlIconoCarro() {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2l1 2h14l-1.6 8H8L6 7"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>`;
+}
+
 function htmlTarjetaOferta(s) {
   const enCarro = state.carrito.some((x) => x.id === s.id);
   const p = precioPagado(s, idsComboPara(s.id));
   const hayDesc = p.ahorro > 0;
   return `
-    <button class="card ${enCarro ? "card-en-carro" : ""}" type="button" data-abrir-oferta="${s.id}">
-      <div class="card-photo" style="background-image:url('${s.foto}')">
-        <div class="card-tags">
-          ${enCarro ? `<span class="tag tag-carrito">En carrito</span>` : ""}
-          ${!enCarro && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
+    <article class="card ${enCarro ? "card-en-carro" : "card-con-add"}">
+      <button class="card-abrir" type="button" data-abrir-oferta="${s.id}">
+        <div class="card-photo" style="background-image:url('${s.foto}')">
+          <div class="card-tags">
+            ${enCarro ? `<span class="tag tag-carrito">En carrito</span>` : ""}
+            ${!enCarro && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
+          </div>
         </div>
-      </div>
-      <div class="card-body">
-        <h3>${s.nombre}</h3>
-        <p>${s.resumen}</p>
-        ${normalizarVehiculos(s.vehiculos).length ? `<p class="card-veh">${etiquetaVehiculos(s)}</p>` : ""}
-        ${
-          hayDesc
-            ? `<div class="precio-lista tachado">${clp(s.precio)}</div>
-               <div class="precio-card-oferta">${clp(p.pagado)}</div>
-               <div class="ahorro-tag">Ahorras ${clp(p.ahorro)}</div>
-               ${p.regla && p.regla.si ? `<p class="card-combo">${p.regla.etiqueta}</p>` : ""}`
-            : `<div class="precio">${clp(s.precio)}</div>`
-        }
-        ${htmlHintCombo(s, p.pagado)}
-      </div>
-    </button>
+        <div class="card-body">
+          <h3>${s.nombre}</h3>
+          <p>${s.resumen}</p>
+          ${normalizarVehiculos(s.vehiculos).length ? `<p class="card-veh">${etiquetaVehiculos(s)}</p>` : ""}
+          ${
+            hayDesc
+              ? `<div class="precio-lista tachado">${clp(s.precio)}</div>
+                 <div class="precio-card-oferta">${clp(p.pagado)}</div>
+                 <div class="ahorro-tag">Ahorras ${clp(p.ahorro)}</div>
+                 ${p.regla && p.regla.si ? `<p class="card-combo">${p.regla.etiqueta}</p>` : ""}`
+              : `<div class="precio">${clp(s.precio)}</div>`
+          }
+          ${htmlHintCombo(s, p.pagado)}
+        </div>
+      </button>
+      ${
+        enCarro
+          ? ""
+          : `<button class="card-add" type="button" data-add-oferta="${s.id}" title="Agregar al carrito" aria-label="Agregar al carrito">
+              <span class="kpi-cart">${htmlIconoCarro()}</span>
+            </button>`
+      }
+    </article>
   `;
 }
 
@@ -868,6 +880,21 @@ function cerrarModalKpi() {
   if (overlayLibre()) $("overlay").hidden = true;
 }
 
+function syncTecladoFicha() {
+  const modal = $("modal-informe");
+  const abierta = Boolean(modal && !modal.hidden);
+  let cubierto = 0;
+  if (abierta && window.visualViewport) {
+    const vv = window.visualViewport;
+    cubierto = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  }
+  document.documentElement.style.setProperty("--teclado", `${cubierto}px`);
+  if (abierta && cubierto > 80) {
+    const btn = $("btn-abrir-informe");
+    if (btn) btn.scrollIntoView({ block: "end", behavior: "auto" });
+  }
+}
+
 function abrirModalInforme() {
   $("informe-patente").value = state.cliente.patente || $("informe-patente").value;
   $("informe-telefono").value = state.cliente.telefono || $("informe-telefono").value;
@@ -876,6 +903,7 @@ function abrirModalInforme() {
   marcarMenu();
   syncSeguirKpi();
   pintarChipAuto();
+  syncTecladoFicha();
 }
 
 function cerrarModalInforme() {
@@ -884,6 +912,7 @@ function cerrarModalInforme() {
   marcarMenu();
   syncSeguirKpi();
   pintarChipAuto();
+  syncTecladoFicha();
 }
 
 function normalizarPatente(v) {
@@ -1644,6 +1673,17 @@ window.addEventListener("focus", async () => {
   aplicarLogos();
   renderVista({ quedarse: true });
   renderTotales(false);
+});
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncTecladoFicha);
+  window.visualViewport.addEventListener("scroll", syncTecladoFicha);
+}
+window.addEventListener("resize", syncTecladoFicha);
+["informe-patente", "informe-telefono"].forEach((id) => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener("focus", () => setTimeout(syncTecladoFicha, 80));
 });
 
 async function arrancar() {

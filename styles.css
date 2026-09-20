@@ -146,29 +146,32 @@ button { font-family: inherit; cursor: pointer; }
   align-items: center;
   gap: 8px;
   max-width: calc(100vw - 200px);
+  border: 2px solid var(--yellow);
+  background: #111;
+  padding: 5px 12px 5px 5px;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  min-height: 44px;
 }
 .perfil-auto[hidden] { display: none !important; }
+.perfil-auto .kpi-cart {
+  overflow: hidden;
+}
 .perfil-auto img {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  background: #111;
-  border: 2px solid #111;
-  flex: 0 0 44px;
+  display: block;
 }
-.chip-auto {
-  border: 2px solid #111;
-  border-radius: 999px;
-  background: #fff;
-  color: #111;
-  padding: 8px 14px;
+.perfil-nom {
+  color: #fff;
   font-weight: 800;
-  font-size: 0.86rem;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  font-size: 0.78rem;
+  line-height: 1.1;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.chip-auto[hidden] { display: none !important; }
 .filtro-foto {
   margin-top: 16px;
   text-align: center;
@@ -197,23 +200,24 @@ body.hay-perfil .panel { padding-top: 88px; }
 .totales-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
-  border: 0;
+  gap: 10px;
+  border: 2px solid var(--yellow);
   background: #111;
-  padding: 8px 16px 8px 8px;
-  border-radius: 18px;
+  padding: 5px 12px 5px 5px;
+  border-radius: 16px;
   text-align: right;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  min-height: 44px;
 }
 
 .kpi-cart {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   background: var(--yellow);
   display: grid;
   place-items: center;
-  flex: 0 0 40px;
+  flex: 0 0 32px;
 }
 
 .kpi-cart svg {
@@ -441,7 +445,38 @@ body.hay-perfil .panel { padding-top: 88px; }
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 
+.card-abrir {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 .card:hover { transform: translateY(-2px); }
+.card-con-add .card-body { padding-bottom: 52px; }
+.card-add {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  border: 2px solid var(--yellow);
+  background: #111;
+  padding: 4px;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+.card-add .kpi-cart {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
 .card-en-carro { box-shadow: 0 0 0 2px var(--yellow), 0 8px 24px rgba(255, 208, 0, 0.22); }
 .card-photo { position: relative; height: 170px; background: #222 center/cover no-repeat; }
 .card-tags {
@@ -791,6 +826,12 @@ body.hay-perfil .panel { padding-top: 88px; }
   padding: 0;
 }
 
+#modal-informe {
+  display: block;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .modal-modulo[hidden] { display: none; }
 
 .modal-modulo .drawer-close {
@@ -820,9 +861,22 @@ body.hay-perfil .panel { padding-top: 88px; }
   text-align: center;
 }
 
+#modal-informe .modal-modulo-card {
+  justify-content: flex-start;
+  min-height: 100%;
+  padding-bottom: calc(28px + var(--teclado, 0px) + env(safe-area-inset-bottom, 0px));
+}
+
 .modal-modulo-card .lead { margin-left: auto; margin-right: auto; }
 
 .informe-form { width: min(380px, 100%); margin: 32px auto 0; text-align: left; }
+.informe-acciones {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, var(--ofertas-bg) 28%);
+}
 
 .kpi-acciones { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .horas-lista { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -1098,17 +1152,10 @@ body.hay-perfil .panel { padding-top: 88px; }
     left: 10px;
     top: 10px;
     max-width: calc(100vw - 168px);
+    min-height: 44px;
+    padding: 5px 10px 5px 5px;
   }
-  .perfil-auto img {
-    width: 40px;
-    height: 40px;
-    flex-basis: 40px;
-    border-radius: 10px;
-  }
-  .chip-auto {
-    font-size: 0.78rem;
-    padding: 7px 12px;
-  }
+  .perfil-nom { font-size: 0.72rem; }
   body.hay-perfil .panel { padding-top: 72px; }
 
   .kpi-stack {
@@ -1122,17 +1169,6 @@ body.hay-perfil .panel { padding-top: 88px; }
   .totales-bar {
     gap: 8px;
     padding: 5px 10px 5px 5px;
-    border-radius: 16px;
-    border: 2px solid var(--yellow);
-    background: #111;
-  }
-
-  .kpi-cart {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
-    background: var(--yellow);
-    display: grid;
   }
 
   .totales-bar .kpi-cart { display: grid; }
@@ -1165,6 +1201,17 @@ body.hay-perfil .panel { padding-top: 88px; }
   .card { border-radius: 14px; }
   .card-photo { height: 86px; }
   .card-body { padding: 8px 9px 10px; }
+  .card-con-add .card-body { padding-bottom: 44px; padding-right: 48px; }
+  .card-add {
+    right: 6px;
+    bottom: 6px;
+    padding: 3px;
+  }
+  .card-add .kpi-cart {
+    width: 28px;
+    height: 28px;
+  }
+  .card-add .kpi-cart svg { width: 16px; height: 16px; }
   .card-body h3 {
     font-size: 0.78rem;
     line-height: 1.25;

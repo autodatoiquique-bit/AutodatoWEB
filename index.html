@@ -2,14 +2,14 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
   <meta name="color-scheme" content="only light" />
   <meta name="theme-color" content="#ffd000" />
   <title>AutoDato — Centro de mantención automotriz</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=perfil1" />
+  <link rel="stylesheet" href="styles.css?v=perfil2" />
 </head>
 <body>
   <div class="split">
@@ -51,12 +51,12 @@
     </aside>
 
     <div class="main-col">
-      <div id="perfil-auto" class="perfil-auto" hidden>
-        <img id="perfil-auto-foto" alt="" />
-        <button id="chip-auto" class="chip-auto" type="button" data-editar-auto title="Cambiar vehículo">
-          <span id="chip-auto-texto">Tu auto</span>
-        </button>
-      </div>
+      <button id="chip-auto" class="perfil-auto" type="button" hidden data-editar-auto title="Cambiar vehículo">
+        <span class="kpi-cart">
+          <img id="perfil-auto-foto" alt="" />
+        </span>
+        <span id="chip-auto-texto" class="perfil-nom">Tu auto</span>
+      </button>
       <div class="kpi-stack">
         <button id="totales-bar" class="totales-bar" type="button" data-abrir-kpi title="Abrir carrito">
           <span class="kpi-cart" aria-hidden="true">
@@ -130,7 +130,9 @@
           <span>Número celular</span>
           <input id="informe-telefono" type="tel" placeholder="El mismo de tu visita" autocomplete="tel" />
         </label>
-        <button class="btn-primary btn-block" type="button" id="btn-abrir-informe">Abrir ficha</button>
+        <div class="informe-acciones">
+          <button class="btn-primary btn-block" type="button" id="btn-abrir-informe">Abrir ficha</button>
+        </div>
       </div>
     </div>
   </div>
@@ -145,7 +147,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="nube.js"></script>
-  <script src="catalogo.js?v=perfil1"></script>
-  <script src="app.js?v=perfil1"></script>
+  <script src="catalogo.js?v=perfil2"></script>
+  <script src="app.js?v=perfil2"></script>
 </body>
 </html>
