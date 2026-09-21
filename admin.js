@@ -638,13 +638,25 @@ async function guardarOrdenTablero() {
   }
 }
 
+function limpiarKanbanCardFlotante(st) {
+  if (st && st.ghostEl) st.ghostEl.remove();
+  document.querySelectorAll(".kanban-card-ghost, .kanban-drop-marker").forEach((el) => el.remove());
+}
+
 function limpiarClasesDragTablero() {
   kanbanDrag = { kind: "", payload: "" };
-  if (kanbanCardPointer && kanbanCardPointer.holdTimer) clearTimeout(kanbanCardPointer.holdTimer);
-  if (kanbanCardPointer && kanbanCardPointer.raf) cancelAnimationFrame(kanbanCardPointer.raf);
+  if (kanbanCardPointer) {
+    if (kanbanCardPointer.holdTimer) clearTimeout(kanbanCardPointer.holdTimer);
+    if (kanbanCardPointer.raf) cancelAnimationFrame(kanbanCardPointer.raf);
+    if (kanbanCardPointer.row) {
+      kanbanCardPointer.row.classList.remove("is-dragging");
+      kanbanCardPointer.row.hidden = false;
+    }
+    limpiarKanbanCardFlotante(kanbanCardPointer);
+  }
   kanbanCardPointer = null;
-  document.querySelectorAll(".kanban-col.is-dragging, .kanban-card-row.is-dragging, .kanban-card-row.is-drop-before, .kanban-col.is-drop-before, .kanban-cards.is-card-dragging").forEach((el) => {
-    el.classList.remove("is-dragging", "is-drop-before", "is-card-dragging");
+  document.querySelectorAll(".kanban-col.is-dragging, .kanban-card-row.is-drop-before, .kanban-col.is-drop-before, .kanban-cards.is-card-dragging").forEach((el) => {
+    el.classList.remove("is-drop-before", "is-card-dragging");
   });
 }
 
@@ -668,34 +680,84 @@ function loopKanbanCardScroll() {
   kanbanCardPointer.raf = requestAnimationFrame(loopKanbanCardScroll);
 }
 
+function crearKanbanGhost(st) {
+  const card = st.row.querySelector(".kanban-card");
+  if (!card) return;
+  const rect = st.row.getBoundingClientRect();
+  st.rowHeight = rect.height;
+  st.offX = st.lastX - rect.left;
+  st.offY = st.lastY - rect.top;
+  const ghost = document.createElement("div");
+  ghost.className = "kanban-card-ghost";
+  ghost.style.width = `${rect.width}px`;
+  ghost.appendChild(card.cloneNode(true));
+  document.body.appendChild(ghost);
+  st.ghostEl = ghost;
+  st.row.classList.add("is-dragging");
+  st.row.hidden = true;
+  ghost.style.left = `${st.lastX - st.offX}px`;
+  ghost.style.top = `${st.lastY - st.offY}px`;
+}
+
+function moverKanbanGhost(st) {
+  if (!st.ghostEl) return;
+  st.ghostEl.style.left = `${st.lastX - st.offX}px`;
+  st.ghostEl.style.top = `${st.lastY - st.offY}px`;
+}
+
 function activarKanbanCardDrag(st) {
   st.active = true;
   st.pending = false;
   if (st.holdTimer) clearTimeout(st.holdTimer);
-  st.row.classList.add("is-dragging");
   st.box.classList.add("is-card-dragging");
   kanbanDrag = { kind: "card", payload: `${st.colId}|${st.token}` };
+  crearKanbanGhost(st);
+  pintarMarcadorSoltar(st, st.lastX, st.lastY);
   st.raf = requestAnimationFrame(loopKanbanCardScroll);
 }
 
-function dropTarjetaDesdePunto(clientX, clientY, colId, dragToken) {
-  document.querySelectorAll(".kanban-card-row.is-drop-before").forEach((el) => el.classList.remove("is-drop-before"));
+function filaKanbanPorToken(box, token) {
+  if (!box || !token) return null;
+  return box.querySelector(`.kanban-card-row[data-kanban-token="${token}"]`);
+}
+
+function destinoSoltarTarjeta(clientX, clientY, colId, dragToken) {
   const el = document.elementFromPoint(clientX, clientY);
   if (!el) return null;
   const box = el.closest("[data-kanban-cards]");
   if (!box || box.dataset.kanbanCards !== colId) return null;
   const row = el.closest(".kanban-card-row");
   if (!row) {
-    if (el === box || box.contains(el)) return { beforeToken: "" };
+    if (box.contains(el)) return { beforeToken: "" };
     return null;
   }
   if (row.dataset.kanbanToken === dragToken) return { beforeToken: null };
   const rect = row.getBoundingClientRect();
   const antes = clientY < rect.top + rect.height / 2;
-  row.classList.add("is-drop-before");
   if (antes) return { beforeToken: row.dataset.kanbanToken || "" };
   const next = row.nextElementSibling;
   return { beforeToken: next && next.dataset.kanbanToken ? next.dataset.kanbanToken : "" };
+}
+
+function pintarMarcadorSoltar(st, clientX, clientY) {
+  const hit = destinoSoltarTarjeta(clientX, clientY, st.colId, st.token);
+  if (!hit || hit.beforeToken === null) {
+    if (st.marker) st.marker.remove();
+    st.marker = null;
+    st.dropBefore = null;
+    return;
+  }
+  st.dropBefore = hit.beforeToken;
+  if (!st.marker) {
+    st.marker = document.createElement("div");
+    st.marker.className = "kanban-drop-marker";
+    st.marker.innerHTML = "<span>Soltar aquí</span>";
+  }
+  st.marker.style.height = `${Math.max(st.rowHeight || 80, 56)}px`;
+  const box = st.box;
+  const beforeRow = hit.beforeToken ? filaKanbanPorToken(box, hit.beforeToken) : null;
+  if (beforeRow && !beforeRow.hidden) box.insertBefore(st.marker, beforeRow);
+  else box.appendChild(st.marker);
 }
 
 function armarKanbanCardPointer(track) {
@@ -765,8 +827,8 @@ function armarKanbanCardPointer(track) {
         activarKanbanCardDrag(st);
       }
       e.preventDefault();
-      const hit = dropTarjetaDesdePunto(e.clientX, e.clientY, st.colId, st.token);
-      if (hit) st.dropBefore = hit.beforeToken;
+      moverKanbanGhost(st);
+      pintarMarcadorSoltar(st, e.clientX, e.clientY);
     },
     { passive: false }
   );
