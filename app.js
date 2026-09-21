@@ -467,35 +467,69 @@ function abrirModalContacto(tipo) {
 function armarHoldContacto() {
   document.querySelectorAll("[data-hold]").forEach((el) => {
     const tipo = el.dataset.hold;
+    const href = el.dataset.href || "";
     let sx = 0;
     let sy = 0;
-    const cancelar = () => {
+    let activo = false;
+    const cancelarTimer = () => {
       clearTimeout(holdContacto.timer);
       holdContacto.timer = 0;
     };
+    const abrirDestino = () => {
+      if (href) window.open(href, "_blank", "noopener");
+    };
+    el.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+      },
+      { passive: false }
+    );
     el.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
+      e.preventDefault();
       holdContacto.held = false;
+      activo = true;
       sx = e.clientX;
       sy = e.clientY;
-      cancelar();
+      cancelarTimer();
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch (err) {
+        /* ignore */
+      }
       holdContacto.timer = window.setTimeout(() => {
         holdContacto.held = true;
+        holdContacto.timer = 0;
+        if (navigator.vibrate) navigator.vibrate(20);
         abrirModalContacto(tipo);
       }, 2000);
     });
     el.addEventListener("pointermove", (e) => {
-      if (!holdContacto.timer) return;
-      if (Math.abs(e.clientX - sx) > 12 || Math.abs(e.clientY - sy) > 12) cancelar();
-    });
-    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => el.addEventListener(ev, cancelar));
-    el.addEventListener("click", (e) => {
-      if (holdContacto.held) {
-        e.preventDefault();
-        e.stopPropagation();
-        holdContacto.held = false;
+      if (!activo || !holdContacto.timer) return;
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) > 22) {
+        cancelarTimer();
+        activo = false;
       }
     });
+    el.addEventListener("pointerup", (e) => {
+      if (!activo) return;
+      activo = false;
+      const hold = holdContacto.held;
+      cancelarTimer();
+      e.preventDefault();
+      if (hold) {
+        holdContacto.held = false;
+        return;
+      }
+      abrirDestino();
+    });
+    el.addEventListener("pointercancel", () => {
+      if (holdContacto.held) return;
+      activo = false;
+      cancelarTimer();
+    });
+    el.addEventListener("click", (e) => e.preventDefault());
     el.addEventListener("contextmenu", (e) => e.preventDefault());
   });
 }

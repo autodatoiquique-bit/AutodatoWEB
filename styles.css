@@ -438,6 +438,8 @@ body.hay-perfil .panel { padding-top: 88px; }
   -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
+  cursor: pointer;
 }
 .home-ico img {
   width: 100%;
@@ -458,7 +460,7 @@ body.hay-perfil .panel { padding-top: 88px; }
 .modal-contacto {
   position: fixed;
   inset: 0;
-  z-index: 140;
+  z-index: 220;
   display: grid;
   place-items: center;
   padding: 20px;

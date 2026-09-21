@@ -908,14 +908,16 @@ function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {
           (_, i) => `<i class="${i === dotsOn ? "on" : ""}"></i>`
         ).join("")}</div>`
       : "";
-  const hold = (tipo) => (arrastrable ? "" : ` data-hold="${tipo}"`);
+  const ico = (cls, tipo, href, titulo, src, alt) => {
+    const pos = `left:${ui[tipo === "dir" ? "dir_x" : "wa_x"]}%;top:${ui[tipo === "dir" ? "dir_y" : "wa_y"]}%;${estiloIcoPortada(ui)}`;
+    if (arrastrable) {
+      return `<a class="home-ico ${cls}" href="${href}" target="_blank" rel="noopener" title="${titulo}" style="${pos}"${drag(tipo)}><img src="${src}" alt="${alt}" /></a>`;
+    }
+    return `<button type="button" class="home-ico ${cls}" style="${pos}" data-hold="${tipo}" data-href="${href}" title="${titulo}"><img src="${src}" alt="${alt}" /></button>`;
+  };
   return `
-    <a class="home-ico home-dir" href="${mapsHref()}" target="_blank" rel="noopener" title="Google Maps" style="left:${ui.dir_x}%;top:${ui.dir_y}%;${estiloIcoPortada(ui)}"${drag("dir")}${hold("dir")}>
-      <img src="imagenes/icono-maps.png?v=alfa1" alt="Google Maps" />
-    </a>
-    <a class="home-ico home-wa" href="${waHref()}" target="_blank" rel="noopener" title="WhatsApp" style="left:${ui.wa_x}%;top:${ui.wa_y}%;${estiloIcoPortada(ui)}"${drag("wa")}${hold("wa")}>
-      <img src="imagenes/icono-whatsapp.png?v=alfa1" alt="WhatsApp" />
-    </a>
+    ${ico("home-dir", "dir", mapsHref(), "Google Maps", "imagenes/icono-maps.png?v=alfa1", "Google Maps")}
+    ${ico("home-wa", "wa", waHref(), "WhatsApp", "imagenes/icono-whatsapp.png?v=alfa1", "WhatsApp")}
     ${dots}`;
 }
 
