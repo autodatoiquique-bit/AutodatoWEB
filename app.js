@@ -634,6 +634,10 @@ function htmlTarjetaOferta(s) {
 }
 
 function serviciosParaVehiculo(lista) {
+  if (vehiculoOk()) {
+    const col = columnaDeVehiculo(state.vehiculo);
+    if (col) return serviciosEnColumna(col);
+  }
   return (lista || []).filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
 }
 
