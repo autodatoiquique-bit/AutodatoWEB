@@ -107,6 +107,79 @@ function idsDeColumna(col, campo) {
   return col[campo].map(String).filter(Boolean);
 }
 
+function tokenTarjetaColumna(tipo, id) {
+  const sid = String(id || "");
+  if (!sid) return "";
+  return `${tipo === "portada" ? "p" : "s"}:${sid}`;
+}
+
+function parseTokenTarjetaColumna(tok) {
+  const m = String(tok || "").match(/^([ps]):(.+)$/);
+  if (!m) return null;
+  return { tipo: m[1] === "p" ? "portada" : "servicio", id: m[2] };
+}
+
+function aplicarTokensOrdenCol(col, tokens) {
+  if (!col) return;
+  col.orden_tarjetas = (tokens || []).map(String).filter(Boolean);
+  col.portadas = col.orden_tarjetas.filter((t) => t.startsWith("p:")).map((t) => t.slice(2));
+  col.servicios = col.orden_tarjetas.filter((t) => t.startsWith("s:")).map((t) => t.slice(2));
+}
+
+function sincronizarOrdenTarjetasCol(col) {
+  if (!col) return;
+  const vistos = new Set();
+  const out = [];
+  const push = (tok) => {
+    if (!tok || vistos.has(tok)) return;
+    const p = parseTokenTarjetaColumna(tok);
+    if (!p) return;
+    if (p.tipo === "portada" && !idsDeColumna(col, "portadas").includes(p.id)) return;
+    if (p.tipo === "servicio" && !idsDeColumna(col, "servicios").includes(p.id)) return;
+    vistos.add(tok);
+    out.push(tok);
+  };
+  (Array.isArray(col.orden_tarjetas) ? col.orden_tarjetas : []).forEach(push);
+  idsDeColumna(col, "portadas").forEach((id) => push(tokenTarjetaColumna("portada", id)));
+  idsDeColumna(col, "servicios").forEach((id) => push(tokenTarjetaColumna("servicio", id)));
+  aplicarTokensOrdenCol(col, out);
+}
+
+function tarjetasKanbanDe(col) {
+  sincronizarOrdenTarjetasCol(col);
+  return (col.orden_tarjetas || [])
+    .map((tok) => {
+      const p = parseTokenTarjetaColumna(tok);
+      if (!p) return null;
+      if (p.tipo === "portada") {
+        const slide = (typeof portadaSlides !== "undefined" ? portadaSlides : []).find((s) => s.id === p.id);
+        if (!slide || !itemEnColumna(slide, col)) return null;
+        const i = portadaSlides.findIndex((s) => s.id === p.id);
+        return { tipo: "portada", token: tok, slide, i };
+      }
+      const servicio = (typeof catalogo !== "undefined" ? catalogo : []).find((s) => s.id === p.id);
+      if (!servicio || !itemEnColumna(servicio, col)) return null;
+      return { tipo: "servicio", token: tok, servicio };
+    })
+    .filter(Boolean);
+}
+
+function ordenarServiciosColumna(col, lista) {
+  if (!col || !lista || !lista.length) return lista || [];
+  sincronizarOrdenTarjetasCol(col);
+  const map = new Map(lista.map((s) => [String(s.id), s]));
+  const out = [];
+  (col.servicios || []).forEach((id) => {
+    const s = map.get(String(id));
+    if (s) {
+      out.push(s);
+      map.delete(String(id));
+    }
+  });
+  map.forEach((s) => out.push(s));
+  return out;
+}
+
 function sumarItemAColumna(col, id, campo) {
   if (!col || !id) return false;
   const key = campo || "servicios";
@@ -114,6 +187,9 @@ function sumarItemAColumna(col, id, campo) {
   const sid = String(id);
   if (col[key].includes(sid)) return false;
   col[key].push(sid);
+  const tok = tokenTarjetaColumna(key === "portadas" ? "portada" : "servicio", sid);
+  if (!Array.isArray(col.orden_tarjetas)) col.orden_tarjetas = [];
+  if (!col.orden_tarjetas.includes(tok)) col.orden_tarjetas.push(tok);
   return true;
 }
 
@@ -123,6 +199,9 @@ function quitarItemDeColumnas(id) {
   (typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : []).forEach((col) => {
     if (Array.isArray(col.servicios)) col.servicios = col.servicios.filter((x) => String(x) !== sid);
     if (Array.isArray(col.portadas)) col.portadas = col.portadas.filter((x) => String(x) !== sid);
+    if (Array.isArray(col.orden_tarjetas)) {
+      col.orden_tarjetas = col.orden_tarjetas.filter((t) => !t.endsWith(`:${sid}`));
+    }
   });
 }
 
@@ -140,6 +219,7 @@ function normalizarColumnaTablero(c) {
     foto: String(c.foto || ""),
     servicios: idsDeColumna(c, "servicios"),
     portadas: idsDeColumna(c, "portadas"),
+    orden_tarjetas: Array.isArray(c.orden_tarjetas) ? c.orden_tarjetas.map(String) : [],
   };
 }
 
@@ -215,6 +295,7 @@ function sembrarMembresiaColumnas() {
       const destinos = normalizarVehiculos(s.vehiculos);
       if (destinos.some((v) => destinoEnColumna(v, col))) col.portadas.push(String(s.id));
     });
+    sincronizarOrdenTarjetasCol(col);
   });
 }
 

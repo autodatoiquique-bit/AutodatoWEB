@@ -634,7 +634,11 @@ function htmlTarjetaOferta(s) {
 }
 
 function serviciosParaVehiculo(lista) {
-  return (lista || []).filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
+  const filtrados = (lista || []).filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
+  if (!vehiculoOk()) return filtrados;
+  const col = columnaDeVehiculo(state.vehiculo);
+  if (col && typeof ordenarServiciosColumna === "function") return ordenarServiciosColumna(col, filtrados);
+  return filtrados;
 }
 
 function htmlListaCotizacion(titulo, lead, lista, opts = {}) {

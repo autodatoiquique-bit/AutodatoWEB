@@ -14,6 +14,7 @@ let ofertaDraft = null;
 let tarjetaColId = "";
 let tarjetaSeleccion = new Set();
 let servicioColumnaOrigen = "";
+let kanbanDrag = { kind: "", payload: "" };
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -225,12 +226,20 @@ async function guardarTableroNube() {
   }
 }
 
-function htmlTarjetaKanbanServicio(s) {
+function htmlKanbanCardShell(colId, token, inner) {
+  return `<div class="kanban-card-row" data-kanban-token="${escapeAttr(token)}">
+    <button type="button" class="kanban-card-drag" draggable="true" data-kanban-card-drag="${escapeAttr(colId)}|${escapeAttr(token)}" title="Arrastrar tarjeta" aria-label="Arrastrar tarjeta">⋮⋮</button>
+    ${inner}
+  </div>`;
+}
+
+function htmlTarjetaKanbanServicio(s, colId, token) {
   const normal = typeof valorNormalDe === "function" ? valorNormalDe(s) : s.precio;
   const oferta = Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null;
   const uN = typeof utilidadDe === "function" ? utilidadDe(normal, s) : null;
   const uO = oferta != null && typeof utilidadDe === "function" ? utilidadDe(oferta, s) : null;
-  return `<button class="kanban-card" type="button" data-kanban-servicio="${s.id}">
+  const tok = token || tokenTarjetaColumna("servicio", s.id);
+  const inner = `<button class="kanban-card" type="button" data-kanban-servicio="${s.id}">
     <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" />` : ""}</div>
     <div class="kanban-body">
       <strong>${escapeText(s.nombre || "Sin nombre")}</strong>
@@ -252,27 +261,28 @@ function htmlTarjetaKanbanServicio(s) {
       </div>
     </div>
   </button>`;
+  return colId ? htmlKanbanCardShell(colId, tok, inner) : inner;
 }
 
-function htmlTarjetaKanbanPortada(s, i) {
-  return `<button class="kanban-card" type="button" data-kanban-portada="${s.id}">
+function htmlTarjetaKanbanPortada(s, i, colId, token) {
+  const tok = token || tokenTarjetaColumna("portada", s.id);
+  const inner = `<button class="kanban-card" type="button" data-kanban-portada="${s.id}">
     <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" />` : ""}</div>
     <div class="kanban-body">
       <strong>Portada</strong>
       <span>Flyer ${i + 1}${s.mostrar_boton ? " · con botón" : ""}</span>
     </div>
   </button>`;
+  return colId ? htmlKanbanCardShell(colId, tok, inner) : inner;
 }
 
 function htmlColumnaKanban(col) {
   const foto = fotoPortadaColumna(col);
-  const portadas = (portadaSlides || [])
-    .map((s, i) => ({ s, i }))
-    .filter((x) => itemEnColumna(x.s, col));
-  const servicios = (catalogo || []).filter((s) => itemEnColumna(s, col));
+  const tarjetas = tarjetasKanbanDe(col);
   return `
-    <section class="kanban-col">
+    <section class="kanban-col" data-col-id="${col.id}">
       <div class="kanban-apex">
+        <button type="button" class="kanban-col-drag" draggable="true" data-kanban-col-drag="${col.id}" title="Arrastrar columna" aria-label="Arrastrar columna">⋮⋮</button>
         <div class="kanban-apex-foto">${foto ? `<img src="${foto}" alt="" />` : ""}</div>
         <div class="kanban-apex-meta">
           <strong>${tituloColumna(col)}</strong>
@@ -282,10 +292,15 @@ function htmlColumnaKanban(col) {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.1 12.9a7.6 7.6 0 0 0 .1-.9 7.6 7.6 0 0 0-.1-.9l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.5-.9l-.4-2.6h-4l-.4 2.6a7.4 7.4 0 0 0-1.5.9l-2.5-1-2 3.4 2.1 1.6a7.6 7.6 0 0 0-.1.9 7.6 7.6 0 0 0 .1.9L2.8 14.5l2 3.4 2.5-1c.5.3 1 .7 1.5.9l.4 2.6h4l.4-2.6c.5-.2 1.1-.5 1.5-.9l2.5 1 2-3.4-2.1-1.6ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
         </button>
       </div>
-      <div class="kanban-cards">
-        ${portadas.map((x) => htmlTarjetaKanbanPortada(x.s, x.i)).join("")}
-        ${servicios.map(htmlTarjetaKanbanServicio).join("")}
-        ${!portadas.length && !servicios.length ? `<p class="kanban-vacio">Sin promociones para este auto.</p>` : ""}
+      <div class="kanban-cards" data-kanban-cards="${col.id}">
+        ${tarjetas
+          .map((t) =>
+            t.tipo === "portada"
+              ? htmlTarjetaKanbanPortada(t.slide, t.i, col.id, t.token)
+              : htmlTarjetaKanbanServicio(t.servicio, col.id, t.token)
+          )
+          .join("")}
+        ${!tarjetas.length ? `<p class="kanban-vacio">Sin promociones para este auto.</p>` : ""}
       </div>
       <div class="kanban-add">
         <button type="button" class="kanban-add-card" data-kanban-tarjeta="${col.id}">Añadir tarjeta</button>
@@ -573,7 +588,7 @@ function renderTablero() {
       <div class="kanban-top">
         <div>
           <h2>Tablero de promociones</h2>
-          <p>Cada columna es un auto: marca, modelo, años y combustible. Arriba va la foto de portada de ese modelo.</p>
+          <p>Cada columna es un auto: marca, modelo, años y combustible. Arrastra ⋮⋮ para mover columnas o tarjetas. El orden de las tarjetas es el que ve el cliente en su celular.</p>
         </div>
       </div>
       <div class="kanban-track">
@@ -583,7 +598,175 @@ function renderTablero() {
     </div>
   `;
   renderLista();
+  armarDragTablero();
   if (sembrar) guardarTableroNube();
+}
+
+function moverColumnaTablero(colId, targetColId, insertBefore) {
+  const from = TABLERO_COLUMNAS.findIndex((c) => c.id === colId);
+  if (from < 0) return;
+  const list = TABLERO_COLUMNAS.slice();
+  const [item] = list.splice(from, 1);
+  let to = targetColId ? list.findIndex((c) => c.id === targetColId) : list.length;
+  if (to < 0) to = list.length;
+  if (!insertBefore) to += 1;
+  if (from < to) to -= 1;
+  list.splice(Math.max(0, to), 0, item);
+  TABLERO_COLUMNAS = list;
+}
+
+function moverTarjetaColumna(colId, token, beforeToken) {
+  const col = TABLERO_COLUMNAS.find((c) => c.id === colId);
+  if (!col || !token) return;
+  sincronizarOrdenTarjetasCol(col);
+  const list = col.orden_tarjetas.slice();
+  const from = list.indexOf(token);
+  if (from < 0) return;
+  list.splice(from, 1);
+  let to = beforeToken ? list.indexOf(beforeToken) : list.length;
+  if (to < 0) to = list.length;
+  if (from < to) to -= 1;
+  list.splice(to, 0, token);
+  aplicarTokensOrdenCol(col, list);
+}
+
+async function guardarOrdenTablero() {
+  persistirTablero();
+  try {
+    await guardarTableroNube();
+  } catch (e) {
+    alert((e && e.message) || "No se pudo guardar el orden del tablero.");
+  }
+}
+
+function limpiarClasesDragTablero() {
+  kanbanDrag = { kind: "", payload: "" };
+  document.querySelectorAll(".kanban-col.is-dragging, .kanban-card-row.is-dragging, .kanban-card-row.is-drop-before, .kanban-col.is-drop-before").forEach((el) => {
+    el.classList.remove("is-dragging", "is-drop-before");
+  });
+}
+
+function armarDragTablero() {
+  const track = document.querySelector(".kanban-track");
+  if (!track) return;
+
+  track.querySelectorAll("[data-kanban-col-drag]").forEach((handle) => {
+    handle.addEventListener("dragstart", (e) => {
+      e.stopPropagation();
+      kanbanDrag = { kind: "col", payload: handle.dataset.kanbanColDrag };
+      e.dataTransfer.setData("text/plain", `col:${kanbanDrag.payload}`);
+      e.dataTransfer.effectAllowed = "move";
+      handle.closest(".kanban-col")?.classList.add("is-dragging");
+    });
+    handle.addEventListener("dragend", limpiarClasesDragTablero);
+  });
+
+  track.querySelectorAll("[data-kanban-card-drag]").forEach((handle) => {
+    handle.addEventListener("dragstart", (e) => {
+      e.stopPropagation();
+      kanbanDrag = { kind: "card", payload: handle.dataset.kanbanCardDrag };
+      e.dataTransfer.setData("text/plain", `card:${kanbanDrag.payload}`);
+      e.dataTransfer.effectAllowed = "move";
+      handle.closest(".kanban-card-row")?.classList.add("is-dragging");
+    });
+    handle.addEventListener("dragend", limpiarClasesDragTablero);
+    handle.addEventListener("mousedown", (e) => e.stopPropagation());
+  });
+
+  track.querySelectorAll(".kanban-col:not(.kanban-col-add)").forEach((colEl) => {
+    colEl.addEventListener("dragover", (e) => {
+      if (kanbanDrag.kind !== "col") return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      document.querySelectorAll(".kanban-col.is-drop-before").forEach((el) => el.classList.remove("is-drop-before"));
+      const rect = colEl.getBoundingClientRect();
+      const antes = e.clientX < rect.left + rect.width / 2;
+      colEl.classList.toggle("is-drop-before", antes);
+    });
+    colEl.addEventListener("dragleave", (e) => {
+      if (!colEl.contains(e.relatedTarget)) colEl.classList.remove("is-drop-before");
+    });
+    colEl.addEventListener("drop", async (e) => {
+      if (kanbanDrag.kind !== "col") return;
+      e.preventDefault();
+      const colId = kanbanDrag.payload;
+      const targetId = colEl.dataset.colId;
+      if (!colId || colId === targetId) {
+        limpiarClasesDragTablero();
+        return;
+      }
+      const rect = colEl.getBoundingClientRect();
+      const antes = e.clientX < rect.left + rect.width / 2;
+      moverColumnaTablero(colId, targetId, antes);
+      limpiarClasesDragTablero();
+      await guardarOrdenTablero();
+      renderTablero();
+    });
+  });
+
+  track.querySelectorAll(".kanban-card-row").forEach((row) => {
+    row.addEventListener("dragover", (e) => {
+      if (kanbanDrag.kind !== "card") return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      document.querySelectorAll(".kanban-card-row.is-drop-before").forEach((el) => el.classList.remove("is-drop-before"));
+      const rect = row.getBoundingClientRect();
+      const antes = e.clientY < rect.top + rect.height / 2;
+      row.classList.toggle("is-drop-before", antes);
+    });
+    row.addEventListener("dragleave", (e) => {
+      if (!row.contains(e.relatedTarget)) row.classList.remove("is-drop-before");
+    });
+    row.addEventListener("drop", async (e) => {
+      if (kanbanDrag.kind !== "card") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const payload = kanbanDrag.payload;
+      const sep = payload.indexOf("|");
+      if (sep < 0) return;
+      const colId = payload.slice(0, sep);
+      const token = payload.slice(sep + 1);
+      const cardsEl = row.closest("[data-kanban-cards]");
+      if (!cardsEl || cardsEl.dataset.kanbanCards !== colId) {
+        limpiarClasesDragTablero();
+        return;
+      }
+      const rect = row.getBoundingClientRect();
+      const antes = e.clientY < rect.top + rect.height / 2;
+      let beforeToken = "";
+      if (antes) beforeToken = row.dataset.kanbanToken || "";
+      else {
+        const next = row.nextElementSibling;
+        beforeToken = next && next.dataset.kanbanToken ? next.dataset.kanbanToken : "";
+      }
+      moverTarjetaColumna(colId, token, beforeToken);
+      limpiarClasesDragTablero();
+      await guardarOrdenTablero();
+      renderTablero();
+    });
+  });
+
+  track.querySelectorAll("[data-kanban-cards]").forEach((box) => {
+    box.addEventListener("dragover", (e) => {
+      if (kanbanDrag.kind !== "card") return;
+      e.preventDefault();
+    });
+    box.addEventListener("drop", async (e) => {
+      if (e.target !== box || kanbanDrag.kind !== "card") return;
+      e.preventDefault();
+      const payload = kanbanDrag.payload;
+      const sep = payload.indexOf("|");
+      if (sep < 0) return;
+      const colId = payload.slice(0, sep);
+      const token = payload.slice(sep + 1);
+      if (box.dataset.kanbanCards !== colId) return;
+      moverTarjetaColumna(colId, token, "");
+      limpiarClasesDragTablero();
+      await guardarOrdenTablero();
+      renderTablero();
+    });
+  });
 }
 
 async function agregarColumnaTablero() {
