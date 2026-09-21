@@ -17,6 +17,7 @@ let servicioColumnaOrigen = "";
 let kanbanDrag = { kind: "", payload: "" };
 let kanbanSuppressClick = false;
 let kanbanCardPointer = null;
+let scrollTableroGuardado = { trackLeft: 0, cols: {} };
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -575,7 +576,42 @@ function htmlFormColumna() {
   `;
 }
 
+function capturarScrollTablero() {
+  const track = document.querySelector(".kanban-track");
+  if (!track) return;
+  scrollTableroGuardado.trackLeft = track.scrollLeft;
+  const cols = {};
+  track.querySelectorAll("[data-kanban-cards]").forEach((box) => {
+    const id = box.dataset.kanbanCards;
+    if (id) cols[id] = box.scrollTop;
+  });
+  scrollTableroGuardado.cols = cols;
+}
+
+function restaurarScrollTablero() {
+  const track = document.querySelector(".kanban-track");
+  if (!track) return;
+  const apply = () => {
+    track.scrollLeft = scrollTableroGuardado.trackLeft || 0;
+    track.querySelectorAll("[data-kanban-cards]").forEach((box) => {
+      const id = box.dataset.kanbanCards;
+      if (id && scrollTableroGuardado.cols[id] != null) box.scrollTop = scrollTableroGuardado.cols[id];
+    });
+  };
+  requestAnimationFrame(() => requestAnimationFrame(apply));
+}
+
+function armarMemoriaScrollTablero(track) {
+  if (!track || track.dataset.scrollMem) return;
+  track.dataset.scrollMem = "1";
+  track.addEventListener("scroll", capturarScrollTablero, { passive: true });
+  track.querySelectorAll("[data-kanban-cards]").forEach((box) => {
+    box.addEventListener("scroll", capturarScrollTablero, { passive: true });
+  });
+}
+
 function renderTablero() {
+  capturarScrollTablero();
   editando = null;
   hidratarTablero();
   sembrarMembresiaColumnas();
@@ -598,6 +634,8 @@ function renderTablero() {
   `;
   renderLista();
   armarDragTablero();
+  armarMemoriaScrollTablero(document.querySelector(".kanban-track"));
+  restaurarScrollTablero();
   if (sembrar) guardarTableroNube();
 }
 
@@ -1000,6 +1038,7 @@ async function nuevaPortadaEnColumna(id) {
 }
 
 async function abrirPortadaDesdeTablero(id) {
+  capturarScrollTablero();
   await cargarPortada();
   const i = portadaSlides.findIndex((s) => s.id === id);
   if (i < 0) {
@@ -1469,6 +1508,7 @@ function escapeText(v) {
 }
 
 function abrirServicio(id) {
+  capturarScrollTablero();
   const s = servicioPorId(id);
   if (!s) return;
   editando = normalizarServicio(JSON.parse(JSON.stringify(s)));
