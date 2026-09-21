@@ -15,6 +15,8 @@ let tarjetaColId = "";
 let tarjetaSeleccion = new Set();
 let servicioColumnaOrigen = "";
 let kanbanDrag = { kind: "", payload: "" };
+let kanbanSuppressClick = false;
+let kanbanCardPointer = null;
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -227,10 +229,7 @@ async function guardarTableroNube() {
 }
 
 function htmlKanbanCardShell(colId, token, inner) {
-  return `<div class="kanban-card-row" data-kanban-token="${escapeAttr(token)}">
-    <button type="button" class="kanban-card-drag" draggable="true" data-kanban-card-drag="${escapeAttr(colId)}|${escapeAttr(token)}" title="Arrastrar tarjeta" aria-label="Arrastrar tarjeta">⋮⋮</button>
-    ${inner}
-  </div>`;
+  return `<div class="kanban-card-row" data-kanban-token="${escapeAttr(token)}" data-kanban-card-col="${escapeAttr(colId)}">${inner}</div>`;
 }
 
 function htmlTarjetaKanbanServicio(s, colId, token) {
@@ -588,7 +587,7 @@ function renderTablero() {
       <div class="kanban-top">
         <div>
           <h2>Tablero de promociones</h2>
-          <p>Cada columna es un auto: marca, modelo, años y combustible. Arrastra ⋮⋮ para mover columnas o tarjetas. El orden de las tarjetas es el que ve el cliente en su celular.</p>
+          <p>Cada columna es un auto: marca, modelo, años y combustible. Arrastra ⋮⋮ para mover columnas. Mantén pulsada una tarjeta y arrástrala; el orden es el que ve el cliente.</p>
         </div>
       </div>
       <div class="kanban-track">
@@ -641,14 +640,168 @@ async function guardarOrdenTablero() {
 
 function limpiarClasesDragTablero() {
   kanbanDrag = { kind: "", payload: "" };
-  document.querySelectorAll(".kanban-col.is-dragging, .kanban-card-row.is-dragging, .kanban-card-row.is-drop-before, .kanban-col.is-drop-before").forEach((el) => {
-    el.classList.remove("is-dragging", "is-drop-before");
+  if (kanbanCardPointer && kanbanCardPointer.holdTimer) clearTimeout(kanbanCardPointer.holdTimer);
+  if (kanbanCardPointer && kanbanCardPointer.raf) cancelAnimationFrame(kanbanCardPointer.raf);
+  kanbanCardPointer = null;
+  document.querySelectorAll(".kanban-col.is-dragging, .kanban-card-row.is-dragging, .kanban-card-row.is-drop-before, .kanban-col.is-drop-before, .kanban-cards.is-card-dragging").forEach((el) => {
+    el.classList.remove("is-dragging", "is-drop-before", "is-card-dragging");
   });
+}
+
+function autoScrollKanbanCards(box, clientY) {
+  if (!box) return;
+  const rect = box.getBoundingClientRect();
+  const margin = 72;
+  const maxStep = 18;
+  if (clientY < rect.top + margin) {
+    const t = (rect.top + margin - clientY) / margin;
+    box.scrollTop -= Math.ceil(maxStep * t);
+  } else if (clientY > rect.bottom - margin) {
+    const t = (clientY - (rect.bottom - margin)) / margin;
+    box.scrollTop += Math.ceil(maxStep * t);
+  }
+}
+
+function loopKanbanCardScroll() {
+  if (!kanbanCardPointer || !kanbanCardPointer.active) return;
+  autoScrollKanbanCards(kanbanCardPointer.box, kanbanCardPointer.lastY);
+  kanbanCardPointer.raf = requestAnimationFrame(loopKanbanCardScroll);
+}
+
+function activarKanbanCardDrag(st) {
+  st.active = true;
+  st.pending = false;
+  if (st.holdTimer) clearTimeout(st.holdTimer);
+  st.row.classList.add("is-dragging");
+  st.box.classList.add("is-card-dragging");
+  kanbanDrag = { kind: "card", payload: `${st.colId}|${st.token}` };
+  st.raf = requestAnimationFrame(loopKanbanCardScroll);
+}
+
+function dropTarjetaDesdePunto(clientX, clientY, colId, dragToken) {
+  document.querySelectorAll(".kanban-card-row.is-drop-before").forEach((el) => el.classList.remove("is-drop-before"));
+  const el = document.elementFromPoint(clientX, clientY);
+  if (!el) return null;
+  const box = el.closest("[data-kanban-cards]");
+  if (!box || box.dataset.kanbanCards !== colId) return null;
+  const row = el.closest(".kanban-card-row");
+  if (!row) {
+    if (el === box || box.contains(el)) return { beforeToken: "" };
+    return null;
+  }
+  if (row.dataset.kanbanToken === dragToken) return { beforeToken: null };
+  const rect = row.getBoundingClientRect();
+  const antes = clientY < rect.top + rect.height / 2;
+  row.classList.add("is-drop-before");
+  if (antes) return { beforeToken: row.dataset.kanbanToken || "" };
+  const next = row.nextElementSibling;
+  return { beforeToken: next && next.dataset.kanbanToken ? next.dataset.kanbanToken : "" };
+}
+
+function armarKanbanCardPointer(track) {
+  const umbralMouse = 7;
+  const umbralHoldTouch = 140;
+
+  track.addEventListener(
+    "pointerdown",
+    (e) => {
+      const card = e.target.closest(".kanban-card");
+      if (!card || e.target.closest(".kanban-gear, .kanban-col-drag, .kanban-add-card")) return;
+      const row = card.closest(".kanban-card-row");
+      const box = row && row.closest("[data-kanban-cards]");
+      if (!row || !box) return;
+      if (e.button != null && e.button !== 0) return;
+      const colId = box.dataset.kanbanCards;
+      const token = row.dataset.kanbanToken;
+      if (!colId || !token) return;
+      kanbanCardPointer = {
+        pending: true,
+        active: false,
+        touch: e.pointerType === "touch",
+        colId,
+        token,
+        row,
+        box,
+        startX: e.clientX,
+        startY: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        dropBefore: null,
+        holdTimer: 0,
+        raf: 0,
+        pointerId: e.pointerId,
+      };
+      if (kanbanCardPointer.touch) {
+        kanbanCardPointer.holdTimer = window.setTimeout(() => {
+          if (!kanbanCardPointer || kanbanCardPointer.pointerId !== e.pointerId || kanbanCardPointer.active) return;
+          if (Math.hypot(kanbanCardPointer.lastX - kanbanCardPointer.startX, kanbanCardPointer.lastY - kanbanCardPointer.startY) > 10) return;
+          activarKanbanCardDrag(kanbanCardPointer);
+        }, umbralHoldTouch);
+      }
+      try {
+        row.setPointerCapture(e.pointerId);
+      } catch (err) {}
+    },
+    { passive: true }
+  );
+
+  track.addEventListener(
+    "pointermove",
+    (e) => {
+      const st = kanbanCardPointer;
+      if (!st || st.pointerId !== e.pointerId) return;
+      st.lastX = e.clientX;
+      st.lastY = e.clientY;
+      if (!st.active) {
+        const d = Math.hypot(e.clientX - st.startX, e.clientY - st.startY);
+        if (st.touch) {
+          if (d > 10) {
+            if (st.holdTimer) clearTimeout(st.holdTimer);
+            kanbanCardPointer = null;
+          }
+          return;
+        }
+        if (d < umbralMouse) return;
+        activarKanbanCardDrag(st);
+      }
+      e.preventDefault();
+      const hit = dropTarjetaDesdePunto(e.clientX, e.clientY, st.colId, st.token);
+      if (hit) st.dropBefore = hit.beforeToken;
+    },
+    { passive: false }
+  );
+
+  const terminarKanbanCardPointer = async (e) => {
+    const st = kanbanCardPointer;
+    if (!st || st.pointerId !== e.pointerId) return;
+    if (st.holdTimer) clearTimeout(st.holdTimer);
+    if (st.raf) cancelAnimationFrame(st.raf);
+    const wasDrag = st.active;
+    const row = st.row;
+    try {
+      row.releasePointerCapture(e.pointerId);
+    } catch (err) {}
+    if (wasDrag) {
+      e.preventDefault();
+      kanbanSuppressClick = true;
+      if (st.dropBefore !== null) moverTarjetaColumna(st.colId, st.token, st.dropBefore);
+      limpiarClasesDragTablero();
+      await guardarOrdenTablero();
+      renderTablero();
+      return;
+    }
+    kanbanCardPointer = null;
+  };
+
+  track.addEventListener("pointerup", terminarKanbanCardPointer);
+  track.addEventListener("pointercancel", terminarKanbanCardPointer);
 }
 
 function armarDragTablero() {
   const track = document.querySelector(".kanban-track");
   if (!track) return;
+
+  armarKanbanCardPointer(track);
 
   track.querySelectorAll("[data-kanban-col-drag]").forEach((handle) => {
     handle.addEventListener("dragstart", (e) => {
@@ -659,18 +812,6 @@ function armarDragTablero() {
       handle.closest(".kanban-col")?.classList.add("is-dragging");
     });
     handle.addEventListener("dragend", limpiarClasesDragTablero);
-  });
-
-  track.querySelectorAll("[data-kanban-card-drag]").forEach((handle) => {
-    handle.addEventListener("dragstart", (e) => {
-      e.stopPropagation();
-      kanbanDrag = { kind: "card", payload: handle.dataset.kanbanCardDrag };
-      e.dataTransfer.setData("text/plain", `card:${kanbanDrag.payload}`);
-      e.dataTransfer.effectAllowed = "move";
-      handle.closest(".kanban-card-row")?.classList.add("is-dragging");
-    });
-    handle.addEventListener("dragend", limpiarClasesDragTablero);
-    handle.addEventListener("mousedown", (e) => e.stopPropagation());
   });
 
   track.querySelectorAll(".kanban-col:not(.kanban-col-add)").forEach((colEl) => {
@@ -704,69 +845,6 @@ function armarDragTablero() {
     });
   });
 
-  track.querySelectorAll(".kanban-card-row").forEach((row) => {
-    row.addEventListener("dragover", (e) => {
-      if (kanbanDrag.kind !== "card") return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.dataTransfer.dropEffect = "move";
-      document.querySelectorAll(".kanban-card-row.is-drop-before").forEach((el) => el.classList.remove("is-drop-before"));
-      const rect = row.getBoundingClientRect();
-      const antes = e.clientY < rect.top + rect.height / 2;
-      row.classList.toggle("is-drop-before", antes);
-    });
-    row.addEventListener("dragleave", (e) => {
-      if (!row.contains(e.relatedTarget)) row.classList.remove("is-drop-before");
-    });
-    row.addEventListener("drop", async (e) => {
-      if (kanbanDrag.kind !== "card") return;
-      e.preventDefault();
-      e.stopPropagation();
-      const payload = kanbanDrag.payload;
-      const sep = payload.indexOf("|");
-      if (sep < 0) return;
-      const colId = payload.slice(0, sep);
-      const token = payload.slice(sep + 1);
-      const cardsEl = row.closest("[data-kanban-cards]");
-      if (!cardsEl || cardsEl.dataset.kanbanCards !== colId) {
-        limpiarClasesDragTablero();
-        return;
-      }
-      const rect = row.getBoundingClientRect();
-      const antes = e.clientY < rect.top + rect.height / 2;
-      let beforeToken = "";
-      if (antes) beforeToken = row.dataset.kanbanToken || "";
-      else {
-        const next = row.nextElementSibling;
-        beforeToken = next && next.dataset.kanbanToken ? next.dataset.kanbanToken : "";
-      }
-      moverTarjetaColumna(colId, token, beforeToken);
-      limpiarClasesDragTablero();
-      await guardarOrdenTablero();
-      renderTablero();
-    });
-  });
-
-  track.querySelectorAll("[data-kanban-cards]").forEach((box) => {
-    box.addEventListener("dragover", (e) => {
-      if (kanbanDrag.kind !== "card") return;
-      e.preventDefault();
-    });
-    box.addEventListener("drop", async (e) => {
-      if (e.target !== box || kanbanDrag.kind !== "card") return;
-      e.preventDefault();
-      const payload = kanbanDrag.payload;
-      const sep = payload.indexOf("|");
-      if (sep < 0) return;
-      const colId = payload.slice(0, sep);
-      const token = payload.slice(sep + 1);
-      if (box.dataset.kanbanCards !== colId) return;
-      moverTarjetaColumna(colId, token, "");
-      limpiarClasesDragTablero();
-      await guardarOrdenTablero();
-      renderTablero();
-    });
-  });
 }
 
 async function agregarColumnaTablero() {
@@ -2062,6 +2140,10 @@ $("lista-servicios").addEventListener("click", (e) => {
 });
 
 $("stage").addEventListener("click", (e) => {
+  if (kanbanSuppressClick) {
+    kanbanSuppressClick = false;
+    return;
+  }
   const t = e.target.closest("button");
   if (!t || t.id === "portada-btn-drag") return;
   if (t.id === "btn-guardar") guardarServicio();

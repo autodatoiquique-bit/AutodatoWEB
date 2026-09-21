@@ -173,8 +173,7 @@ button { font-family: inherit; cursor: pointer; }
   padding: 0 8px 8px;
   overflow: hidden;
 }
-.kanban-col-drag,
-.kanban-card-drag {
+.kanban-col-drag {
   border: 0;
   background: rgba(0, 0, 0, 0.08);
   color: #42526e;
@@ -183,10 +182,6 @@ button { font-family: inherit; cursor: pointer; }
   line-height: 1;
   cursor: grab;
   user-select: none;
-}
-.kanban-col-drag:active,
-.kanban-card-drag:active { cursor: grabbing; }
-.kanban-col-drag {
   position: absolute;
   top: 8px;
   left: 8px;
@@ -197,25 +192,14 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 0.72rem;
   padding: 0;
 }
+.kanban-col-drag:active { cursor: grabbing; }
 .kanban-col-drag:hover { background: rgba(0, 0, 0, 0.18); color: #fff; }
 .kanban-col.is-dragging { opacity: 0.55; }
 .kanban-col.is-drop-before { box-shadow: inset 4px 0 0 #ffd000; }
-.kanban-card-row {
-  display: flex;
-  align-items: stretch;
-  gap: 4px;
-}
-.kanban-card-row .kanban-card { flex: 1; min-width: 0; }
-.kanban-card-drag {
-  flex: 0 0 22px;
-  width: 22px;
-  border-radius: 6px;
-  font-size: 0.62rem;
-  padding: 0;
-  margin-top: 4px;
-}
-.kanban-card-row.is-dragging { opacity: 0.55; }
+.kanban-card-row.is-dragging { opacity: 0.45; pointer-events: none; }
 .kanban-card-row.is-drop-before { box-shadow: inset 0 3px 0 #ffd000; }
+.kanban-card { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.kanban-card:active { cursor: grabbing; }
 .kanban-apex {
   position: relative;
   flex: 0 0 188px;
@@ -278,6 +262,9 @@ button { font-family: inherit; cursor: pointer; }
   fill: currentColor;
 }
 .kanban-gear:hover { background: rgba(0, 0, 0, 0.65); }
+.kanban-cards.is-card-dragging {
+  touch-action: none;
+}
 .kanban-cards {
   flex: 1 1 auto;
   min-height: 0;
