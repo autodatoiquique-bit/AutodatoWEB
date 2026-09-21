@@ -13,6 +13,7 @@ let columnaEditId = "";
 let ofertaDraft = null;
 let tarjetaColId = "";
 let tarjetaSeleccion = new Set();
+let servicioColumnaOrigen = "";
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -527,10 +528,12 @@ async function asignarServiciosAColumna(sids, colId) {
     const s = catalogo.find((x) => x.id === sid);
     if (!s) return;
     sumarDestinoAServicio(s, dest);
+    sumarItemAColumna(col, sid, "servicios");
     n += 1;
   });
   if (!n) return;
   try {
+    persistirTablero();
     await guardarCatalogo(catalogo);
   } catch (e) {
     alert((e && e.message) || "No se pudieron agregar las tarjetas.");
@@ -561,6 +564,7 @@ function htmlFormColumna() {
 function renderTablero() {
   editando = null;
   hidratarTablero();
+  sembrarMembresiaColumnas();
   const sembrar = !TABLERO_COLUMNAS.length;
   if (sembrar) sembrarColumnasTablero();
   $("stage").classList.add("stage-board");
@@ -633,6 +637,7 @@ async function guardarColumnaTablero(id) {
 
 function nuevoServicioEnColumna(id) {
   const col = TABLERO_COLUMNAS.find((c) => c.id === id);
+  servicioColumnaOrigen = id || "";
   editando = servicioVacio();
   if (col) editando.vehiculos = vehiculosDeColumna(col);
   mediaEditIndex = 0;
@@ -644,7 +649,11 @@ async function nuevaPortadaEnColumna(id) {
   const col = TABLERO_COLUMNAS.find((c) => c.id === id);
   await cargarPortada();
   const s = slideVacio(portadaSlides.length);
-  if (col) s.vehiculos = vehiculosDeColumna(col);
+  if (col) {
+    s.vehiculos = vehiculosDeColumna(col);
+    sumarItemAColumna(col, s.id, "portadas");
+    persistirTablero();
+  }
   portadaSlides.push(s);
   slideEditIndex = portadaSlides.length - 1;
   editando = null;
@@ -783,7 +792,7 @@ function htmlVehiculosEditor(s, hint, opts) {
   return `
     <fieldset class="canales veh-box">
       <legend>Modelos compatibles</legend>
-      <p class="hint">${hint || "Un auto por línea. Puedes sumar Hyundai y también Kia, u otro modelo de la misma marca."}</p>
+      <p class="hint">${hint || "La columna del tablero manda: si el servicio está en la columna de un auto, se muestra para ese modelo aunque no lo marques aquí."}</p>
       <div id="e-veh-filas" ${modo === "todos" || modo === "marca" ? "hidden" : ""}>
         ${visibles.map((v, i) => htmlFilaCompat(v, i)).join("")}
       </div>
@@ -1110,6 +1119,7 @@ function abrirServicio(id) {
 }
 
 function nuevoServicio() {
+  servicioColumnaOrigen = "";
   editando = servicioVacio();
   mediaEditIndex = 0;
   renderEditor();
@@ -1142,6 +1152,12 @@ async function guardarServicio() {
   const idx = catalogo.findIndex((s) => s.id === copia.id);
   if (idx >= 0) catalogo[idx] = copia;
   else catalogo.push(copia);
+  if (servicioColumnaOrigen) {
+    const col = TABLERO_COLUMNAS.find((c) => c.id === servicioColumnaOrigen);
+    if (col) sumarItemAColumna(col, copia.id, "servicios");
+    persistirTablero();
+    servicioColumnaOrigen = "";
+  }
   try {
     await guardarCatalogo(catalogo);
     editando = copia;
@@ -1160,6 +1176,8 @@ async function borrarServicio() {
   catalogo.forEach((s) => {
     s.complementos = (s.complementos || []).filter((c) => c.id !== editando.id);
   });
+  quitarItemDeColumnas(editando.id);
+  persistirTablero();
   try {
     await guardarCatalogo(catalogo);
     editando = null;

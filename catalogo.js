@@ -102,6 +102,30 @@ function anioONull(v) {
   return n;
 }
 
+function idsDeColumna(col, campo) {
+  if (!col || !Array.isArray(col[campo])) return [];
+  return col[campo].map(String).filter(Boolean);
+}
+
+function sumarItemAColumna(col, id, campo) {
+  if (!col || !id) return false;
+  const key = campo || "servicios";
+  if (!Array.isArray(col[key])) col[key] = [];
+  const sid = String(id);
+  if (col[key].includes(sid)) return false;
+  col[key].push(sid);
+  return true;
+}
+
+function quitarItemDeColumnas(id) {
+  const sid = String(id || "");
+  if (!sid) return;
+  (typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : []).forEach((col) => {
+    if (Array.isArray(col.servicios)) col.servicios = col.servicios.filter((x) => String(x) !== sid);
+    if (Array.isArray(col.portadas)) col.portadas = col.portadas.filter((x) => String(x) !== sid);
+  });
+}
+
 function normalizarColumnaTablero(c) {
   if (!c || !c.marca || !c.modelo) return null;
   const d = anioONull(c.ano_desde);
@@ -114,6 +138,8 @@ function normalizarColumnaTablero(c) {
     ano_hasta: h,
     combustible: normalizarCombustible(c.combustible),
     foto: String(c.foto || ""),
+    servicios: idsDeColumna(c, "servicios"),
+    portadas: idsDeColumna(c, "portadas"),
   };
 }
 
@@ -163,9 +189,33 @@ function fotoPortadaVehiculo(v) {
 }
 
 function itemEnColumna(item, col) {
+  if (!item || !col) return false;
+  const id = String(item.id || "");
+  if (id && (idsDeColumna(col, "servicios").includes(id) || idsDeColumna(col, "portadas").includes(id))) {
+    return true;
+  }
   const destinos = normalizarVehiculos(item && item.vehiculos);
   if (!destinos.length) return false;
   return destinos.some((v) => destinoEnColumna(v, col));
+}
+
+function sembrarMembresiaColumnas() {
+  const cols = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  if (!cols.length) return;
+  cols.forEach((col) => {
+    if (!Array.isArray(col.servicios)) col.servicios = [];
+    if (!Array.isArray(col.portadas)) col.portadas = [];
+    (typeof catalogo !== "undefined" ? catalogo || [] : []).forEach((s) => {
+      if (!s || !s.id || col.servicios.includes(String(s.id))) return;
+      const destinos = normalizarVehiculos(s.vehiculos);
+      if (destinos.some((v) => destinoEnColumna(v, col))) col.servicios.push(String(s.id));
+    });
+    (typeof portadaSlides !== "undefined" ? portadaSlides || [] : []).forEach((s) => {
+      if (!s || !s.id || col.portadas.includes(String(s.id))) return;
+      const destinos = normalizarVehiculos(s.vehiculos);
+      if (destinos.some((v) => destinoEnColumna(v, col))) col.portadas.push(String(s.id));
+    });
+  });
 }
 
 function sembrarColumnasTablero() {
@@ -285,9 +335,11 @@ function anioEnRango(ano, v) {
 }
 
 function servicioAplicaAVehiculo(s, vehiculo) {
+  if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) return true;
+  const col = columnaDeVehiculo(vehiculo);
+  if (col) return itemEnColumna(s, col);
   const destinos = normalizarVehiculos(s && s.vehiculos);
   if (!destinos.length) return true;
-  if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) return true;
   return destinos.some((v) => {
     if (v.marca !== vehiculo.marca) return false;
     if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
@@ -563,6 +615,7 @@ async function cargarCatalogo() {
         recolectarModelosExtra(catalogo);
         persistirModelosExtra();
         persistirFotosModelos();
+        sembrarMembresiaColumnas();
         return catalogo;
       }
     } catch (e) {
@@ -573,6 +626,7 @@ async function cargarCatalogo() {
   recolectarModelosExtra(catalogo);
   persistirModelosExtra();
   persistirFotosModelos();
+  sembrarMembresiaColumnas();
   return catalogo;
 }
 
@@ -929,6 +983,7 @@ async function cargarPortada() {
       if (remoto.length) {
         portadaSlides = remoto.map(normalizarSlide).sort((a, b) => a.orden - b.orden);
         if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
+        sembrarMembresiaColumnas();
         return portadaSlides;
       }
     } catch (e) {
@@ -940,6 +995,7 @@ async function cargarPortada() {
     if (Array.isArray(raw) && raw.length) {
       portadaSlides = raw.map(normalizarSlide);
       if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
+      sembrarMembresiaColumnas();
       return portadaSlides;
     }
   } catch (e) {
