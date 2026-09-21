@@ -239,7 +239,7 @@ function htmlTarjetaKanbanServicio(s, colId, token) {
   const uO = oferta != null && typeof utilidadDe === "function" ? utilidadDe(oferta, s) : null;
   const tok = token || tokenTarjetaColumna("servicio", s.id);
   const inner = `<button class="kanban-card" type="button" data-kanban-servicio="${s.id}">
-    <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" />` : ""}</div>
+    <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" draggable="false" />` : ""}</div>
     <div class="kanban-body">
       <strong>${escapeText(s.nombre || "Sin nombre")}</strong>
       <div class="kanban-kpis">
@@ -266,7 +266,7 @@ function htmlTarjetaKanbanServicio(s, colId, token) {
 function htmlTarjetaKanbanPortada(s, i, colId, token) {
   const tok = token || tokenTarjetaColumna("portada", s.id);
   const inner = `<button class="kanban-card" type="button" data-kanban-portada="${s.id}">
-    <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" />` : ""}</div>
+    <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" draggable="false" />` : ""}</div>
     <div class="kanban-body">
       <strong>Portada</strong>
       <span>Flyer ${i + 1}${s.mostrar_boton ? " · con botón" : ""}</span>
@@ -650,7 +650,7 @@ function limpiarClasesDragTablero() {
     if (kanbanCardPointer.raf) cancelAnimationFrame(kanbanCardPointer.raf);
     if (kanbanCardPointer.row) {
       kanbanCardPointer.row.classList.remove("is-dragging");
-      kanbanCardPointer.row.hidden = false;
+      kanbanCardPointer.row.style.minHeight = "";
     }
     limpiarKanbanCardFlotante(kanbanCardPointer);
   }
@@ -694,7 +694,7 @@ function crearKanbanGhost(st) {
   document.body.appendChild(ghost);
   st.ghostEl = ghost;
   st.row.classList.add("is-dragging");
-  st.row.hidden = true;
+  st.row.style.minHeight = `${st.rowHeight}px`;
   ghost.style.left = `${st.lastX - st.offX}px`;
   ghost.style.top = `${st.lastY - st.offY}px`;
 }
@@ -712,8 +712,18 @@ function activarKanbanCardDrag(st) {
   st.box.classList.add("is-card-dragging");
   kanbanDrag = { kind: "card", payload: `${st.colId}|${st.token}` };
   crearKanbanGhost(st);
-  pintarMarcadorSoltar(st, st.lastX, st.lastY);
+  try {
+    st.row.setPointerCapture(st.pointerId);
+  } catch (err) {}
+  pintarMarcadorSoltar(st, st.lastY);
   st.raf = requestAnimationFrame(loopKanbanCardScroll);
+}
+
+function abrirTarjetaKanban(row) {
+  const card = row && row.querySelector(".kanban-card");
+  if (!card) return;
+  if (card.dataset.kanbanServicio) abrirServicio(card.dataset.kanbanServicio);
+  else if (card.dataset.kanbanPortada) abrirPortadaDesdeTablero(card.dataset.kanbanPortada);
 }
 
 function filaKanbanPorToken(box, token) {
@@ -721,57 +731,58 @@ function filaKanbanPorToken(box, token) {
   return box.querySelector(`.kanban-card-row[data-kanban-token="${token}"]`);
 }
 
-function destinoSoltarTarjeta(clientX, clientY, colId, dragToken) {
-  const el = document.elementFromPoint(clientX, clientY);
-  if (!el) return null;
-  const box = el.closest("[data-kanban-cards]");
-  if (!box || box.dataset.kanbanCards !== colId) return null;
-  const row = el.closest(".kanban-card-row");
-  if (!row) {
-    if (box.contains(el)) return { beforeToken: "" };
-    return null;
-  }
-  if (row.dataset.kanbanToken === dragToken) return { beforeToken: null };
-  const rect = row.getBoundingClientRect();
-  const antes = clientY < rect.top + rect.height / 2;
-  if (antes) return { beforeToken: row.dataset.kanbanToken || "" };
-  const next = row.nextElementSibling;
-  return { beforeToken: next && next.dataset.kanbanToken ? next.dataset.kanbanToken : "" };
+function beforeTokenDesdeSlot(slotKey) {
+  return slotKey === "__end__" ? "" : slotKey;
 }
 
-function pintarMarcadorSoltar(st, clientX, clientY) {
-  const hit = destinoSoltarTarjeta(clientX, clientY, st.colId, st.token);
-  if (!hit || hit.beforeToken === null) {
-    if (st.marker) st.marker.remove();
-    st.marker = null;
-    st.dropBefore = null;
-    return;
+function slotSoltarTarjeta(box, clientY, dragToken) {
+  const rows = [...box.querySelectorAll(".kanban-card-row")].filter((r) => r.dataset.kanbanToken !== dragToken);
+  for (const row of rows) {
+    const rect = row.getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) return row.dataset.kanbanToken || "";
   }
-  st.dropBefore = hit.beforeToken;
+  return "";
+}
+
+function pintarMarcadorSoltar(st, clientY) {
+  const beforeToken = slotSoltarTarjeta(st.box, clientY, st.token);
+  const slotKey = beforeToken || "__end__";
+  st.dropBefore = beforeToken;
+  if (st.markerBefore === slotKey && st.marker && st.marker.parentElement === st.box) return;
+  st.markerBefore = slotKey;
   if (!st.marker) {
     st.marker = document.createElement("div");
     st.marker.className = "kanban-drop-marker";
     st.marker.innerHTML = "<span>Soltar aquí</span>";
   }
-  st.marker.style.height = `${Math.max(st.rowHeight || 80, 56)}px`;
-  const box = st.box;
-  const beforeRow = hit.beforeToken ? filaKanbanPorToken(box, hit.beforeToken) : null;
-  if (beforeRow && !beforeRow.hidden) box.insertBefore(st.marker, beforeRow);
-  else box.appendChild(st.marker);
+  st.marker.style.height = `${Math.max(st.rowHeight || 80, 64)}px`;
+  const beforeRow = beforeToken ? filaKanbanPorToken(st.box, beforeToken) : null;
+  if (beforeRow) st.box.insertBefore(st.marker, beforeRow);
+  else st.box.appendChild(st.marker);
+}
+
+function programarKanbanDragPintado(st) {
+  if (st.paintRaf) return;
+  st.paintRaf = requestAnimationFrame(() => {
+    st.paintRaf = 0;
+    if (!st.active) return;
+    moverKanbanGhost(st);
+    pintarMarcadorSoltar(st, st.lastY);
+  });
 }
 
 function armarKanbanCardPointer(track) {
-  const umbralMouse = 7;
-  const umbralHoldTouch = 140;
+  const umbralMouse = 12;
+  const umbralHoldTouch = 220;
+  const umbralTap = 14;
 
   track.addEventListener(
     "pointerdown",
     (e) => {
-      const card = e.target.closest(".kanban-card");
-      if (!card || e.target.closest(".kanban-gear, .kanban-col-drag, .kanban-add-card")) return;
-      const row = card.closest(".kanban-card-row");
-      const box = row && row.closest("[data-kanban-cards]");
-      if (!row || !box) return;
+      const row = e.target.closest(".kanban-card-row");
+      if (!row || !row.querySelector(".kanban-card") || e.target.closest(".kanban-gear, .kanban-col-drag, .kanban-add-card")) return;
+      const box = row.closest("[data-kanban-cards]");
+      if (!box) return;
       if (e.button != null && e.button !== 0) return;
       const colId = box.dataset.kanbanCards;
       const token = row.dataset.kanbanToken;
@@ -788,21 +799,22 @@ function armarKanbanCardPointer(track) {
         startY: e.clientY,
         lastX: e.clientX,
         lastY: e.clientY,
-        dropBefore: null,
+        dropBefore: "",
+        markerBefore: "",
         holdTimer: 0,
         raf: 0,
+        paintRaf: 0,
         pointerId: e.pointerId,
+        scrolling: false,
       };
       if (kanbanCardPointer.touch) {
         kanbanCardPointer.holdTimer = window.setTimeout(() => {
           if (!kanbanCardPointer || kanbanCardPointer.pointerId !== e.pointerId || kanbanCardPointer.active) return;
-          if (Math.hypot(kanbanCardPointer.lastX - kanbanCardPointer.startX, kanbanCardPointer.lastY - kanbanCardPointer.startY) > 10) return;
+          if (kanbanCardPointer.scrolling) return;
+          if (Math.hypot(kanbanCardPointer.lastX - kanbanCardPointer.startX, kanbanCardPointer.lastY - kanbanCardPointer.startY) > umbralTap) return;
           activarKanbanCardDrag(kanbanCardPointer);
         }, umbralHoldTouch);
       }
-      try {
-        row.setPointerCapture(e.pointerId);
-      } catch (err) {}
     },
     { passive: true }
   );
@@ -817,9 +829,9 @@ function armarKanbanCardPointer(track) {
       if (!st.active) {
         const d = Math.hypot(e.clientX - st.startX, e.clientY - st.startY);
         if (st.touch) {
-          if (d > 10) {
+          if (d > umbralTap) {
             if (st.holdTimer) clearTimeout(st.holdTimer);
-            kanbanCardPointer = null;
+            st.scrolling = true;
           }
           return;
         }
@@ -827,8 +839,7 @@ function armarKanbanCardPointer(track) {
         activarKanbanCardDrag(st);
       }
       e.preventDefault();
-      moverKanbanGhost(st);
-      pintarMarcadorSoltar(st, e.clientX, e.clientY);
+      programarKanbanDragPintado(st);
     },
     { passive: false }
   );
@@ -838,6 +849,7 @@ function armarKanbanCardPointer(track) {
     if (!st || st.pointerId !== e.pointerId) return;
     if (st.holdTimer) clearTimeout(st.holdTimer);
     if (st.raf) cancelAnimationFrame(st.raf);
+    if (st.paintRaf) cancelAnimationFrame(st.paintRaf);
     const wasDrag = st.active;
     const row = st.row;
     try {
@@ -846,12 +858,15 @@ function armarKanbanCardPointer(track) {
     if (wasDrag) {
       e.preventDefault();
       kanbanSuppressClick = true;
-      if (st.dropBefore !== null) moverTarjetaColumna(st.colId, st.token, st.dropBefore);
+      const destino = st.markerBefore ? beforeTokenDesdeSlot(st.markerBefore) : st.dropBefore;
+      moverTarjetaColumna(st.colId, st.token, destino);
       limpiarClasesDragTablero();
       await guardarOrdenTablero();
       renderTablero();
       return;
     }
+    const d = Math.hypot(e.clientX - st.startX, e.clientY - st.startY);
+    if (!st.scrolling && d < umbralTap) abrirTarjetaKanban(row);
     kanbanCardPointer = null;
   };
 

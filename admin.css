@@ -198,6 +198,13 @@ button { font-family: inherit; cursor: pointer; }
 .kanban-col.is-drop-before { box-shadow: inset 4px 0 0 #ffd000; }
 .kanban-card { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .kanban-card:active { cursor: grabbing; }
+.kanban-card-row.is-dragging { pointer-events: none; }
+.kanban-card-row.is-dragging .kanban-card { visibility: hidden; }
+.kanban-card img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
 .kanban-card-ghost {
   position: fixed;
   z-index: 10050;
@@ -214,24 +221,21 @@ button { font-family: inherit; cursor: pointer; }
 }
 .kanban-drop-marker {
   flex: 0 0 auto;
-  border: 2px dashed #c9ab00;
-  background: rgba(255, 208, 0, 0.18);
+  border: 3px solid #ffd000;
+  background: rgba(255, 208, 0, 0.32);
   border-radius: 8px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: kanban-drop-pulse 0.85s ease-in-out infinite alternate;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
 }
 .kanban-drop-marker span {
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   font-weight: 800;
-  color: #5c4e00;
+  color: #3d3400;
   letter-spacing: 0.02em;
-}
-@keyframes kanban-drop-pulse {
-  from { background: rgba(255, 208, 0, 0.12); }
-  to { background: rgba(255, 208, 0, 0.28); }
 }
 .kanban-apex {
   position: relative;
