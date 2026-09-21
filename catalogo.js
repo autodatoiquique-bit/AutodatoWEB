@@ -587,11 +587,6 @@ function serviciosEn(canal) {
   return catalogo.filter((s) => s.activo !== false && s.canales && s.canales[canal]);
 }
 
-function serviciosEnColumna(col) {
-  if (!col) return [];
-  return (catalogo || []).filter((s) => s.activo !== false && itemEnColumna(s, col));
-}
-
 function serviciosCotizacion() {
   return catalogo.filter(
     (s) => s.activo !== false && s.canales && (s.canales.ofertas || s.canales.mantencion || s.canales.diagnostico)
