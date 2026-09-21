@@ -1505,7 +1505,7 @@ function renderEditorPortada() {
           <div class="editor-col">
             <section class="portada-defecto ${s.defecto ? "is-on" : ""}">
               <h3>Portada por defecto</h3>
-              <p>Si un auto no tiene portada propia, ve esta. También la ve quien aún no eligió vehículo.</p>
+              <p>La ven todos. Si el auto ya tiene flyer propio, ese sale primero y esta queda al deslizar. También la ve quien aún no eligió vehículo.</p>
               <label class="check">
                 <input id="p-defecto" type="checkbox" ${s.defecto ? "checked" : ""} />
                 Esta es la portada por defecto
@@ -1514,7 +1514,7 @@ function renderEditorPortada() {
             <div id="p-modelos-box" ${s.defecto ? "hidden" : ""}>
               ${htmlVehiculosEditor(s, "Elige para qué modelos va este flyer. Si dos flyers comparten el mismo modelo, ese auto verá las dos portadas y podrá deslizarlas.", { portada: true })}
             </div>
-            <p class="hint" id="p-defecto-nota" ${s.defecto ? "" : "hidden"}>Esta portada no se asigna a un modelo: cubre a todos los autos que no tienen flyer propio.</p>
+            <p class="hint" id="p-defecto-nota" ${s.defecto ? "" : "hidden"}>Esta portada no se asigna a un modelo: la ven todos. Si el auto tiene flyer propio, esa es la primera y esta sale al deslizar.</p>
             <div class="btn-row">
               <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
             </div>

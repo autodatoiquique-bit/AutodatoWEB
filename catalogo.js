@@ -909,7 +909,9 @@ function slidesPortadaPara(vehiculo) {
     const dest = normalizarVehiculos(s.vehiculos);
     return dest.length && slideAplicaAVehiculo(s, vehiculo);
   });
-  return propios.length ? propios : reserva;
+  const extra = reserva.filter((s) => !propios.some((p) => p.id === s.id));
+  if (!propios.length) return reserva.length ? reserva : extra;
+  return extra.length ? [...propios, ...extra] : propios;
 }
 
 function encajarVehiculoTaller(raw) {
