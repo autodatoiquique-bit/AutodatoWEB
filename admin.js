@@ -12,6 +12,7 @@ let colFotoPendiente = "";
 let columnaEditId = "";
 let ofertaDraft = null;
 let tarjetaColId = "";
+let tarjetaSeleccion = new Set();
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -454,6 +455,7 @@ function guardarModalOferta() {
 
 function abrirModalTarjeta(colId) {
   tarjetaColId = colId;
+  tarjetaSeleccion = new Set();
   if ($("tarjeta-busca")) $("tarjeta-busca").value = "";
   pintarListaTarjeta("");
   if ($("modal-tarjeta")) $("modal-tarjeta").hidden = false;
@@ -461,7 +463,16 @@ function abrirModalTarjeta(colId) {
 
 function cerrarModalTarjeta() {
   tarjetaColId = "";
+  tarjetaSeleccion = new Set();
   if ($("modal-tarjeta")) $("modal-tarjeta").hidden = true;
+}
+
+function pintarAceptarTarjeta() {
+  const btn = $("btn-tarjeta-aceptar");
+  if (!btn) return;
+  const n = tarjetaSeleccion.size;
+  btn.disabled = n === 0;
+  btn.textContent = n > 1 ? `Aceptar (${n})` : "Aceptar";
 }
 
 function pintarListaTarjeta(q) {
@@ -475,23 +486,26 @@ function pintarListaTarjeta(q) {
   });
   lista.innerHTML =
     items
-      .map(
-        (s) => `<button type="button" data-tarjeta-serv="${s.id}">
-          <strong>${escapeText(s.nombre || "Sin nombre")}</strong>
-          <span>${clp(s.precio)}${s.tiempo_min ? ` · ${etiquetaTiempo(s.tiempo_min)}` : ""} · ${etiquetaCanales(s)}</span>
-        </button>`
-      )
+      .map((s) => {
+        const on = tarjetaSeleccion.has(s.id);
+        return `<label class="tarjeta-item${on ? " is-on" : ""}" data-tarjeta-serv="${s.id}">
+          <input type="checkbox" ${on ? "checked" : ""} />
+          <span class="tarjeta-check" aria-hidden="true"></span>
+          <span class="tarjeta-item-txt">
+            <strong>${escapeText(s.nombre || "Sin nombre")}</strong>
+            <span>${clp(s.precio)}${s.tiempo_min ? ` · ${etiquetaTiempo(s.tiempo_min)}` : ""} · ${etiquetaCanales(s)}</span>
+          </span>
+        </label>`;
+      })
       .join("") ||
     `<p class="muted">${
       t ? "No hay servicios con ese nombre." : "Todos los servicios de esta lista ya están en la columna."
     }</p>`;
+  pintarAceptarTarjeta();
 }
 
-async function asignarServicioAColumna(sid, colId) {
-  const s = catalogo.find((x) => x.id === sid);
-  const col = TABLERO_COLUMNAS.find((c) => c.id === colId);
-  if (!s || !col) return;
-  const dest = vehiculosDeColumna(col)[0];
+function sumarDestinoAServicio(s, dest) {
+  if (!s || !dest) return;
   const actuales = normalizarVehiculos(s.vehiculos);
   const ya = actuales.some(
     (v) =>
@@ -501,10 +515,25 @@ async function asignarServicioAColumna(sid, colId) {
       aniosSeSolapan(v, dest)
   );
   if (!ya) s.vehiculos = [...actuales, dest];
+}
+
+async function asignarServiciosAColumna(sids, colId) {
+  const col = TABLERO_COLUMNAS.find((c) => c.id === colId);
+  if (!col || !sids.length) return;
+  const dest = vehiculosDeColumna(col)[0];
+  if (!dest) return;
+  let n = 0;
+  sids.forEach((sid) => {
+    const s = catalogo.find((x) => x.id === sid);
+    if (!s) return;
+    sumarDestinoAServicio(s, dest);
+    n += 1;
+  });
+  if (!n) return;
   try {
     await guardarCatalogo(catalogo);
   } catch (e) {
-    alert((e && e.message) || "No se pudo agregar la tarjeta.");
+    alert((e && e.message) || "No se pudieron agregar las tarjetas.");
     return;
   }
   cerrarModalTarjeta();
@@ -2303,9 +2332,18 @@ $("btn-tarjeta-portada")?.addEventListener("click", () => {
   if (id) nuevaPortadaEnColumna(id);
 });
 $("tarjeta-busca")?.addEventListener("input", (e) => pintarListaTarjeta(e.target.value));
-$("tarjeta-lista")?.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-tarjeta-serv]");
-  if (t && tarjetaColId) asignarServicioAColumna(t.dataset.tarjetaServ, tarjetaColId);
+$("tarjeta-lista")?.addEventListener("change", (e) => {
+  const item = e.target.closest("[data-tarjeta-serv]");
+  if (!item || e.target.type !== "checkbox") return;
+  const id = item.dataset.tarjetaServ;
+  if (e.target.checked) tarjetaSeleccion.add(id);
+  else tarjetaSeleccion.delete(id);
+  item.classList.toggle("is-on", e.target.checked);
+  pintarAceptarTarjeta();
+});
+$("btn-tarjeta-aceptar")?.addEventListener("click", () => {
+  if (!tarjetaColId || !tarjetaSeleccion.size) return;
+  asignarServiciosAColumna([...tarjetaSeleccion], tarjetaColId);
 });
 $("modal-columna")?.addEventListener("change", (e) => {
   if (e.target.dataset.colCampo === "marca") {

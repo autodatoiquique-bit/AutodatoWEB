@@ -591,19 +591,62 @@ button { font-family: inherit; cursor: pointer; }
   flex-direction: column;
   gap: 6px;
 }
-.tarjeta-lista button {
-  display: block;
+.tarjeta-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   width: 100%;
   text-align: left;
   border: 1px solid #eee;
   background: #f7f7f7;
   border-radius: 12px;
   padding: 10px 12px;
+  cursor: pointer;
 }
-.tarjeta-lista button strong,
-.tarjeta-lista button span { display: block; }
-.tarjeta-lista button span { margin-top: 3px; font-size: 0.75rem; color: #5e6c84; }
-.tarjeta-lista button:hover { background: #fff6bf; }
+.tarjeta-item input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.tarjeta-check {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 2px solid #c4c4c4;
+  border-radius: 5px;
+  background: #fff;
+  box-sizing: border-box;
+}
+.tarjeta-check::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 9px;
+  margin: 1px 0 0 5px;
+  border: solid #ffe14a;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+}
+.tarjeta-item.is-on {
+  background: #fff6bf;
+  border-color: #ead24a;
+}
+.tarjeta-item.is-on .tarjeta-check {
+  background: #111;
+  border-color: #111;
+}
+.tarjeta-item.is-on .tarjeta-check::after {
+  transform: rotate(45deg) scale(1);
+}
+.tarjeta-item-txt { min-width: 0; flex: 1; }
+.tarjeta-item-txt strong,
+.tarjeta-item-txt span { display: block; }
+.tarjeta-item-txt span { margin-top: 3px; font-size: 0.75rem; color: #5e6c84; }
+.tarjeta-item:hover { background: #fff6bf; }
+#btn-tarjeta-aceptar:disabled { opacity: 0.45; cursor: default; }
 
 .x {
   position: absolute;

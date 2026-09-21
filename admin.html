@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=png5" />
+  <link rel="stylesheet" href="admin.css?v=tarjeta1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -115,13 +115,14 @@
     <div class="modal-card modal-tarjeta">
       <button class="x" type="button" id="cerrar-tarjeta">×</button>
       <h3>Añadir tarjeta</h3>
-      <p class="muted">Elige un servicio que ya existe o crea uno nuevo para esta columna.</p>
+      <p class="muted">Marca uno o varios servicios y pulsa Aceptar para meterlos juntos a esta columna. También puedes crear uno nuevo.</p>
       <div class="btn-row">
         <button class="btn-primary" type="button" id="btn-tarjeta-nueva">Crear servicio nuevo</button>
         <button class="btn-line" type="button" id="btn-tarjeta-portada">Nueva portada</button>
       </div>
       <label class="field"><span>Buscar servicio</span><input id="tarjeta-busca" type="search" placeholder="Nombre del servicio" /></label>
       <div id="tarjeta-lista" class="tarjeta-lista"></div>
+      <button class="btn-primary btn-block" type="button" id="btn-tarjeta-aceptar" disabled>Aceptar</button>
     </div>
   </div>
 
@@ -148,6 +149,6 @@
   <script src="config.js"></script>
   <script src="nube.js?v=png3"></script>
   <script src="catalogo.js?v=perfil24"></script>
-  <script src="admin.js?v=png5"></script>
+  <script src="admin.js?v=tarjeta1"></script>
 </body>
 </html>
