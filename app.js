@@ -503,7 +503,7 @@ function armarHoldContacto() {
         holdContacto.timer = 0;
         if (navigator.vibrate) navigator.vibrate(20);
         abrirModalContacto(tipo);
-      }, 2000);
+      }, 1000);
     });
     el.addEventListener("pointermove", (e) => {
       if (!activo || !holdContacto.timer) return;
