@@ -648,6 +648,49 @@ button { font-family: inherit; cursor: pointer; }
   grid-template-columns: 1fr;
   max-width: 520px;
 }
+.editor-fields-portada {
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.2fr);
+  max-width: none;
+}
+.portada-defecto {
+  border: 2px solid var(--yellow);
+  background: #fff8d6;
+  border-radius: 16px;
+  padding: 16px 16px 12px;
+  margin: 8px 0 16px;
+}
+.portada-defecto.is-on {
+  box-shadow: 0 0 0 3px rgba(255, 208, 0, 0.35);
+}
+.portada-defecto h3 { margin: 0 0 6px; }
+.portada-defecto p { margin: 0 0 10px; font-size: 0.88rem; }
+.portada-thumb small {
+  display: block;
+  max-width: 72px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  color: #555;
+}
+.portada-thumb button { position: relative; }
+.thumb-defecto {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  margin: 0;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: var(--yellow);
+  color: #111;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
 .editor-col { min-width: 0; }
 .editor-col h3 { margin: 18px 0 6px; }
 .editor-col .field textarea { min-height: 80px; }
@@ -1094,6 +1137,7 @@ button { font-family: inherit; cursor: pointer; }
   .editor-portada { height: auto; }
   .editor-board { grid-template-columns: 1fr; }
   .editor-fields { overflow: visible; }
+  .editor-fields-portada { grid-template-columns: 1fr; }
   .portada-layout { grid-template-columns: 1fr; }
 }
 

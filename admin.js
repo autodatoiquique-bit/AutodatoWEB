@@ -687,9 +687,12 @@ function destinoVacio() {
   };
 }
 
-function modoVehiculosDe(s) {
+function modoVehiculosDe(s, opts) {
   const dest = normalizarVehiculos(s && s.vehiculos);
-  if (!dest.length) return { modo: s && s.id ? "todos" : "filas", dest: s && s.id ? [] : [destinoVacio()] };
+  if (!dest.length) {
+    if (opts && opts.portada) return { modo: "filas", dest: [destinoVacio()] };
+    return { modo: s && s.id ? "todos" : "filas", dest: s && s.id ? [] : [destinoVacio()] };
+  }
   if (dest.every((v) => v.modelo === "*")) return { modo: dest[0] && dest[0].marca ? "marca" : "todos", dest };
   return { modo: "filas", dest: dest.filter((v) => v.modelo !== "*") };
 }
@@ -729,8 +732,8 @@ function htmlFilaMarca(dest, i) {
   `;
 }
 
-function htmlVehiculosEditor(s, hint) {
-  const { modo, dest } = modoVehiculosDe(s);
+function htmlVehiculosEditor(s, hint, opts) {
+  const { modo, dest } = modoVehiculosDe(s, opts);
   const multi = modo === "todos" || modo === "marca";
   const filas = dest.filter((v) => v.modelo !== "*");
   const marcas = dest.filter((v) => v.modelo === "*");
@@ -757,11 +760,16 @@ function htmlVehiculosEditor(s, hint) {
   `;
 }
 
-function leerVehiculosEditor() {
-  if ($("e-veh-multi") && $("e-veh-multi").checked && $("e-veh-todos") && $("e-veh-todos").checked) return [];
-  if ($("e-veh-multi") && $("e-veh-multi").checked && $("e-veh-marca") && $("e-veh-marca").checked) {
+function leerVehiculosEditor(raiz) {
+  const box = raiz || document;
+  const multi = box.querySelector ? box.querySelector("#e-veh-multi") : $("e-veh-multi");
+  const todos = box.querySelector ? box.querySelector("#e-veh-todos") : $("e-veh-todos");
+  const marca = box.querySelector ? box.querySelector("#e-veh-marca") : $("e-veh-marca");
+  if (multi && multi.checked && todos && todos.checked) return [];
+  const q = (sel) => [...box.querySelectorAll(sel)];
+  if (multi && multi.checked && marca && marca.checked) {
     return normalizarVehiculos(
-      [...document.querySelectorAll(".veh-marca-linea")].map((row) => ({
+      q(".veh-marca-linea").map((row) => ({
         marca: row.querySelector("[data-marca-compat]") && row.querySelector("[data-marca-compat]").value,
         modelo: "*",
         combustible: row.querySelector("[data-marca-comb]") && row.querySelector("[data-marca-comb]").value,
@@ -771,7 +779,7 @@ function leerVehiculosEditor() {
     );
   }
   return normalizarVehiculos(
-    [...document.querySelectorAll(".veh-linea:not(.veh-marca-linea)")].map((row) => ({
+    q(".veh-linea:not(.veh-marca-linea)").map((row) => ({
       marca: row.querySelector("[data-compat-marca]") && row.querySelector("[data-compat-marca]").value,
       modelo: row.querySelector("[data-compat-modelo]") && row.querySelector("[data-compat-modelo]").value,
       combustible: row.querySelector("[data-compat-combustible]") && row.querySelector("[data-compat-combustible]").value,
@@ -942,9 +950,6 @@ function renderEditor() {
       <div class="editor-board">
         <div class="portada-phone editor-phone-sticky">
           <div class="home-screen portada-preview servicio-preview" id="servicio-preview">
-            <header class="home-logo">
-              <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
-            </header>
             <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}</div>
             ${htmlDotsMedia(lista.length, mediaEditIndex, s)}
             <div class="servicio-copy">
@@ -1288,7 +1293,7 @@ function renderEditorFotosModelos() {
 }
 
 function htmlNavPortadaFalsa() {
-  return `<nav class="portada-nav" aria-hidden="true">${["Ficha interactiva", "Ofertas", "Agendamiento", "Mantención preventiva"]
+  return `<nav class="portada-nav" aria-hidden="true">${["Ficha interactiva", "Promociones", "Agendamiento", "Mantención preventiva"]
     .map((txt) => `<span><i></i><b>${txt}</b></span>`)
     .join("")}</nav>`;
 }
@@ -1300,8 +1305,32 @@ function pintarFotoPortada() {
   img.style.cssText = estiloFotoPortada(s);
 }
 
+function asegurarPortadaDefecto() {
+  if (!(portadaSlides || []).length) return;
+  if (portadaSlides.some((x) => x.defecto)) return;
+  const generico = portadaSlides.find((x) => !normalizarVehiculos(x.vehiculos).length);
+  (generico || portadaSlides[0]).defecto = true;
+}
+
+function marcarPortadaDefecto(id) {
+  (portadaSlides || []).forEach((x) => {
+    x.defecto = x.id === id;
+  });
+}
+
+function resumenSlidePortada(s) {
+  if (s.defecto) return "Por defecto";
+  const dest = normalizarVehiculos(s.vehiculos);
+  if (!dest.length) return "Sin modelos";
+  return dest
+    .slice(0, 2)
+    .map((v) => (v.modelo === "*" ? `${v.marca} todos` : v.modelo))
+    .join(", ");
+}
+
 function renderEditorPortada() {
   $("stage").classList.remove("stage-board");
+  asegurarPortadaDefecto();
   const s = slideActual();
   const ofertas = serviciosCotizacion();
   $("stage").innerHTML = `
@@ -1310,7 +1339,7 @@ function renderEditorPortada() {
         <div class="editor-head-row">
           <div>
             <h2>Configurar portada</h2>
-            <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra foto, logo, botón y puntos.</p>
+            <p class="muted">El celular se queda a la vista. A la derecha eliges foto, modelos y cuál flyer es el de defecto.</p>
           </div>
           <button type="button" id="btn-volver-tablero" class="btn-line">Volver al tablero</button>
         </div>
@@ -1333,82 +1362,95 @@ function renderEditorPortada() {
             ${htmlNavPortadaFalsa()}
           </div>
         </div>
-        <div class="editor-fields editor-fields-single">
+        <div class="editor-fields editor-fields-portada">
           <div class="editor-col">
-      <div class="portada-thumbs" id="portada-thumbs">
-        ${portadaSlides
-          .map(
-            (x, i) =>
-              `<div class="portada-thumb">
-                <input type="number" min="1" max="${portadaSlides.length}" value="${i + 1}" data-orden-id="${x.id}" title="Orden" />
-                <button type="button" data-slide="${i}" class="${i === slideEditIndex ? "is-on" : ""}">${
-                x.foto ? `<img src="${x.foto}" alt="" />` : `<span class="ph">Foto ${i + 1}</span>`
-              }</button>
-              </div>`
-          )
-          .join("")}
-      </div>
-      <div class="btn-row">
-        <button class="btn-line" type="button" id="btn-slide-add">Agregar flyer</button>
-        ${portadaSlides.length > 1 ? `<button class="btn-soft" type="button" id="btn-slide-del">Quitar este</button>` : ""}
-      </div>
-          <label class="field">
-            <span>Foto de este flyer</span>
-            <input id="p-foto" type="file" accept="image/*" />
-          </label>
-          <label class="field">
-            <span>Zoom</span>
-            <input id="p-zoom" type="range" min="35" max="400" step="2" value="${Math.round(s.zoom * 100)}" />
-          </label>
-          <label class="field">
-            <span>Estirar ancho</span>
-            <input id="p-ancho" type="range" min="40" max="250" step="2" value="${Math.round(s.scale_x * 100)}" />
-          </label>
-          <label class="field">
-            <span>Estirar alto</span>
-            <input id="p-alto" type="range" min="40" max="250" step="2" value="${Math.round(s.scale_y * 100)}" />
-          </label>
-          <button class="btn-line btn-block" type="button" id="btn-reset-foto">Centrar y resetear recorte</button>
-          <h3>Logotipo</h3>
-          <button class="btn-line btn-block" type="button" id="btn-cambiar-logo-editor">Cambiar logotipo</button>
-          <label class="field">
-            <span>Zoom del logo</span>
-            <input id="p-logo-zoom" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_zoom * 100)}" />
-          </label>
-          <label class="field">
-            <span>Estirar logo (ancho)</span>
-            <input id="p-logo-ancho" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_scale_x * 100)}" />
-          </label>
-          <label class="field">
-            <span>Estirar logo (alto)</span>
-            <input id="p-logo-alto" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_scale_y * 100)}" />
-          </label>
-          <button class="btn-soft btn-block" type="button" id="btn-reset-logo">Centrar y resetear logo</button>
-          <p class="hint">Arrastra el logo de la barra amarilla para moverlo. Puede salir hacia afuera del marco.</p>
-          <p class="hint">Arrastra la foto para elegir el recorte. Baja el zoom si quieres verla completa. Arrastra cada botón o los puntos para ubicarlos.</p>
-          <label class="check">
-            <input id="p-boton" type="checkbox" ${s.mostrar_boton ? "checked" : ""} />
-            Mostrar botón Agregar al carrito
-          </label>
-          <div id="p-boton-campos" ${s.mostrar_boton ? "" : "hidden"}>
+            <div class="portada-thumbs" id="portada-thumbs">
+              ${portadaSlides
+                .map(
+                  (x, i) =>
+                    `<div class="portada-thumb">
+                      <input type="number" min="1" max="${portadaSlides.length}" value="${i + 1}" data-orden-id="${x.id}" title="Orden" />
+                      <button type="button" data-slide="${i}" class="${i === slideEditIndex ? "is-on" : ""}">${
+                        x.foto ? `<img src="${x.foto}" alt="" />` : `<span class="ph">Foto ${i + 1}</span>`
+                      }${x.defecto ? `<em class="thumb-defecto">Defecto</em>` : ""}</button>
+                      <small>${escapeText(resumenSlidePortada(x))}</small>
+                    </div>`
+                )
+                .join("")}
+            </div>
+            <div class="btn-row">
+              <button class="btn-line" type="button" id="btn-slide-add">Agregar flyer</button>
+              ${portadaSlides.length > 1 ? `<button class="btn-soft" type="button" id="btn-slide-del">Quitar este</button>` : ""}
+            </div>
             <label class="field">
-              <span>Qué oferta agrega al carrito</span>
-              <select id="p-servicio">
-                <option value="">Elige un servicio</option>
-                ${ofertas
-                  .map((o) => `<option value="${o.id}" ${o.id === s.servicio_id ? "selected" : ""}>${o.nombre}</option>`)
-                  .join("")}
-              </select>
+              <span>Foto de este flyer</span>
+              <input id="p-foto" type="file" accept="image/*" />
             </label>
             <label class="field">
-              <span>Texto del botón</span>
-              <input id="p-texto" type="text" value="${escapeAttr(s.btn_texto)}" />
+              <span>Zoom</span>
+              <input id="p-zoom" type="range" min="35" max="400" step="2" value="${Math.round(s.zoom * 100)}" />
             </label>
+            <label class="field">
+              <span>Estirar ancho</span>
+              <input id="p-ancho" type="range" min="40" max="250" step="2" value="${Math.round(s.scale_x * 100)}" />
+            </label>
+            <label class="field">
+              <span>Estirar alto</span>
+              <input id="p-alto" type="range" min="40" max="250" step="2" value="${Math.round(s.scale_y * 100)}" />
+            </label>
+            <button class="btn-line btn-block" type="button" id="btn-reset-foto">Centrar y resetear recorte</button>
+            <h3>Logotipo</h3>
+            <button class="btn-line btn-block" type="button" id="btn-cambiar-logo-editor">Cambiar logotipo</button>
+            <label class="field">
+              <span>Zoom del logo</span>
+              <input id="p-logo-zoom" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_zoom * 100)}" />
+            </label>
+            <label class="field">
+              <span>Estirar logo (ancho)</span>
+              <input id="p-logo-ancho" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_scale_x * 100)}" />
+            </label>
+            <label class="field">
+              <span>Estirar logo (alto)</span>
+              <input id="p-logo-alto" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_scale_y * 100)}" />
+            </label>
+            <button class="btn-soft btn-block" type="button" id="btn-reset-logo">Centrar y resetear logo</button>
+            <p class="hint">Arrastra el logo, la foto, el botón o los puntos sobre el celular.</p>
+            <label class="check">
+              <input id="p-boton" type="checkbox" ${s.mostrar_boton ? "checked" : ""} />
+              Mostrar botón Agregar al carrito
+            </label>
+            <div id="p-boton-campos" ${s.mostrar_boton ? "" : "hidden"}>
+              <label class="field">
+                <span>Qué oferta agrega al carrito</span>
+                <select id="p-servicio">
+                  <option value="">Elige un servicio</option>
+                  ${ofertas
+                    .map((o) => `<option value="${o.id}" ${o.id === s.servicio_id ? "selected" : ""}>${o.nombre}</option>`)
+                    .join("")}
+                </select>
+              </label>
+              <label class="field">
+                <span>Texto del botón</span>
+                <input id="p-texto" type="text" value="${escapeAttr(s.btn_texto)}" />
+              </label>
+            </div>
           </div>
-          ${htmlVehiculosEditor(s, "Este flyer se muestra solo a esos vehículos. Si dejas todos, lo ven todos, incluso quien aún no eligió auto. Así cada modelo puede tener su propia publicidad.")}
-          <div class="btn-row">
-            <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
-          </div>
+          <div class="editor-col">
+            <section class="portada-defecto ${s.defecto ? "is-on" : ""}">
+              <h3>Portada por defecto</h3>
+              <p>Si un auto no tiene portada propia, ve esta. También la ve quien aún no eligió vehículo.</p>
+              <label class="check">
+                <input id="p-defecto" type="checkbox" ${s.defecto ? "checked" : ""} />
+                Esta es la portada por defecto
+              </label>
+            </section>
+            <div id="p-modelos-box" ${s.defecto ? "hidden" : ""}>
+              ${htmlVehiculosEditor(s, "Elige para qué modelos va este flyer. Si dos flyers comparten el mismo modelo, ese auto verá las dos portadas y podrá deslizarlas.", { portada: true })}
+            </div>
+            <p class="hint" id="p-defecto-nota" ${s.defecto ? "" : "hidden"}>Esta portada no se asigna a un modelo: cubre a todos los autos que no tienen flyer propio.</p>
+            <div class="btn-row">
+              <button class="btn-primary" type="button" id="btn-guardar-portada">Guardar portada</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1428,7 +1470,9 @@ function leerEditorPortada() {
   if ($("p-logo-zoom")) portadaUi.logo_zoom = Number($("p-logo-zoom").value) / 100;
   if ($("p-logo-ancho")) portadaUi.logo_scale_x = Number($("p-logo-ancho").value) / 100;
   if ($("p-logo-alto")) portadaUi.logo_scale_y = Number($("p-logo-alto").value) / 100;
-  if ($("e-veh-multi") || document.querySelector(".veh-linea")) s.vehiculos = leerVehiculosEditor();
+  if ($("p-defecto")) s.defecto = $("p-defecto").checked;
+  if (s.defecto) marcarPortadaDefecto(s.id);
+  else s.vehiculos = leerVehiculosEditor($("p-modelos-box") || document);
 }
 
 function pintarLogoPortada() {
@@ -1608,6 +1652,12 @@ async function guardarEditorPortada() {
   const sinOferta = portadaSlides.filter((s) => s.mostrar_boton && !s.servicio_id);
   if (sinOferta.length) {
     alert("Si el botón está visible, elige qué oferta agrega al carrito.");
+    return;
+  }
+  asegurarPortadaDefecto();
+  const actual = slideActual();
+  if (actual && !actual.defecto && !normalizarVehiculos(actual.vehiculos).length) {
+    alert("Esta portada necesita un modelo, o márcala como portada por defecto.");
     return;
   }
   portadaSlides.forEach((s, i) => {
@@ -2035,6 +2085,12 @@ $("stage").addEventListener("change", async (e) => {
   }
   if (e.target.id === "p-boton") {
     slideActual().mostrar_boton = e.target.checked;
+    renderEditorPortada();
+  }
+  if (e.target.id === "p-defecto") {
+    leerEditorPortada();
+    if (e.target.checked) marcarPortadaDefecto(slideActual().id);
+    else slideActual().defecto = false;
     renderEditorPortada();
   }
   if (e.target.dataset.colCampo === "marca") {

@@ -544,7 +544,7 @@ function serviciosCotizacion() {
 function etiquetaCanales(s) {
   const c = (s && s.canales) || {};
   const partes = [];
-  if (c.ofertas) partes.push("Ofertas");
+  if (c.ofertas) partes.push("Promociones");
   if (c.mantencion) partes.push("Mantención");
   if (c.diagnostico) partes.push("Diagnóstico");
   return partes.join(" · ") || "Sin menú";
@@ -699,6 +699,7 @@ const PORTADA_DEFECTO = [
     pos_x: 50,
     pos_y: 50,
     orden: 0,
+    defecto: true,
   },
 ];
 
@@ -783,28 +784,44 @@ function normalizarSlide(s, i) {
     off_x: clampNum(s && s.off_x, -160, 160, 0),
     off_y: clampNum(s && s.off_y, -160, 160, 0),
     orden: Number(s && s.orden) || i,
+    defecto: Boolean(s && (s.defecto === true || s.defecto === "true")),
     vehiculos: normalizarVehiculos(s && s.vehiculos),
     ...normalizarUi(s),
   };
 }
 
 function slideAplicaAVehiculo(slide, vehiculo) {
-  return servicioAplicaAVehiculo({ vehiculos: slide && slide.vehiculos }, vehiculo);
+  const destinos = normalizarVehiculos(slide && slide.vehiculos);
+  if (!destinos.length || !vehiculo || !vehiculo.marca || !vehiculo.modelo) return false;
+  return destinos.some((v) => {
+    if (v.marca !== vehiculo.marca) return false;
+    if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
+    if (!anioEnRango(vehiculo.ano, v)) return false;
+    return combustibleCoincide(v.combustible, vehiculo.combustible);
+  });
+}
+
+function portadasDefectoDe(lista) {
+  const base = lista || [];
+  const marcadas = base.filter((s) => s.defecto);
+  if (marcadas.length) return marcadas;
+  const genericos = base.filter((s) => !normalizarVehiculos(s.vehiculos).length);
+  return genericos.length ? genericos : base.slice(0, 1);
 }
 
 function slidesPortadaPara(vehiculo) {
   const todos = (portadaSlides || []).filter((s) => s.foto);
   const base = todos.length ? todos : PORTADA_DEFECTO.map(normalizarSlide);
-  const genericos = base.filter((s) => !normalizarVehiculos(s.vehiculos).length);
+  const reserva = portadasDefectoDe(base);
   if (!vehiculo || !vehiculo.marca || !vehiculo.modelo || !vehiculo.ano) {
-    return genericos.length ? genericos : base;
+    return reserva.length ? reserva : base;
   }
   const propios = base.filter((s) => {
+    if (s.defecto) return false;
     const dest = normalizarVehiculos(s.vehiculos);
     return dest.length && slideAplicaAVehiculo(s, vehiculo);
   });
-  const lista = [...propios, ...genericos];
-  return lista.length ? lista : genericos.length ? genericos : base;
+  return propios.length ? propios : reserva;
 }
 
 function encajarVehiculoTaller(raw) {
