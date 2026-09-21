@@ -853,17 +853,35 @@ function mediaActual() {
 }
 
 function htmlMediaThumbs(lista) {
+  const iPortada = lista.findIndex((m) => m.tipo === "foto");
   return lista
     .map((m, i) => {
       const cuerpo =
         m.tipo === "video"
           ? `<video src="${m.src}" muted playsinline></video><span class="ph">Video</span>`
           : `<img src="${m.src}" alt="" />`;
+      const esPortada = i === iPortada;
       return `<div class="portada-thumb">
-        <button type="button" data-media="${i}" class="${i === mediaEditIndex ? "is-on" : ""}">${cuerpo}</button>
+        <input type="number" min="1" max="${lista.length}" value="${i + 1}" data-media-orden="${i}" title="Orden" />
+        <button type="button" data-media="${i}" class="${i === mediaEditIndex ? "is-on" : ""}">${cuerpo}${
+          esPortada ? `<em class="thumb-defecto">Portada</em>` : ""
+        }</button>
+        <small>${m.tipo === "video" ? "Video" : esPortada ? "Foto de listado" : `Foto ${i + 1}`}</small>
       </div>`;
     })
     .join("");
+}
+
+function reordenarMedia(from, dest) {
+  const lista = mediaEditando();
+  if (!lista.length) return;
+  const origen = Math.max(0, Math.min(lista.length - 1, Number(from)));
+  const destino = Math.max(0, Math.min(lista.length - 1, Number(dest)));
+  if (origen === destino) return;
+  const [item] = lista.splice(origen, 1);
+  lista.splice(destino, 0, item);
+  mediaEditIndex = destino;
+  aplicarMediaServicio(editando, lista);
 }
 
 function htmlPreviewMedia(m) {
@@ -1043,11 +1061,13 @@ function renderEditor() {
           </div>
           <div class="editor-col">
             <h3>Fotos y videos</h3>
+            <p class="hint">El número 1 es la foto de portada: esa se ve en el listado de Promociones, Mantención y Diagnóstico.</p>
             <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
             <div class="btn-row">
               <button class="btn-line" type="button" id="btn-add-foto">Agregar foto</button>
               <button class="btn-line" type="button" id="btn-add-video">Agregar video</button>
             </div>
+            ${m && m.tipo === "foto" && lista.filter((x) => x.tipo === "foto").length > 1 ? `<button class="btn-primary btn-block" type="button" id="btn-media-portada">Usar esta como portada</button>` : ""}
             ${lista.length ? `<button class="btn-soft btn-block" type="button" id="btn-del-media">Quitar este</button>` : ""}
             <input id="e-foto" type="file" accept="image/*" hidden />
             <input id="e-galeria" type="file" accept="image/*" multiple hidden />
@@ -2042,6 +2062,14 @@ $("stage").addEventListener("click", (e) => {
     $("e-video-file")?.click();
     return;
   }
+  if (t.id === "btn-media-portada") {
+    leerEditor();
+    const lista = mediaEditando();
+    if (mediaEditIndex < 0 || !lista[mediaEditIndex] || lista[mediaEditIndex].tipo !== "foto") return;
+    reordenarMedia(mediaEditIndex, 0);
+    renderEditor();
+    return;
+  }
   if (t.id === "btn-del-media") {
     leerEditor();
     const lista = mediaEditando();
@@ -2153,6 +2181,14 @@ $("stage").addEventListener("input", (e) => {
 });
 
 $("stage").addEventListener("change", async (e) => {
+  if (e.target.dataset.mediaOrden != null) {
+    leerEditor();
+    const from = Number(e.target.dataset.mediaOrden);
+    const dest = Math.min(mediaEditando().length, Math.max(1, Number(e.target.value))) - 1;
+    reordenarMedia(from, dest);
+    renderEditor();
+    return;
+  }
   if (e.target.dataset.ordenId) {
     leerEditorPortada();
     const id = e.target.dataset.ordenId;

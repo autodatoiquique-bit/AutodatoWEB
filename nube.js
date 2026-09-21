@@ -76,6 +76,7 @@ async function nubeGuardarCatalogoCanales(lista) {
       tiempo_min: Number(s.tiempo_min) > 0 ? Number(s.tiempo_min) : null,
       mano_obra: Number(s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
       insumos: Array.isArray(s.insumos) ? s.insumos : [],
+      media: Array.isArray(s.media) ? s.media : [],
     };
   });
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
@@ -140,6 +141,7 @@ async function nubeLeerCatalogo() {
       if (extra[s.id].tiempo_min != null) s.tiempo_min = Number(extra[s.id].tiempo_min) || null;
       if (extra[s.id].mano_obra != null) s.mano_obra = Number(extra[s.id].mano_obra) || 0;
       if (Array.isArray(extra[s.id].insumos)) s.insumos = extra[s.id].insumos;
+      if (Array.isArray(extra[s.id].media) && extra[s.id].media.length) s.media = extra[s.id].media;
     }
     return s;
   });
