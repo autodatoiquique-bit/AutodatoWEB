@@ -1123,6 +1123,12 @@ async function borrarServicio() {
   }
 }
 
+function imagenEsTransparente(file) {
+  const tipo = String((file && file.type) || "").toLowerCase();
+  const nombre = String((file && file.name) || "").toLowerCase();
+  return tipo === "image/png" || tipo === "image/webp" || nombre.endsWith(".png") || nombre.endsWith(".webp");
+}
+
 function leerImagen(file, max = 1400) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -1130,13 +1136,22 @@ function leerImagen(file, max = 1400) {
     img.onload = () => {
       const scale = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement("canvas");
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.width = Math.max(1, Math.round(img.width * scale));
+      c.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = c.getContext("2d");
+      const conservar = imagenEsTransparente(file);
+      if (!conservar) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, c.width, c.height);
+      }
+      ctx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      resolve(c.toDataURL("image/jpeg", 0.82));
+      resolve(conservar ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.82));
     };
-    img.onerror = () => reject(new Error("No se pudo leer la imagen"));
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("No se pudo leer la imagen"));
+    };
     img.src = url;
   });
 }

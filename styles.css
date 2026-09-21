@@ -166,6 +166,7 @@ button { font-family: inherit; cursor: pointer; }
 .perfil-auto[hidden] { display: none !important; }
 .perfil-auto .kpi-cart {
   overflow: hidden;
+  background: #fff;
 }
 .perfil-auto img {
   width: 100%;
@@ -191,7 +192,7 @@ button { font-family: inherit; cursor: pointer; }
   height: 120px;
   object-fit: cover;
   border-radius: 18px;
-  background: #111;
+  background: #fff;
 }
 .kpi-stack {
   position: fixed;

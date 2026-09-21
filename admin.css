@@ -179,12 +179,12 @@ button { font-family: inherit; cursor: pointer; }
   margin: 0 -8px 8px;
   min-height: 188px;
   max-height: 188px;
-  background: #c5c8ce;
+  background: #fff;
 }
 .kanban-apex-foto {
   height: 188px;
   min-height: 188px;
-  background: #c5c8ce;
+  background: #fff;
 }
 .kanban-apex-foto img {
   width: 100%;
@@ -472,7 +472,7 @@ button { font-family: inherit; cursor: pointer; }
   height: 176px;
   margin: 14px auto 0;
   border-radius: 14px;
-  background: #e8eaed;
+  background: #fff;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -788,10 +788,10 @@ button { font-family: inherit; cursor: pointer; }
   aspect-ratio: 1;
   border-radius: 12px;
   overflow: hidden;
-  background: #111;
+  background: #fff;
   display: grid;
   place-items: center;
-  color: #bbb;
+  color: #888;
   font-size: 0.75rem;
 }
 .foto-modelo-img img {

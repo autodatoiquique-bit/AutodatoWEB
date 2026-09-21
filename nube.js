@@ -197,9 +197,11 @@ async function nubeGuardarCatalogo(lista) {
 async function nubeSubirImagen(dataUrl) {
   const sb = clienteNube();
   const blob = await (await fetch(dataUrl)).blob();
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const esPng = String(dataUrl).startsWith("data:image/png") || blob.type === "image/png";
+  const ext = esPng ? "png" : "jpg";
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await sb.storage.from("servicios").upload(path, blob, {
-    contentType: "image/jpeg",
+    contentType: esPng ? "image/png" : "image/jpeg",
     upsert: true,
   });
   if (error) throw error;
@@ -261,6 +263,7 @@ function extraPortada(s) {
     dots_x: Number(s.dots_x) || 50,
     dots_y: Number(s.dots_y) || 68,
     vehiculos: Array.isArray(s.vehiculos) ? s.vehiculos : [],
+    defecto: Boolean(s.defecto),
   };
 }
 
