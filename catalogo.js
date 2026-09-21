@@ -720,6 +720,7 @@ let portadaUi = {
   logo_off_x: 0,
   logo_off_y: 0,
   banner_h: 72,
+  ico_s: 46,
 };
 
 function clampNum(n, min, max, def) {
@@ -743,6 +744,7 @@ function normalizarUi(s) {
     logo_off_x: clampNum(s && s.logo_off_x, -120, 120, 0),
     logo_off_y: clampNum(s && s.logo_off_y, -120, 120, 0),
     banner_h: clampNum(s && s.banner_h, 40, 180, 72),
+    ico_s: clampNum(s && s.ico_s, 28, 96, 46),
   };
 }
 
@@ -752,6 +754,23 @@ function logoHref() {
 
 function bannerAltoPortada(ui) {
   return clampNum(ui && ui.banner_h, 40, 180, 72);
+}
+
+function icoTamanoPortada(ui) {
+  return clampNum(ui && ui.ico_s, 28, 96, 46);
+}
+
+function estiloIcoPortada(ui) {
+  const n = icoTamanoPortada(ui);
+  return `width:${n}px;height:${n}px`;
+}
+
+function aplicarIcosPortada() {
+  const n = icoTamanoPortada(portadaUi);
+  document.querySelectorAll(".home-ico").forEach((el) => {
+    el.style.width = `${n}px`;
+    el.style.height = `${n}px`;
+  });
 }
 
 function aplicarBannerPortada() {
@@ -779,6 +798,7 @@ function aplicarLogos() {
     if (img.closest(".home-logo")) img.style.cssText = estilo;
   });
   aplicarBannerPortada();
+  aplicarIcosPortada();
 }
 
 function normalizarSlide(s, i) {
@@ -890,11 +910,11 @@ function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {
       : "";
   const hold = (tipo) => (arrastrable ? "" : ` data-hold="${tipo}"`);
   return `
-    <a class="home-ico home-dir" href="${mapsHref()}" target="_blank" rel="noopener" title="Google Maps" style="left:${ui.dir_x}%;top:${ui.dir_y}%"${drag("dir")}${hold("dir")}>
-      <img src="imagenes/icono-maps.png" alt="Google Maps" />
+    <a class="home-ico home-dir" href="${mapsHref()}" target="_blank" rel="noopener" title="Google Maps" style="left:${ui.dir_x}%;top:${ui.dir_y}%;${estiloIcoPortada(ui)}"${drag("dir")}${hold("dir")}>
+      <img src="imagenes/icono-maps.png?v=alfa1" alt="Google Maps" />
     </a>
-    <a class="home-ico home-wa" href="${waHref()}" target="_blank" rel="noopener" title="WhatsApp" style="left:${ui.wa_x}%;top:${ui.wa_y}%"${drag("wa")}${hold("wa")}>
-      <img src="imagenes/icono-whatsapp.png" alt="WhatsApp" />
+    <a class="home-ico home-wa" href="${waHref()}" target="_blank" rel="noopener" title="WhatsApp" style="left:${ui.wa_x}%;top:${ui.wa_y}%;${estiloIcoPortada(ui)}"${drag("wa")}${hold("wa")}>
+      <img src="imagenes/icono-whatsapp.png?v=alfa1" alt="WhatsApp" />
     </a>
     ${dots}`;
 }
@@ -1025,15 +1045,35 @@ function costoInsumosDe(s) {
   return (s && s.insumos ? s.insumos : []).reduce((acc, ins) => acc + (Number(ins.costo) || 0), 0);
 }
 
-function valorNormalDe(s) {
+const IVA_TASA = 0.19;
+
+function netoServicioDe(s) {
   const labor = Number(s && s.mano_obra) || 0;
   const insumos = (s && s.insumos ? s.insumos : []).reduce((acc, ins) => acc + ventaInsumo(ins), 0);
   if (labor > 0 || insumos > 0) return labor + insumos;
+  return 0;
+}
+
+function ivaDeNeto(neto) {
+  return Math.round((Number(neto) || 0) * IVA_TASA);
+}
+
+function totalServicioDe(s) {
+  const neto = netoServicioDe(s);
+  if (neto > 0) return neto + ivaDeNeto(neto);
+  return Number(s && s.precio) || 0;
+}
+
+function valorNormalDe(s) {
+  const total = totalServicioDe(s);
+  if (total > 0) return total;
   return Number(s && s.precio) || 0;
 }
 
 function utilidadDe(precio, s) {
-  return (Number(precio) || 0) - costoInsumosDe(s);
+  const neto = netoServicioDe(s);
+  const base = neto > 0 ? neto : Number(precio) || 0;
+  return base - costoInsumosDe(s);
 }
 
 function tieneOferta(item) {

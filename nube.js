@@ -263,6 +263,7 @@ function extraPortada(s) {
     dots_x: Number(s.dots_x) || 50,
     dots_y: Number(s.dots_y) || 68,
     banner_h: Number(s.banner_h) || 72,
+    ico_s: Number(s.ico_s) || 46,
     vehiculos: Array.isArray(s.vehiculos) ? s.vehiculos : [],
     defecto: Boolean(s.defecto),
   };

@@ -318,7 +318,8 @@ function cerrarModalColumna() {
 }
 
 function htmlKpisOferta(s) {
-  const costo = costoInsumosDe(s);
+  const neto = netoServicioDe(s);
+  const iva = ivaDeNeto(neto);
   const normal = valorNormalDe(s);
   const oferta = Number(s && s.precio_oferta) > 0 ? Number(s.precio_oferta) : null;
   const uN = utilidadDe(normal, s);
@@ -326,7 +327,9 @@ function htmlKpisOferta(s) {
   return `
     <div class="kpi-oferta">
       <div>
-        <span>Valor normal</span>
+        <span>Neto ${clp(neto)}</span>
+        <span>IVA 19% ${clp(iva)}</span>
+        <span>Total</span>
         <strong>${clp(normal)}</strong>
         <em class="${uN < 0 ? "is-bad" : ""}">Utilidad ${clp(uN)}</em>
       </div>
@@ -387,7 +390,16 @@ function pintarModalOferta() {
   if (!$("oferta-kpis") || !ofertaDraft) return;
   $("oferta-kpis").innerHTML = htmlKpisOferta(ofertaDraft);
   if ($("o-insumos")) $("o-insumos").innerHTML = htmlFilasInsumos(ofertaDraft.insumos);
-  if ($("o-normal")) $("o-normal").textContent = clp(valorNormalDe(ofertaDraft));
+  pintarDesgloseIva(ofertaDraft);
+}
+
+function pintarDesgloseIva(s) {
+  const neto = netoServicioDe(s);
+  const iva = ivaDeNeto(neto);
+  const total = valorNormalDe(s);
+  if ($("o-neto")) $("o-neto").textContent = clp(neto);
+  if ($("o-iva")) $("o-iva").textContent = clp(iva);
+  if ($("o-normal")) $("o-normal").textContent = clp(total);
 }
 
 function abrirModalOferta(base) {
@@ -885,7 +897,7 @@ function htmlCalculadoraServicio(s) {
   return `
     <fieldset class="canales calc-box">
       <legend>Calculadora del servicio</legend>
-      <p class="hint">Arma el valor normal: mano de obra más cada insumo con su costo y el porcentaje de margen.</p>
+      <p class="hint">Mano de obra e insumos van en neto. La calculadora suma neto, IVA 19% y total.</p>
       <div id="e-kpis">${htmlKpisOferta(dummy)}</div>
       <div class="grid-2">
         <label class="field"><span>Mano de obra</span><input id="e-mano" type="number" min="0" step="1000" value="${dummy.mano_obra || ""}" /></label>
@@ -1417,6 +1429,10 @@ function renderEditorPortada() {
               <span>Alto del banner amarillo</span>
               <input id="p-banner-alto" type="range" min="40" max="160" step="2" value="${bannerAltoPortada(portadaUi)}" />
             </label>
+            <label class="field">
+              <span>Tamaño de Maps y WhatsApp</span>
+              <input id="p-ico-tamano" type="range" min="28" max="96" step="1" value="${icoTamanoPortada(portadaUi)}" />
+            </label>
             <button class="btn-soft btn-block" type="button" id="btn-reset-logo">Centrar y resetear logo</button>
             <p class="hint">Arrastra el logo, la foto, el botón o los puntos sobre el celular.</p>
             <label class="check">
@@ -1475,6 +1491,7 @@ function leerEditorPortada() {
   if ($("p-logo-ancho")) portadaUi.logo_scale_x = Number($("p-logo-ancho").value) / 100;
   if ($("p-logo-alto")) portadaUi.logo_scale_y = Number($("p-logo-alto").value) / 100;
   if ($("p-banner-alto")) portadaUi.banner_h = Number($("p-banner-alto").value);
+  if ($("p-ico-tamano")) portadaUi.ico_s = Number($("p-ico-tamano").value);
   if ($("p-defecto")) s.defecto = $("p-defecto").checked;
   if (s.defecto) marcarPortadaDefecto(s.id);
   else s.vehiculos = leerVehiculosEditor($("p-modelos-box") || document);
@@ -1914,6 +1931,7 @@ $("stage").addEventListener("click", (e) => {
     portadaUi.logo_off_x = 0;
     portadaUi.logo_off_y = 0;
     portadaUi.banner_h = 72;
+    portadaUi.ico_s = 46;
     renderEditorPortada();
     return;
   }
@@ -2041,6 +2059,10 @@ $("stage").addEventListener("input", (e) => {
   if (e.target.id === "p-banner-alto") {
     portadaUi.banner_h = Number(e.target.value);
     aplicarBannerPortada();
+  }
+  if (e.target.id === "p-ico-tamano") {
+    portadaUi.ico_s = Number(e.target.value);
+    aplicarIcosPortada();
   }
   if (e.target.id === "e-zoom") {
     const m = mediaActual();
@@ -2251,7 +2273,7 @@ function refrescarKpisOfertaVivo() {
   if (!ofertaDraft) return;
   leerModalOferta();
   if ($("oferta-kpis")) $("oferta-kpis").innerHTML = htmlKpisOferta(ofertaDraft);
-  if ($("o-normal")) $("o-normal").textContent = clp(valorNormalDe(ofertaDraft));
+  pintarDesgloseIva(ofertaDraft);
   document.querySelectorAll("#o-insumos .insumo-row").forEach((row, i) => {
     const ins = ofertaDraft.insumos[i];
     const span = row.querySelector("span");

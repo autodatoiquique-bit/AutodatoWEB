@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=png3" />
+  <link rel="stylesheet" href="admin.css?v=png4" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -97,12 +97,16 @@
         <label class="field"><span>Tiempo aproximado</span><select id="o-tiempo"></select></label>
       </div>
       <h4 class="oferta-h">Insumos</h4>
-      <p class="muted">Costo real y el porcentaje que le sumas. Ese margen entra al valor normal.</p>
+      <p class="muted">Mano de obra e insumos van en neto. Abajo se suma el neto, el IVA 19% y el total.</p>
       <div class="insumo-head"><span>Insumo</span><span>Costo</span><span>%</span><span>Venta</span><span></span></div>
       <div id="o-insumos"></div>
       <button class="btn-line btn-block" type="button" id="btn-add-insumo">Agregar insumo</button>
       <label class="field"><span>Precio oferta (opcional)</span><input id="o-oferta" type="number" min="0" step="1000" /></label>
-      <p class="muted">Valor normal: <strong id="o-normal">$0</strong></p>
+      <div class="calc-totales">
+        <div><span>Neto</span><strong id="o-neto">$0</strong></div>
+        <div><span>IVA 19%</span><strong id="o-iva">$0</strong></div>
+        <div><span>Total</span><strong id="o-normal">$0</strong></div>
+      </div>
       <button class="btn-primary btn-block" type="button" id="btn-guardar-oferta">Aplicar al servicio</button>
     </div>
   </div>
@@ -142,8 +146,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="nube.js?v=png2"></script>
-  <script src="catalogo.js?v=perfil22"></script>
-  <script src="admin.js?v=png3"></script>
+  <script src="nube.js?v=png3"></script>
+  <script src="catalogo.js?v=perfil23"></script>
+  <script src="admin.js?v=png4"></script>
 </body>
 </html>
