@@ -899,7 +899,7 @@ button { font-family: inherit; cursor: pointer; }
   left: 0;
   right: 0;
   z-index: 7;
-  height: 72px;
+  height: var(--banner-h, 72px);
   overflow: visible;
   pointer-events: none;
   background: var(--yellow);
@@ -1006,6 +1006,7 @@ button { font-family: inherit; cursor: pointer; }
 .home-add,
 .portada-btn-drag,
 .home-pill,
+.home-ico,
 .home-dots {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -1051,7 +1052,29 @@ button { font-family: inherit; cursor: pointer; }
   color: #111;
   white-space: nowrap;
 }
-.home-dir svg { width: 15px; height: 15px; fill: #111; }
+.home-ico {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-decoration: none;
+  cursor: grab;
+  touch-action: none;
+}
+.home-ico img {
+  width: 42px;
+  height: 42px;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+.home-wa img {
+  filter: drop-shadow(0 0 0.6px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 3px 8px rgba(0, 0, 0, 0.3));
+}
 .home-dots {
   display: flex;
   align-items: center;

@@ -426,13 +426,87 @@ function armarCarruselPortada(nReal) {
   window.addEventListener("resize", window._portadaResize);
 }
 
+let holdContacto = { tipo: "", held: false, timer: 0 };
+
+function textoContacto(tipo) {
+  if (tipo === "wa") return waMostrar();
+  return leerTaller().direccion;
+}
+
+function copiarTextoPlano(texto) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(texto);
+  }
+  const t = document.createElement("textarea");
+  t.value = texto;
+  t.setAttribute("readonly", "");
+  t.style.position = "fixed";
+  t.style.left = "-9999px";
+  document.body.appendChild(t);
+  t.select();
+  document.execCommand("copy");
+  t.remove();
+  return Promise.resolve();
+}
+
+function cerrarModalContacto() {
+  if ($("modal-contacto")) $("modal-contacto").hidden = true;
+  if ($("contacto-copiar")) $("contacto-copiar").textContent = "Copiar";
+}
+
+function abrirModalContacto(tipo) {
+  const modal = $("modal-contacto");
+  const texto = $("contacto-texto");
+  if (!modal || !texto) return;
+  holdContacto.tipo = tipo;
+  texto.textContent = textoContacto(tipo);
+  if ($("contacto-copiar")) $("contacto-copiar").textContent = "Copiar";
+  modal.hidden = false;
+}
+
+function armarHoldContacto() {
+  document.querySelectorAll("[data-hold]").forEach((el) => {
+    const tipo = el.dataset.hold;
+    let sx = 0;
+    let sy = 0;
+    const cancelar = () => {
+      clearTimeout(holdContacto.timer);
+      holdContacto.timer = 0;
+    };
+    el.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      holdContacto.held = false;
+      sx = e.clientX;
+      sy = e.clientY;
+      cancelar();
+      holdContacto.timer = window.setTimeout(() => {
+        holdContacto.held = true;
+        abrirModalContacto(tipo);
+      }, 2000);
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!holdContacto.timer) return;
+      if (Math.abs(e.clientX - sx) > 12 || Math.abs(e.clientY - sy) > 12) cancelar();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => el.addEventListener(ev, cancelar));
+    el.addEventListener("click", (e) => {
+      if (holdContacto.held) {
+        e.preventDefault();
+        e.stopPropagation();
+        holdContacto.held = false;
+      }
+    });
+    el.addEventListener("contextmenu", (e) => e.preventDefault());
+  });
+}
+
 function renderPortada() {
   const lista = slidesPortadaPara(state.vehiculo);
   const loop = lista.length > 1;
   const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
   $("stage").innerHTML = `
     <section class="home-screen">
-      <header class="home-logo">
+      <header class="home-logo" style="height:${bannerAltoPortada(portadaUi)}px">
         <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
       </header>
       <div class="home-slides" id="home-slides">${pista.map(htmlSlidePortada).join("")}</div>
@@ -440,6 +514,7 @@ function renderPortada() {
     </section>
   `;
   armarCarruselPortada(lista.length);
+  armarHoldContacto();
   pintarChipAuto();
 }
 
@@ -1556,6 +1631,7 @@ function cerrar() {
   $("modal-quitar").hidden = true;
   $("modal-informe").hidden = true;
   if ($("modal-auto")) $("modal-auto").hidden = true;
+  cerrarModalContacto();
   quitarPendiente = null;
   marcarMenu();
   syncSeguirKpi();
@@ -1780,6 +1856,25 @@ function pistaMenuDesplazable() {
   const fin = () => menu.classList.remove("menu-hint");
   menu.addEventListener("animationend", fin, { once: true });
   menu.addEventListener("pointerdown", fin, { once: true });
+}
+
+if ($("modal-contacto")) {
+  $("modal-contacto").addEventListener("click", (e) => {
+    if (e.target.id === "modal-contacto" || e.target.closest("[data-cerrar-contacto]")) {
+      cerrarModalContacto();
+    }
+  });
+}
+if ($("contacto-copiar")) {
+  $("contacto-copiar").addEventListener("click", async () => {
+    const texto = textoContacto(holdContacto.tipo);
+    try {
+      await copiarTextoPlano(texto);
+      $("contacto-copiar").textContent = "Copiado";
+    } catch (err) {
+      alert("No se pudo copiar. Selecciona el texto y cópialo a mano.");
+    }
+  });
 }
 
 async function arrancar() {

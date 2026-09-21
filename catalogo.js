@@ -719,6 +719,7 @@ let portadaUi = {
   logo_scale_y: 1,
   logo_off_x: 0,
   logo_off_y: 0,
+  banner_h: 72,
 };
 
 function clampNum(n, min, max, def) {
@@ -741,11 +742,23 @@ function normalizarUi(s) {
     logo_scale_y: clampNum(s && s.logo_scale_y, 0.3, 3, 1),
     logo_off_x: clampNum(s && s.logo_off_x, -120, 120, 0),
     logo_off_y: clampNum(s && s.logo_off_y, -120, 120, 0),
+    banner_h: clampNum(s && s.banner_h, 40, 180, 72),
   };
 }
 
 function logoHref() {
   return (portadaUi && portadaUi.logo) || LOGO_DEFECTO;
+}
+
+function bannerAltoPortada(ui) {
+  return clampNum(ui && ui.banner_h, 40, 180, 72);
+}
+
+function aplicarBannerPortada() {
+  const h = bannerAltoPortada(portadaUi);
+  document.querySelectorAll(".home-logo").forEach((el) => {
+    el.style.height = `${h}px`;
+  });
 }
 
 function estiloLogoPortada(ui) {
@@ -765,6 +778,7 @@ function aplicarLogos() {
     img.src = src;
     if (img.closest(".home-logo")) img.style.cssText = estilo;
   });
+  aplicarBannerPortada();
 }
 
 function normalizarSlide(s, i) {
@@ -874,19 +888,13 @@ function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {
           (_, i) => `<i class="${i === dotsOn ? "on" : ""}"></i>`
         ).join("")}</div>`
       : "";
+  const hold = (tipo) => (arrastrable ? "" : ` data-hold="${tipo}"`);
   return `
-    <a class="home-pill home-dir" href="${mapsHref()}" target="_blank" rel="noopener" style="left:${ui.dir_x}%;top:${ui.dir_y}%"${drag("dir")}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="#111"/></svg>
-      ${leerTaller().direccion}
+    <a class="home-ico home-dir" href="${mapsHref()}" target="_blank" rel="noopener" title="Google Maps" style="left:${ui.dir_x}%;top:${ui.dir_y}%"${drag("dir")}${hold("dir")}>
+      <img src="imagenes/icono-maps.png" alt="Google Maps" />
     </a>
-    <a class="home-pill home-wa" href="${waHref()}" target="_blank" rel="noopener" style="left:${ui.wa_x}%;top:${ui.wa_y}%"${drag("wa")}>
-      <span class="wa-logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <path fill="#25D366" d="M12 2a10 10 0 0 0-8.7 14.8L2 22l5.3-1.3A10 10 0 1 0 12 2z"/>
-          <path fill="#fff" d="M16.4 14.1c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.5.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 0 1-1.9-1.2 7.2 7.2 0 0 1-1.3-1.6c-.1-.2 0-.4.1-.5l.4-.4.1-.3c0-.1 0-.3 0-.4s-.5-1.3-.7-1.8-.4-.4-.5-.4h-.4c-.1 0-.4.1-.6.3s-.8.8-.8 1.9.8 2.2.9 2.4 1.6 2.6 4 3.5c.6.2 1 .4 1.4.5.6.2 1.1.2 1.5.1.5-.1 1.4-.6 1.6-1.1s.2-1 .1-1.1-.2-.2-.4-.3z"/>
-        </svg>
-      </span>
-      WhatsApp ${waMostrar()}
+    <a class="home-ico home-wa" href="${waHref()}" target="_blank" rel="noopener" title="WhatsApp" style="left:${ui.wa_x}%;top:${ui.wa_y}%"${drag("wa")}${hold("wa")}>
+      <img src="imagenes/icono-whatsapp.png" alt="WhatsApp" />
     </a>
     ${dots}`;
 }

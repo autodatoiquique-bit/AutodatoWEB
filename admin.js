@@ -1347,7 +1347,7 @@ function renderEditorPortada() {
       <div class="editor-board">
         <div class="portada-phone editor-phone-sticky">
           <div class="home-screen portada-preview" id="portada-preview">
-            <header class="home-logo">
+            <header class="home-logo" style="height:${bannerAltoPortada(portadaUi)}px">
               <img data-logo id="p-logo" src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
             </header>
             <div class="portada-lienzo" id="portada-lienzo">
@@ -1413,6 +1413,10 @@ function renderEditorPortada() {
               <span>Estirar logo (alto)</span>
               <input id="p-logo-alto" type="range" min="30" max="280" step="2" value="${Math.round(portadaUi.logo_scale_y * 100)}" />
             </label>
+            <label class="field">
+              <span>Alto del banner amarillo</span>
+              <input id="p-banner-alto" type="range" min="40" max="160" step="2" value="${bannerAltoPortada(portadaUi)}" />
+            </label>
             <button class="btn-soft btn-block" type="button" id="btn-reset-logo">Centrar y resetear logo</button>
             <p class="hint">Arrastra el logo, la foto, el botón o los puntos sobre el celular.</p>
             <label class="check">
@@ -1470,6 +1474,7 @@ function leerEditorPortada() {
   if ($("p-logo-zoom")) portadaUi.logo_zoom = Number($("p-logo-zoom").value) / 100;
   if ($("p-logo-ancho")) portadaUi.logo_scale_x = Number($("p-logo-ancho").value) / 100;
   if ($("p-logo-alto")) portadaUi.logo_scale_y = Number($("p-logo-alto").value) / 100;
+  if ($("p-banner-alto")) portadaUi.banner_h = Number($("p-banner-alto").value);
   if ($("p-defecto")) s.defecto = $("p-defecto").checked;
   if (s.defecto) marcarPortadaDefecto(s.id);
   else s.vehiculos = leerVehiculosEditor($("p-modelos-box") || document);
@@ -1908,6 +1913,7 @@ $("stage").addEventListener("click", (e) => {
     portadaUi.logo_scale_y = 1;
     portadaUi.logo_off_x = 0;
     portadaUi.logo_off_y = 0;
+    portadaUi.banner_h = 72;
     renderEditorPortada();
     return;
   }
@@ -2031,6 +2037,10 @@ $("stage").addEventListener("input", (e) => {
   if (e.target.id === "p-logo-alto") {
     portadaUi.logo_scale_y = Number(e.target.value) / 100;
     pintarLogoPortada();
+  }
+  if (e.target.id === "p-banner-alto") {
+    portadaUi.banner_h = Number(e.target.value);
+    aplicarBannerPortada();
   }
   if (e.target.id === "e-zoom") {
     const m = mediaActual();
