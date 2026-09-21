@@ -357,7 +357,6 @@ body.hay-perfil .panel { padding-top: 88px; }
   transform: translate(-50%, -50%);
   z-index: 5;
 }
-
 .home-add {
   border: 2px solid #111;
   border-radius: 999px;
@@ -426,6 +425,7 @@ body.hay-perfil .panel { padding-top: 88px; }
 }
 
 .home-ico {
+  z-index: 8;
   display: grid;
   place-items: center;
   width: 48px;

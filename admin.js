@@ -1505,8 +1505,11 @@ function ubicarCapa(el, xKey, yKey, clientX, clientY) {
   const caja = $("portada-preview");
   if (!caja || !el) return;
   const r = caja.getBoundingClientRect();
-  portadaUi[xKey] = Math.min(94, Math.max(6, ((clientX - r.left) / r.width) * 100));
-  portadaUi[yKey] = Math.min(94, Math.max(6, ((clientY - r.top) / r.height) * 100));
+  const libre = xKey === "dir_x" || xKey === "wa_x";
+  const min = libre ? 2 : 6;
+  const max = libre ? 98 : 94;
+  portadaUi[xKey] = Math.min(max, Math.max(min, ((clientX - r.left) / r.width) * 100));
+  portadaUi[yKey] = Math.min(max, Math.max(min, ((clientY - r.top) / r.height) * 100));
   el.style.left = `${portadaUi[xKey]}%`;
   el.style.top = `${portadaUi[yKey]}%`;
 }

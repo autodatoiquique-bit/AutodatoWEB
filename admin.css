@@ -1035,6 +1035,9 @@ button { font-family: inherit; cursor: pointer; }
   transform: translate(-50%, -50%);
   z-index: 5;
 }
+.home-ico {
+  z-index: 9;
+}
 .home-add,
 .portada-btn-drag {
   border: 2px solid #111;

@@ -731,10 +731,10 @@ function clampNum(n, min, max, def) {
 
 function normalizarUi(s) {
   return {
-    dir_x: clampNum(s && s.dir_x, 6, 94, 50),
-    dir_y: clampNum(s && s.dir_y, 6, 94, 76),
-    wa_x: clampNum(s && s.wa_x, 6, 94, 50),
-    wa_y: clampNum(s && s.wa_y, 6, 94, 84),
+    dir_x: clampNum(s && s.dir_x, 2, 98, 50),
+    dir_y: clampNum(s && s.dir_y, 2, 98, 76),
+    wa_x: clampNum(s && s.wa_x, 2, 98, 50),
+    wa_y: clampNum(s && s.wa_y, 2, 98, 84),
     dots_x: clampNum(s && s.dots_x, 6, 94, 50),
     dots_y: clampNum(s && s.dots_y, 6, 94, 68),
     logo: String((s && s.logo) || LOGO_DEFECTO),
