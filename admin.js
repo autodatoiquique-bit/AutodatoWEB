@@ -177,35 +177,49 @@ function vehiculosDeColumna(col) {
   ];
 }
 
-function htmlOpcionesCombustible(sel) {
-  return COMBUSTIBLES.map(
-    (c) => `<option value="${c.value}" ${normalizarCombustible(sel) === c.value ? "selected" : ""}>${c.label}</option>`
-  ).join("");
+function htmlOpcionesCombustible(sel, vacio) {
+  const vac = vacio
+    ? `<option value="" ${!sel ? "selected" : ""} disabled hidden>Elige combustible</option>`
+    : "";
+  return (
+    vac +
+    COMBUSTIBLES.map(
+      (c) => `<option value="${c.value}" ${normalizarCombustible(sel) === c.value ? "selected" : ""}>${c.label}</option>`
+    ).join("")
+  );
 }
 
 function htmlCamposColumna(col, id) {
-  const marca = (col && col.marca) || MARCAS[0];
-  const modelos = modelosDe(marca);
-  const modelo = (col && col.modelo) || modelos[0];
-  const adelante = !col || anioONull(col.ano_hasta) == null;
-  const desde = anioONull(col && col.ano_desde) || ANIO_MIN;
-  const hasta = anioONull(col && col.ano_hasta) || ANIO_MAX;
+  const esNueva = id === "nueva" && !col;
+  const marca = esNueva ? "" : (col && col.marca) || MARCAS[0];
+  const modelos = marca ? modelosDe(marca) : [];
+  const modelo = esNueva ? "" : (col && col.modelo) || modelos[0];
+  const adelante = esNueva ? false : !col || col.ano_hasta == null;
+  const desde = esNueva ? "" : anioONull(col && col.ano_desde) ?? ANIO_MIN;
+  const hasta = esNueva ? "" : anioONull(col && col.ano_hasta) ?? ANIO_MAX;
+  const combustible = esNueva ? "" : col && col.combustible;
   return `
     <label class="field"><span>Marca</span>
-      <select data-col-campo="marca" data-col-id="${id}">${MARCAS.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m}</option>`).join("")}</select>
+      <select data-col-campo="marca" data-col-id="${id}">
+        ${esNueva ? `<option value="" selected disabled hidden>Elige marca</option>` : ""}
+        ${MARCAS.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m}</option>`).join("")}
+      </select>
     </label>
     <label class="field"><span>Modelo</span>
-      <select data-col-campo="modelo" data-col-id="${id}">${modelos.map((m) => `<option value="${m}" ${m === modelo ? "selected" : ""}>${m}</option>`).join("")}</select>
+      <select data-col-campo="modelo" data-col-id="${id}" ${esNueva && !marca ? "disabled" : ""}>
+        ${esNueva ? `<option value="" selected disabled hidden>Elige modelo</option>` : ""}
+        ${modelos.map((m) => `<option value="${m}" ${m === modelo ? "selected" : ""}>${m}</option>`).join("")}
+      </select>
     </label>
     <label class="field"><span>Desde el año</span>
-      <select data-col-campo="desde" data-col-id="${id}">${htmlOpcionesAnio(desde)}</select>
+      <select data-col-campo="desde" data-col-id="${id}">${htmlOpcionesAnio(desde, esNueva)}</select>
     </label>
     <label class="field"><span>Hasta el año</span>
-      <select data-col-campo="hasta" data-col-id="${id}" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta)}</select>
+      <select data-col-campo="hasta" data-col-id="${id}" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta, esNueva && !adelante)}</select>
     </label>
     <label class="check"><input type="checkbox" data-col-campo="adelante" data-col-id="${id}" ${adelante ? "checked" : ""} /> En adelante (sin tope)</label>
     <label class="field"><span>Combustible</span>
-      <select data-col-campo="combustible" data-col-id="${id}">${htmlOpcionesCombustible(col && col.combustible)}</select>
+      <select data-col-campo="combustible" data-col-id="${id}">${htmlOpcionesCombustible(esNueva ? "" : combustible || "ambos", esNueva)}</select>
     </label>
   `;
 }
@@ -213,12 +227,15 @@ function htmlCamposColumna(col, id) {
 function leerCamposColumna(id) {
   const q = (campo) => document.querySelector(`[data-col-campo="${campo}"][data-col-id="${id}"]`);
   const adelante = Boolean(q("adelante") && q("adelante").checked);
+  const desdeRaw = q("desde") && q("desde").value;
+  const hastaRaw = q("hasta") && q("hasta").value;
   return {
     marca: q("marca") && q("marca").value,
     modelo: q("modelo") && q("modelo").value,
-    ano_desde: q("desde") ? Number(q("desde").value) : ANIO_MIN,
-    ano_hasta: adelante ? null : q("hasta") ? Number(q("hasta").value) : ANIO_MAX,
+    ano_desde: desdeRaw !== "" && desdeRaw != null ? Number(desdeRaw) : null,
+    ano_hasta: adelante ? null : hastaRaw !== "" && hastaRaw != null ? Number(hastaRaw) : null,
     combustible: q("combustible") && q("combustible").value,
+    adelante,
   };
 }
 
@@ -569,7 +586,7 @@ function htmlFormColumna() {
   return `
     <section class="kanban-col kanban-col-add">
       <h3>Nueva columna</h3>
-      <p>Marca, modelo, años y combustible. La foto de arriba es la portada de ese auto.</p>
+      <p>Completa marca, modelo, años y combustible. No hay valores de ejemplo: todo queda en blanco hasta que lo elijas.</p>
       ${htmlCamposColumna(null, "nueva")}
       <button class="btn-primary btn-block" type="button" id="btn-col-add">Agregar columna</button>
     </section>
@@ -968,6 +985,22 @@ async function agregarColumnaTablero() {
     alert("Elige marca y modelo.");
     return;
   }
+  if (!raw.combustible) {
+    alert("Elige combustible.");
+    return;
+  }
+  if (raw.ano_desde == null) {
+    alert("Elige desde qué año aplica esta columna.");
+    return;
+  }
+  if (!raw.adelante && raw.ano_hasta == null) {
+    alert('Elige hasta qué año, o marca "En adelante (sin tope)".');
+    return;
+  }
+  if (!raw.adelante && raw.ano_hasta != null && raw.ano_desde > raw.ano_hasta) {
+    alert("El año desde no puede ser mayor que el año hasta.");
+    return;
+  }
   const col = normalizarColumnaTablero({
     id: `col-${Date.now()}`,
     ...raw,
@@ -1276,10 +1309,31 @@ function htmlDotsMedia(n, on, s) {
   return `<div class="home-dots servicio-dots" data-drag="dots" style="left:${x}%;top:${y}%">${Array.from({ length: n }, (_, i) => `<i class="${i === on ? "on" : ""}"></i>`).join("")}</div>`;
 }
 
-function htmlOpcionesAnio(sel) {
-  return anios()
-    .map((y) => `<option value="${y}" ${Number(sel) === y ? "selected" : ""}>${y}</option>`)
-    .join("");
+function htmlOpcionesAnio(sel, vacio) {
+  const vac =
+    vacio && (sel === "" || sel == null)
+      ? `<option value="" selected disabled hidden>Año</option>`
+      : "";
+  return (
+    vac +
+    anios()
+      .map((y) => `<option value="${y}" ${Number(sel) === y ? "selected" : ""}>${y}</option>`)
+      .join("")
+  );
+}
+
+function pintarModelosColumna(id, marca) {
+  const sel = document.querySelector(`[data-col-campo="modelo"][data-col-id="${id}"]`);
+  if (!sel) return;
+  if (!marca) {
+    sel.disabled = true;
+    sel.innerHTML = `<option value="" selected disabled hidden>Elige modelo</option>`;
+    return;
+  }
+  const modelos = modelosDe(marca);
+  const vacio = id === "nueva" ? `<option value="" selected disabled hidden>Elige modelo</option>` : "";
+  sel.disabled = false;
+  sel.innerHTML = vacio + modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
 }
 
 function pintarPrecioPreview() {
@@ -2594,10 +2648,7 @@ $("stage").addEventListener("change", async (e) => {
     renderEditorPortada();
   }
   if (e.target.dataset.colCampo === "marca") {
-    const id = e.target.dataset.colId;
-    const modelos = modelosDe(e.target.value);
-    const sel = document.querySelector(`[data-col-campo="modelo"][data-col-id="${id}"]`);
-    if (sel) sel.innerHTML = modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
+    pintarModelosColumna(e.target.dataset.colId, e.target.value);
   }
   if (e.target.dataset.colCampo === "adelante") {
     const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);
@@ -2783,10 +2834,7 @@ $("btn-tarjeta-aceptar")?.addEventListener("click", () => {
 });
 $("modal-columna")?.addEventListener("change", (e) => {
   if (e.target.dataset.colCampo === "marca") {
-    const id = e.target.dataset.colId;
-    const modelos = modelosDe(e.target.value);
-    const sel = document.querySelector(`[data-col-campo="modelo"][data-col-id="${id}"]`);
-    if (sel) sel.innerHTML = modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
+    pintarModelosColumna(e.target.dataset.colId, e.target.value);
   }
   if (e.target.dataset.colCampo === "adelante") {
     const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);
