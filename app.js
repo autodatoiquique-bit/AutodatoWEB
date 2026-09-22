@@ -1519,6 +1519,9 @@ async function consumirStockParaTicket(items) {
         error: data.error || "No hay stock suficiente para completar el ticket. Alguien pudo reservarlo hace un momento.",
       };
     }
+    if (data.restantes && typeof aplicarStockRestanteLocal === "function") {
+      aplicarStockRestanteLocal(data.restantes);
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: "No se pudo validar el stock. Revisa tu conexión e intenta de nuevo." };

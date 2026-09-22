@@ -738,6 +738,20 @@ function servicioSinStock(s) {
   return r != null && r <= 0;
 }
 
+function aplicarStockRestanteLocal(restantes) {
+  if (!restantes || typeof catalogo === "undefined") return;
+  Object.entries(restantes).forEach(([id, n]) => {
+    const s = (catalogo || []).find((x) => String(x.id) === String(id));
+    if (!s) return;
+    const num = Math.max(0, Math.floor(Number(n)));
+    s.stock_restante = num;
+    if (num <= 0) {
+      s.agotado = true;
+      s.ultima_unidad = false;
+    }
+  });
+}
+
 function servicioUltimaUnidad(s) {
   if (!s || servicioSinStock(s)) return false;
   if (s.ultima_unidad) return true;

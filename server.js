@@ -292,21 +292,79 @@ async function subirCatalogoCanales(mapa) {
   return r.ok;
 }
 
-async function actualizarStockEnCatalogo(idsCantidad) {
+function stockEnExtra(extra) {
+  if (!extra || extra.stock_restante == null || extra.stock_restante === "") return null;
+  const n = Math.floor(Number(extra.stock_restante));
+  return Number.isFinite(n) ? Math.max(0, n) : null;
+}
+
+async function syncServicioStockRestantes(restantes) {
+  const cfg = supabaseServiceConfig();
+  if (!cfg || !restantes) return;
+  const headers = {
+    apikey: cfg.key,
+    Authorization: `Bearer ${cfg.key}`,
+    "Content-Type": "application/json",
+    Prefer: "resolution=merge-duplicates",
+  };
+  for (const [sid, n] of Object.entries(restantes)) {
+    try {
+      await fetch(`${cfg.url}/rest/v1/servicio_stock?on_conflict=servicio_id`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ servicio_id: sid, restante: n }),
+      });
+    } catch (e) {
+      console.warn("No se sincronizó servicio_stock", sid, e.message || e);
+    }
+  }
+}
+
+async function consumirStockEnCatalogo(limpios) {
+  const cfg = supabaseServiceConfig();
+  if (!cfg) return { ok: false, status: 501, error: "Stock no configurado en el servidor." };
   const mapa = await descargarCatalogoCanales();
-  if (!mapa) return {};
-  const restantes = {};
-  idsCantidad.forEach(({ id, qty }) => {
+  if (!mapa) return { ok: false, status: 502, error: "No se pudo leer el catálogo de stock." };
+
+  const faltantes = [];
+  limpios.forEach(({ id, qty }) => {
     const sid = String(id);
     const extra = mapa[sid];
-    if (!extra || extra.stock_restante == null || extra.stock_restante === "") return;
-    const n = Math.max(0, Math.floor(Number(extra.stock_restante)) - Math.max(1, Number(qty) || 1));
+    const cur = stockEnExtra(extra);
+    if (cur == null) return;
+    const q = Math.max(1, Number(qty) || 1);
+    if (cur < q) faltantes.push({ id: sid, restante: cur, necesita: q });
+  });
+  if (faltantes.length) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Uno o más servicios se agotaron hace un momento.",
+      faltantes,
+    };
+  }
+
+  const restantes = {};
+  limpios.forEach(({ id, qty }) => {
+    const sid = String(id);
+    const extra = mapa[sid];
+    const cur = stockEnExtra(extra);
+    if (cur == null) return;
+    const q = Math.max(1, Number(qty) || 1);
+    const n = Math.max(0, cur - q);
     extra.stock_restante = n;
-    if (n <= 0) extra.agotado = true;
+    if (n <= 0) {
+      extra.agotado = true;
+      extra.ultima_unidad = false;
+    }
     restantes[sid] = n;
   });
-  await subirCatalogoCanales(mapa);
-  return restantes;
+
+  if (Object.keys(restantes).length && !(await subirCatalogoCanales(mapa))) {
+    return { ok: false, status: 502, error: "No se pudo actualizar el stock." };
+  }
+  await syncServicioStockRestantes(restantes);
+  return { ok: true, restantes };
 }
 
 app.post("/api/consumir-stock", async (req, res) => {
@@ -316,27 +374,15 @@ app.post("/api/consumir-stock", async (req, res) => {
     .filter((x) => x.id);
   if (!limpios.length) return res.json({ ok: true, skipped: true });
 
-  const rpc = await supabaseRpc("consumir_stock_servicios", { p_items: limpios });
-  if (!rpc.ok) return res.status(rpc.status || 502).json({ ok: false, error: rpc.error });
-  const out = rpc.data || {};
-  if (out.ok === false) {
-    const f = Array.isArray(out.faltantes) ? out.faltantes : [];
-    const nombres = f.map((x) => x.id).join(", ");
-    return res.status(409).json({
+  const out = await consumirStockEnCatalogo(limpios);
+  if (!out.ok) {
+    return res.status(out.status || 502).json({
       ok: false,
-      error: "Uno o más servicios se agotaron hace un momento.",
-      faltantes: f,
-      ids: nombres,
+      error: out.error,
+      faltantes: out.faltantes,
     });
   }
-
-  let restantes = {};
-  try {
-    restantes = await actualizarStockEnCatalogo(limpios);
-  } catch (e) {
-    console.warn("Stock descontado en BD pero no se actualizó catalogo-canales.json", e.message || e);
-  }
-  return res.json({ ok: true, restantes });
+  return res.json({ ok: true, restantes: out.restantes || {} });
 });
 
 app.get("/api/agenda-disponibilidad", async (req, res) => {

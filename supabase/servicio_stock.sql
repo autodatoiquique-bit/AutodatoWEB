@@ -70,3 +70,4 @@ $$;
 revoke all on function consumir_stock_servicios(jsonb) from public;
 revoke all on function consumir_stock_servicios(jsonb) from anon;
 revoke all on function consumir_stock_servicios(jsonb) from authenticated;
+grant execute on function consumir_stock_servicios(jsonb) to service_role;
