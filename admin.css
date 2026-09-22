@@ -689,6 +689,25 @@ button { font-family: inherit; cursor: pointer; }
   flex-direction: column;
   gap: 6px;
 }
+.tarjeta-item-portada { align-items: center; }
+.tarjeta-item-foto {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  background: #ddd center/cover no-repeat;
+}
+.btn-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.tarjeta-modo-volver { margin: 0 0 8px; }
 .tarjeta-item {
   display: flex;
   align-items: flex-start;

@@ -119,8 +119,10 @@
       <div class="btn-row">
         <button class="btn-primary" type="button" id="btn-tarjeta-nueva">Crear servicio nuevo</button>
         <button class="btn-line" type="button" id="btn-tarjeta-portada">Nueva portada</button>
+        <button class="btn-line" type="button" id="btn-tarjeta-buscar-portadas">Buscar portadas</button>
       </div>
-      <label class="field"><span>Buscar servicio</span><input id="tarjeta-busca" type="search" placeholder="Nombre del servicio" /></label>
+      <p class="muted tarjeta-modo-volver" id="tarjeta-volver-serv" hidden><button type="button" class="btn-link" id="btn-tarjeta-volver-serv">← Volver a servicios</button></p>
+      <label class="field"><span id="tarjeta-busca-label">Buscar servicio</span><input id="tarjeta-busca" type="search" placeholder="Nombre del servicio" /></label>
       <div id="tarjeta-lista" class="tarjeta-lista"></div>
       <button class="btn-primary btn-block" type="button" id="btn-tarjeta-aceptar" disabled>Aceptar</button>
     </div>
@@ -149,6 +151,6 @@
   <script src="config.js"></script>
   <script src="nube.js?v=png4"></script>
   <script src="catalogo.js?v=ultima1"></script>
-  <script src="admin.js?v=stock-split1"></script>
+  <script src="admin.js?v=buscar-portadas1"></script>
 </body>
 </html>

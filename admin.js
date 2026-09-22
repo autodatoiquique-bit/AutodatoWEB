@@ -13,6 +13,7 @@ let columnaEditId = "";
 let ofertaDraft = null;
 let tarjetaColId = "";
 let tarjetaSeleccion = new Set();
+let tarjetaModalModo = "servicios";
 let servicioColumnaOrigen = "";
 let kanbanDrag = { kind: "", payload: "" };
 let kanbanSuppressClick = false;
@@ -499,14 +500,65 @@ function guardarModalOferta() {
 function abrirModalTarjeta(colId) {
   tarjetaColId = colId;
   tarjetaSeleccion = new Set();
+  tarjetaModalModo = "servicios";
   if ($("tarjeta-busca")) $("tarjeta-busca").value = "";
-  pintarListaTarjeta("");
+  actualizarModalTarjetaModo();
   if ($("modal-tarjeta")) $("modal-tarjeta").hidden = false;
+}
+
+function etiquetaPortadaSlide(s) {
+  if (!s) return "Portada";
+  const i = (portadaSlides || []).findIndex((x) => x.id === s.id);
+  const n = i >= 0 ? i + 1 : "?";
+  const veh = normalizarVehiculos(s.vehiculos)
+    .map((v) => `${v.marca} ${v.modelo}`)
+    .slice(0, 2)
+    .join(", ");
+  const extra = [veh, s.mostrar_boton ? "con botón" : ""].filter(Boolean).join(" · ");
+  return `Flyer ${n}${extra ? ` · ${extra}` : ""}`;
+}
+
+function actualizarModalTarjetaModo() {
+  const esPort = tarjetaModalModo === "portadas";
+  const ayuda = document.querySelector("#modal-tarjeta > .modal-card > .muted:not(.tarjeta-modo-volver)");
+  const label = $("tarjeta-busca-label");
+  const busca = $("tarjeta-busca");
+  const volver = $("tarjeta-volver-serv");
+  const btnNueva = $("btn-tarjeta-nueva");
+  const btnPortada = $("btn-tarjeta-portada");
+  const btnBuscarP = $("btn-tarjeta-buscar-portadas");
+  if (ayuda) {
+    ayuda.textContent = esPort
+      ? "Marca una o varias portadas existentes y pulsa Aceptar para añadirlas a esta columna."
+      : "Marca uno o varios servicios y pulsa Aceptar para meterlos juntos a esta columna. También puedes crear uno nuevo.";
+  }
+  if (label) label.textContent = esPort ? "Buscar portada" : "Buscar servicio";
+  if (busca) busca.placeholder = esPort ? "Flyer o modelo" : "Nombre del servicio";
+  if (volver) volver.hidden = !esPort;
+  if (btnNueva) btnNueva.hidden = esPort;
+  if (btnPortada) btnPortada.hidden = esPort;
+  if (btnBuscarP) btnBuscarP.hidden = esPort;
+  if (esPort) pintarListaTarjetaPortada(busca ? busca.value : "");
+  else pintarListaTarjeta(busca ? busca.value : "");
+}
+
+async function abrirModalTarjetaPortadas() {
+  if (!tarjetaColId) return;
+  try {
+    await cargarPortada();
+  } catch (e) {
+    console.warn("No se pudo cargar portadas.", e);
+  }
+  tarjetaModalModo = "portadas";
+  tarjetaSeleccion = new Set();
+  if ($("tarjeta-busca")) $("tarjeta-busca").value = "";
+  actualizarModalTarjetaModo();
 }
 
 function cerrarModalTarjeta() {
   tarjetaColId = "";
   tarjetaSeleccion = new Set();
+  tarjetaModalModo = "servicios";
   if ($("modal-tarjeta")) $("modal-tarjeta").hidden = true;
 }
 
@@ -545,6 +597,64 @@ function pintarListaTarjeta(q) {
       t ? "No hay servicios con ese nombre." : "Todos los servicios de esta lista ya están en la columna."
     }</p>`;
   pintarAceptarTarjeta();
+}
+
+function pintarListaTarjetaPortada(q) {
+  const lista = $("tarjeta-lista");
+  if (!lista) return;
+  const col = TABLERO_COLUMNAS.find((c) => c.id === tarjetaColId);
+  const t = String(q || "").toLowerCase().trim();
+  const slides = (portadaSlides || []).filter((s) => s && s.foto && !s.defecto);
+  const items = slides.filter((s) => {
+    if (col && idsDeColumna(col, "portadas").includes(String(s.id))) return false;
+    const txt = etiquetaPortadaSlide(s).toLowerCase();
+    return !t || txt.includes(t);
+  });
+  lista.innerHTML =
+    items
+      .map((s) => {
+        const on = tarjetaSeleccion.has(s.id);
+        return `<label class="tarjeta-item tarjeta-item-portada${on ? " is-on" : ""}" data-tarjeta-port="${s.id}">
+          <input type="checkbox" ${on ? "checked" : ""} />
+          <span class="tarjeta-check" aria-hidden="true"></span>
+          <span class="tarjeta-item-foto" style="background-image:url('${escapeAttr(s.foto)}')"></span>
+          <span class="tarjeta-item-txt">
+            <strong>Portada</strong>
+            <span>${escapeText(etiquetaPortadaSlide(s))}</span>
+          </span>
+        </label>`;
+      })
+      .join("") ||
+    `<p class="muted">${
+      t ? "No hay portadas con ese texto." : "Todas las portadas con foto ya están en esta columna, o aún no hay flyers."
+    }</p>`;
+  pintarAceptarTarjeta();
+}
+
+async function asignarPortadasAColumna(pids, colId) {
+  const col = TABLERO_COLUMNAS.find((c) => c.id === colId);
+  if (!col || !pids.length) return;
+  await cargarPortada();
+  let n = 0;
+  pids.forEach((pid) => {
+    const slide = (portadaSlides || []).find((s) => String(s.id) === String(pid));
+    if (!slide || !slide.foto) return;
+    if (itemOcultoEnColumna(col, "portada", pid)) return;
+    if (sumarItemAColumna(col, pid, "portadas")) n += 1;
+  });
+  if (!n) {
+    alert("No se pudo añadir ninguna portada a la columna.");
+    return;
+  }
+  try {
+    persistirTablero();
+    await guardarTableroNube();
+  } catch (e) {
+    alert((e && e.message) || "No se pudieron añadir las portadas.");
+    return;
+  }
+  cerrarModalTarjeta();
+  renderTablero();
 }
 
 function sumarDestinoAServicio(s, dest) {
@@ -2905,11 +3015,26 @@ $("btn-tarjeta-portada")?.addEventListener("click", () => {
   cerrarModalTarjeta();
   if (id) nuevaPortadaEnColumna(id);
 });
-$("tarjeta-busca")?.addEventListener("input", (e) => pintarListaTarjeta(e.target.value));
+$("btn-tarjeta-buscar-portadas")?.addEventListener("click", () => {
+  abrirModalTarjetaPortadas();
+});
+$("btn-tarjeta-volver-serv")?.addEventListener("click", () => {
+  tarjetaModalModo = "servicios";
+  tarjetaSeleccion = new Set();
+  if ($("tarjeta-busca")) $("tarjeta-busca").value = "";
+  actualizarModalTarjetaModo();
+});
+$("tarjeta-busca")?.addEventListener("input", (e) => {
+  if (tarjetaModalModo === "portadas") pintarListaTarjetaPortada(e.target.value);
+  else pintarListaTarjeta(e.target.value);
+});
 $("tarjeta-lista")?.addEventListener("change", (e) => {
-  const item = e.target.closest("[data-tarjeta-serv]");
-  if (!item || e.target.type !== "checkbox") return;
-  const id = item.dataset.tarjetaServ;
+  if (e.target.type !== "checkbox") return;
+  const itemServ = e.target.closest("[data-tarjeta-serv]");
+  const itemPort = e.target.closest("[data-tarjeta-port]");
+  const item = itemServ || itemPort;
+  if (!item) return;
+  const id = itemServ ? itemServ.dataset.tarjetaServ : itemPort.dataset.tarjetaPort;
   if (e.target.checked) tarjetaSeleccion.add(id);
   else tarjetaSeleccion.delete(id);
   item.classList.toggle("is-on", e.target.checked);
@@ -2917,7 +3042,8 @@ $("tarjeta-lista")?.addEventListener("change", (e) => {
 });
 $("btn-tarjeta-aceptar")?.addEventListener("click", () => {
   if (!tarjetaColId || !tarjetaSeleccion.size) return;
-  asignarServiciosAColumna([...tarjetaSeleccion], tarjetaColId);
+  if (tarjetaModalModo === "portadas") asignarPortadasAColumna([...tarjetaSeleccion], tarjetaColId);
+  else asignarServiciosAColumna([...tarjetaSeleccion], tarjetaColId);
 });
 $("modal-columna")?.addEventListener("change", (e) => {
   if (e.target.dataset.colCampo === "marca") {

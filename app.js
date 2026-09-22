@@ -2158,6 +2158,7 @@ $("btn-abrir-informe").addEventListener("click", async () => {
 
 window.addEventListener("focus", async () => {
   await cargarCatalogo();
+  if (typeof sincronizarTableroRemoto === "function") await sincronizarTableroRemoto();
   await cargarPortada();
   aplicarLogos();
   renderVista({ quedarse: true });
@@ -2232,6 +2233,7 @@ if (stageEl) {
 async function arrancar() {
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   await cargarCatalogo();
+  if (typeof sincronizarTableroRemoto === "function") await sincronizarTableroRemoto();
   await cargarPortada();
   aplicarLogos();
   hidratar();

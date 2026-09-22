@@ -251,18 +251,31 @@ function fotoPortadaColumna(col) {
   return fotoModeloDe(col && col.marca, col && col.modelo);
 }
 
+function vehiculoEnColumna(v, col) {
+  if (!v || !col || !v.marca || !v.modelo) return false;
+  if (String(v.marca).toLowerCase() !== String(col.marca).toLowerCase()) return false;
+  if (String(v.modelo).toLowerCase() !== String(col.modelo).toLowerCase()) return false;
+  if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, col)) return false;
+  return combustibleCoincide(v.combustible, col.combustible);
+}
+
 function columnaDeVehiculo(v) {
   if (!v || !v.marca || !v.modelo) return null;
   const cols = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
-  const mismoAuto = cols.filter((c) => c.marca === v.marca && c.modelo === v.modelo);
+  const candidatos = cols.filter((c) => vehiculoEnColumna(v, c));
+  if (!candidatos.length) return null;
+  if (candidatos.length === 1) return candidatos[0];
   if (v.ano != null && v.ano !== "") {
-    const porAnioComb = mismoAuto.find((c) => anioEnRango(v.ano, c) && combustibleCoincide(c.combustible, v.combustible));
-    if (porAnioComb) return porAnioComb;
-    const porAnio = mismoAuto.find((c) => anioEnRango(v.ano, c));
-    if (porAnio) return porAnio;
+    const estrecho = candidatos
+      .map((c) => ({
+        c,
+        span:
+          (c.ano_hasta != null ? c.ano_hasta : ANIO_MAX) - (c.ano_desde != null ? c.ano_desde : ANIO_MIN),
+      }))
+      .sort((a, b) => a.span - b.span)[0];
+    if (estrecho) return estrecho.c;
   }
-  if (mismoAuto.length === 1) return mismoAuto[0];
-  return null;
+  return candidatos[0];
 }
 
 function fotoPortadaVehiculo(v) {
@@ -1084,20 +1097,57 @@ function portadasDefectoDe(lista) {
   return genericos.length ? genericos : base.slice(0, 1);
 }
 
+function portadasEnTableroSinSlide(slides) {
+  const ids = new Set((slides || portadaSlides || []).map((s) => String(s.id)));
+  const cols = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  for (const col of cols) {
+    for (const pid of idsDeColumna(col, "portadas")) {
+      if (!ids.has(String(pid))) return true;
+    }
+  }
+  return false;
+}
+
+async function sincronizarTableroRemoto() {
+  if (typeof nubeActiva !== "function" || !nubeActiva()) return false;
+  if (typeof nubeLeerCatalogoCanales !== "function") return false;
+  try {
+    const extra = await nubeLeerCatalogoCanales();
+    if (extra && Array.isArray(extra._tablero_columnas) && extra._tablero_columnas.length) {
+      TABLERO_COLUMNAS = extra._tablero_columnas.map(normalizarColumnaTablero).filter(Boolean);
+      persistirTablero();
+      return true;
+    }
+  } catch (e) {
+    console.warn("No se pudo sincronizar el tablero.", e);
+  }
+  return false;
+}
+
 function portadasFlyerDeColumna(col, base) {
   const lista = base || (portadaSlides || []).filter((s) => s.foto);
   if (!col || !lista.length) return [];
   sincronizarOrdenTarjetasCol(col);
-  const ids = new Set(idsDeColumna(col, "portadas").map(String));
-  return (col.orden_tarjetas || [])
-    .map((tok) => {
-      const p = parseTokenTarjetaColumna(tok);
-      if (!p || p.tipo !== "portada" || !ids.has(String(p.id))) return null;
-      const slide = lista.find((s) => String(s.id) === String(p.id));
-      if (!slide || slide.defecto || itemOcultoEnColumna(col, "portada", p.id)) return null;
-      return slide;
-    })
-    .filter(Boolean);
+  const idsCol = idsDeColumna(col, "portadas");
+  if (!idsCol.length) return [];
+  const byId = new Map(lista.map((s) => [String(s.id), s]));
+  const out = [];
+  const seen = new Set();
+  const agregar = (sid) => {
+    const id = String(sid || "");
+    if (!id || seen.has(id) || !idsCol.includes(id)) return;
+    if (itemOcultoEnColumna(col, "portada", id)) return;
+    const slide = byId.get(id);
+    if (!slide || !slide.foto) return;
+    seen.add(id);
+    out.push(slide);
+  };
+  (col.orden_tarjetas || []).forEach((tok) => {
+    const p = parseTokenTarjetaColumna(tok);
+    if (p && p.tipo === "portada") agregar(p.id);
+  });
+  idsCol.forEach(agregar);
+  return out;
 }
 
 function slidesPortadaPara(vehiculo) {
@@ -1109,9 +1159,9 @@ function slidesPortadaPara(vehiculo) {
   }
   const col = columnaDeVehiculo(vehiculo);
   const propios = col ? portadasFlyerDeColumna(col, base) : [];
+  if (propios.length) return propios;
   const extra = reserva.filter((s) => !propios.some((p) => p.id === s.id));
-  if (!propios.length) return reserva.length ? reserva : extra;
-  return extra.length ? [...propios, ...extra] : propios;
+  return reserva.length ? reserva : extra;
 }
 
 function encajarVehiculoTaller(raw) {
@@ -1179,15 +1229,17 @@ function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {
 
 async function cargarPortada() {
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
+  const aplicarSlides = (lista) => {
+    portadaSlides = lista.map(normalizarSlide).sort((a, b) => a.orden - b.orden);
+    if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
+    localStorage.setItem(PORTADA_KEY, JSON.stringify(portadaSlides));
+    sembrarMembresiaColumnas();
+    return portadaSlides;
+  };
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {
       const remoto = await nubeLeerPortada();
-      if (remoto.length) {
-        portadaSlides = remoto.map(normalizarSlide).sort((a, b) => a.orden - b.orden);
-        if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
-        sembrarMembresiaColumnas();
-        return portadaSlides;
-      }
+      if (remoto.length) return aplicarSlides(remoto);
     } catch (e) {
       console.warn("No se pudo leer la portada en la nube.", e);
     }
@@ -1195,7 +1247,20 @@ async function cargarPortada() {
   try {
     const raw = JSON.parse(localStorage.getItem(PORTADA_KEY) || "null");
     if (Array.isArray(raw) && raw.length) {
-      portadaSlides = raw.map(normalizarSlide);
+      const local = raw.map(normalizarSlide);
+      if (
+        (portadasEnTableroSinSlide(local) || portadasEnTableroSinSlide()) &&
+        typeof nubeActiva === "function" &&
+        nubeActiva()
+      ) {
+        try {
+          const remoto = await nubeLeerPortada();
+          if (remoto.length) return aplicarSlides(remoto);
+        } catch (e) {
+          /* fallback local */
+        }
+      }
+      portadaSlides = local;
       if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
       sembrarMembresiaColumnas();
       return portadaSlides;
