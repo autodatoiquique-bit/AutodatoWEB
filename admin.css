@@ -314,6 +314,36 @@ button { font-family: inherit; cursor: pointer; }
   padding-bottom: 6px;
   overscroll-behavior: contain;
 }
+.kanban-card-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.kanban-card-del {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #bf2600;
+  box-shadow: 0 1px 4px rgba(9, 30, 66, 0.25);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.kanban-card-del svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.kanban-card-del:hover { background: #ffebe6; }
+.btn-agotado.is-on { background: #ffebe6; color: #bf2600; border-color: #ffbdad; }
+.editor-tag-agotado { margin-top: 8px; display: inline-block; }
+.tag-agotado { background: #dfe1e6; color: #42526e; font-size: 0.72rem; font-weight: 800; padding: 4px 8px; border-radius: 999px; }
 .kanban-card {
   display: block;
   flex: 0 0 auto;

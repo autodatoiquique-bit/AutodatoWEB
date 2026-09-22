@@ -596,15 +596,19 @@ function htmlIconoCarro() {
 
 function htmlTarjetaOferta(s) {
   const enCarro = state.carrito.some((x) => x.id === s.id);
+  const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
+  const avisoStock = !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
   const p = precioPagado(s, idsComboPara(s.id));
   const hayDesc = p.ahorro > 0;
   return `
-    <article class="card ${enCarro ? "card-en-carro" : "card-con-add"}">
+    <article class="card ${enCarro ? "card-en-carro" : agotado ? "card-agotado" : "card-con-add"}">
       <button class="card-abrir" type="button" data-abrir-oferta="${s.id}">
         <div class="card-photo" style="background-image:url('${s.foto}')">
           <div class="card-tags">
+            ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
+            ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
             ${enCarro ? `<span class="tag tag-carrito">En carrito</span>` : ""}
-            ${!enCarro && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
+            ${!enCarro && !agotado && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
           </div>
         </div>
         <div class="card-body">
@@ -623,7 +627,7 @@ function htmlTarjetaOferta(s) {
         </div>
       </button>
       ${
-        enCarro
+        enCarro || agotado
           ? ""
           : `<button class="card-add" type="button" data-add-oferta="${s.id}" title="Agregar al carrito" aria-label="Agregar al carrito">
               <span class="kpi-cart">${htmlIconoCarro()}</span>
@@ -692,6 +696,8 @@ function renderDetalleOferta() {
     return;
   }
   const enCarro = state.carrito.some((x) => x.id === s.id);
+  const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
+  const avisoStock = !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
   const ids = state.carrito.map((x) => x.id);
   const p = precioPagado(s, ids.filter((id) => id !== s.id));
   const mostrarDesc = p.ahorro > 0;
@@ -702,6 +708,7 @@ function renderDetalleOferta() {
         ${htmlCarruselServicio(s)}
         <div class="detalle-copy">
           <h2>${s.nombre}</h2>
+          ${avisoStock ? `<p class="detalle-stock"><span class="tag tag-stock">${avisoStock}</span></p>` : ""}
           ${s.resumen ? `<p class="detalle-resumen">${s.resumen}</p>` : ""}
           <p class="lead">${s.detalle}</p>
           <div class="precio-fila">
@@ -717,7 +724,9 @@ function renderDetalleOferta() {
             ${
               enCarro
                 ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En carrito</button>`
-                : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
+                : agotado
+                  ? `<span class="tag tag-agotado tag-agotado-detalle">Agotado</span>`
+                  : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
             }
           </div>
           ${htmlSumaRelacionados(s, enCarro)}
@@ -784,6 +793,7 @@ function armarCarruselDetalle() {
 
 function htmlMini(s, combo) {
   const enCarro = state.carrito.some((x) => x.id === s.id);
+  const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const p = precioPagado(s, idsComboPara(s.id));
   const precioCombo = combo && Number(combo.precioCombo) > 0 ? Number(combo.precioCombo) : null;
   const pagadoCombo = precioCombo != null && precioCombo < (p.pagado == null ? Infinity : p.pagado) ? precioCombo : p.pagado;
@@ -795,6 +805,7 @@ function htmlMini(s, combo) {
     <div class="mini">
       <div class="mini-foto" style="background-image:url('${s.foto}')"></div>
       <div class="mini-body">
+        ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
         ${enCarro ? `<span class="tag tag-carrito">En carrito</span>` : ""}
         <strong>${s.nombre}</strong>
         ${
@@ -807,7 +818,9 @@ function htmlMini(s, combo) {
           ${
             enCarro
               ? `<button class="btn-soft" type="button" data-quitar-oferta="${s.id}">Quitar</button>`
-              : `<button class="btn-green" type="button" data-add-oferta="${s.id}">Añadir</button>`
+              : agotado
+                ? `<span class="muted mini-agotado">Agotado</span>`
+                : `<button class="btn-green" type="button" data-add-oferta="${s.id}">Añadir</button>`
           }
         </div>
       </div>
@@ -1211,7 +1224,9 @@ function aplicarFiltro(contexto) {
       const id = state.ofertaPendiente;
       const s = oferta(id);
       state.agregarTrasFiltro = false;
-      if (s && !servicioAplicaAVehiculo(s, state.vehiculo)) {
+      if (s && servicioSinStock && servicioSinStock(s)) {
+        alert("Este servicio está agotado por ahora.");
+      } else if (s && !servicioAplicaAVehiculo(s, state.vehiculo)) {
         alert(`Esta oferta no aplica para ${textoVehiculo()}.`);
       } else if (s && !state.carrito.some((x) => x.id === id)) {
         state.carrito.push({ tipo: "oferta", id });
@@ -1267,6 +1282,13 @@ function aplicarFiltroTrasPortada() {
   const id = state.ofertaPendiente;
   const s = oferta(id);
   state.agregarTrasFiltro = false;
+  if (s && servicioSinStock && servicioSinStock(s)) {
+    alert("Este servicio está agotado por ahora.");
+    state.ofertaAbierta = id;
+    state.vista = "oferta-detalle";
+    renderVista();
+    return;
+  }
   if (s && !servicioAplicaAVehiculo(s, state.vehiculo)) {
     alert(`Esta oferta no aplica para ${textoVehiculo()}.`);
     return;
@@ -1281,7 +1303,48 @@ function aplicarFiltroTrasPortada() {
   renderVista();
 }
 
+function avisarServicioAgotado(id) {
+  const s = typeof servicioPorId === "function" ? servicioPorId(id) : oferta(id);
+  if (s && typeof servicioSinStock === "function" && servicioSinStock(s)) {
+    alert("Este servicio está agotado por ahora.");
+    return true;
+  }
+  return false;
+}
+
+async function consumirStockParaTicket(items) {
+  const cuenta = {};
+  (items || []).forEach((s) => {
+    if (!s || !s.id) return;
+    cuenta[s.id] = (cuenta[s.id] || 0) + 1;
+  });
+  const lineas = Object.entries(cuenta).map(([id, qty]) => ({ id, qty }));
+  const hayLimite = lineas.some(({ id }) => {
+    const s = typeof servicioPorId === "function" ? servicioPorId(id) : null;
+    return s && typeof stockLimitado === "function" && stockLimitado(s);
+  });
+  if (!hayLimite) return { ok: true };
+  try {
+    const r = await fetch("/api/consumir-stock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: lineas }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.ok) {
+      return {
+        ok: false,
+        error: data.error || "No hay stock suficiente para completar el ticket. Alguien pudo reservarlo hace un momento.",
+      };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: "No se pudo validar el stock. Revisa tu conexión e intenta de nuevo." };
+  }
+}
+
 function agregarOferta(id) {
+  if (avisarServicioAgotado(id)) return;
   if (!state.carrito.some((x) => x.id === id)) {
     state.carrito.push({ tipo: "oferta", id });
     persistir();
@@ -1446,6 +1509,11 @@ async function generarTicket() {
   let llegoAgenda = false;
   try {
   const { items, subtotal, total, ahorro } = calcular();
+  const stockOk = await consumirStockParaTicket(items);
+  if (!stockOk.ok) {
+    alert(stockOk.error);
+    return;
+  }
   const code = nuevoCodeTicket();
   const payload = {
     origen: "autodato_web",
@@ -1489,10 +1557,15 @@ async function generarTicket() {
   }
 
   llegoAgenda = await enviarTicketAutonexus(payload);
+  if (typeof cargarCatalogo === "function") await cargarCatalogo();
   vaciarCarritoTrasTicket();
   abrirTicket(payload);
   } finally {
     mostrarCargaTicket(false);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Generar ticket y agendar";
+    }
   }
   if (!llegoAgenda) {
     alert("El ticket se generó, pero no llegó a la agenda de AutoNexus. Revisa el CODE y reintenta o avisa en el taller.");

@@ -159,6 +159,8 @@ function servicioVacio() {
     dots_y: 62,
     complementos: [],
     activo: true,
+    agotado: false,
+    stock_restante: null,
     tiempo_min: null,
     mano_obra: 0,
     insumos: [],
@@ -247,7 +249,14 @@ async function guardarTableroNube() {
 }
 
 function htmlKanbanCardShell(colId, token, inner) {
-  return `<div class="kanban-card-row" data-kanban-token="${escapeAttr(token)}" data-kanban-card-col="${escapeAttr(colId)}">${inner}</div>`;
+  return `<div class="kanban-card-row" data-kanban-token="${escapeAttr(token)}" data-kanban-card-col="${escapeAttr(colId)}">
+    <div class="kanban-card-wrap">
+      ${inner}
+      <button type="button" class="kanban-card-del" data-kanban-quitar="${escapeAttr(colId)}|${escapeAttr(token)}" title="Quitar del tablero" aria-label="Quitar del tablero">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"/></svg>
+      </button>
+    </div>
+  </div>`;
 }
 
 function htmlTarjetaKanbanServicio(s, colId, token) {
@@ -259,7 +268,7 @@ function htmlTarjetaKanbanServicio(s, colId, token) {
   const inner = `<button class="kanban-card" type="button" data-kanban-servicio="${s.id}">
     <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" draggable="false" />` : ""}</div>
     <div class="kanban-body">
-      <strong>${escapeText(s.nombre || "Sin nombre")}</strong>
+      <strong>${escapeText(s.nombre || "Sin nombre")}${s.agotado ? " · Agotado" : ""}</strong>
       <div class="kanban-kpis">
         <div>
           <span>Normal</span>
@@ -835,7 +844,7 @@ function armarKanbanCardPointer(track) {
     "pointerdown",
     (e) => {
       const row = e.target.closest(".kanban-card-row");
-      if (!row || !row.querySelector(".kanban-card") || e.target.closest(".kanban-gear, .kanban-col-drag, .kanban-add-card")) return;
+      if (!row || !row.querySelector(".kanban-card") || e.target.closest(".kanban-gear, .kanban-col-drag, .kanban-add-card, .kanban-card-del")) return;
       const box = row.closest("[data-kanban-cards]");
       if (!box) return;
       if (e.button != null && e.button !== 0) return;
@@ -1096,7 +1105,7 @@ function renderLista() {
           ${foto}
           <div>
             <strong>${s.nombre || "Sin nombre"}</strong>
-            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${etiquetaVehiculos(s)}</span>
+            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${etiquetaVehiculos(s)}${s.agotado ? " · Agotado" : ""}</span>
           </div>
         </button>
       `;
@@ -1128,6 +1137,7 @@ function leerEditor() {
   }
   aplicarMediaServicio(editando, mediaEditando());
   editando.vehiculos = leerVehiculosEditor();
+  leerCostosEditor();
 }
 
 function leerAnioCampo(sel) {
@@ -1408,6 +1418,10 @@ function leerCostosEditor() {
     editando.tiene_oferta = Number(editando.precio_oferta) > 0;
   }
   if ($("e-precio")) editando.precio = $("e-precio").value === "" ? null : Number($("e-precio").value);
+  if ($("e-stock")) {
+    const raw = $("e-stock").value.trim();
+    editando.stock_restante = raw === "" ? null : Math.max(0, Math.floor(Number(raw)));
+  }
 }
 
 function pintarCalculadoraEditor() {
@@ -1457,7 +1471,11 @@ function renderEditor() {
               <p class="lead" id="pv-detalle">${escapeText(s.detalle || "La descripción se ve aquí, como en el celular.")}</p>
               <div class="precio-fila">
                 <div id="pv-precios">${htmlPrecioPreview(s)}</div>
-                <button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>
+                ${
+                  s.agotado
+                    ? `<span class="tag tag-agotado editor-tag-agotado">Agotado</span>`
+                    : `<button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>`
+                }
               </div>
             </div>
             ${htmlNavPortadaFalsa()}
@@ -1477,6 +1495,8 @@ function renderEditor() {
             <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
             ${htmlVehiculosEditor(s)}
             <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
+            <label class="field"><span>Unidades disponibles</span><input id="e-stock" type="number" min="0" step="1" placeholder="Ilimitado" value="${s.stock_restante == null ? "" : s.stock_restante}" /></label>
+            <p class="hint">Deja vacío si no hay tope. Al generar ticket en el celular se descuenta 1 por cada unidad en el carrito. Con 1 unidad el cliente ve «Última unidad».</p>
             <label class="field"><span>Tiempo aproximado</span><select id="e-tiempo">${htmlOpcionesTiempo(s.tiempo_min)}</select></label>
             <button class="btn-line btn-block" type="button" id="btn-armar-oferta">Calculadora del servicio</button>
             <fieldset class="canales">
@@ -1520,6 +1540,8 @@ function renderEditor() {
             <p class="hint">Al revés: si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo del mismo ingreso.</p>
             <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
             <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
+            <button class="btn-line btn-block btn-agotado${s.agotado ? " is-on" : ""}" type="button" id="btn-toggle-agotado">${s.agotado ? "Marcar como disponible" : "Marcar como agotado"}</button>
+            <p class="hint" id="hint-agotado"${s.agotado ? "" : " hidden"}>En el celular el cliente verá el servicio, pero no podrá agregarlo al carrito hasta que lo marques disponible y guardes.</p>
             <div class="btn-row">
               <button class="btn-primary" type="button" id="btn-guardar">Guardar</button>
               ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar">Eliminar</button>` : ""}
@@ -1590,6 +1612,13 @@ async function guardarServicio() {
   if (editando.tiene_oferta && (editando.precio_oferta == null || Number.isNaN(editando.precio_oferta) || Number(editando.precio_oferta) <= 0)) {
     alert("Si el servicio tiene oferta, escribe el precio oferta.");
     return;
+  }
+  if ($("e-stock") && $("e-stock").value.trim() !== "") {
+    const st = Number($("e-stock").value);
+    if (!Number.isFinite(st) || st < 0) {
+      alert("Unidades disponibles debe ser un número entero ≥ 0, o déjalo vacío.");
+      return;
+    }
   }
   if (editando.tiene_oferta && editando.precio != null && editando.precio_oferta >= editando.precio) {
     alert("El precio oferta tiene que ser menor que el valor normal.");
@@ -2318,6 +2347,12 @@ $("stage").addEventListener("click", (e) => {
   const t = e.target.closest("button");
   if (!t || t.id === "portada-btn-drag") return;
   if (t.id === "btn-guardar") guardarServicio();
+  if (t.id === "btn-toggle-agotado") {
+    leerEditor();
+    editando.agotado = !editando.agotado;
+    renderEditor();
+    return;
+  }
   if (t.id === "btn-borrar") borrarServicio();
   if (t.id === "btn-guardar-portada") guardarEditorPortada();
   if (t.id === "btn-col-add") agregarColumnaTablero();
@@ -2381,6 +2416,16 @@ $("stage").addEventListener("click", (e) => {
     editando.insumos.push(normalizarInsumo({ nombre: "", costo: 0, porcentaje: 30 }, editando.insumos.length));
     if ($("e-insumos")) $("e-insumos").innerHTML = htmlFilasInsumos(editando.insumos);
     pintarCalculadoraEditor();
+    return;
+  }
+  if (t.dataset.kanbanQuitar) {
+    const sep = t.dataset.kanbanQuitar.indexOf("|");
+    if (sep < 0) return;
+    const colId = t.dataset.kanbanQuitar.slice(0, sep);
+    const token = t.dataset.kanbanQuitar.slice(sep + 1);
+    if (!confirm("¿Quitar esta tarjeta de la columna? El servicio no se borra del catálogo.")) return;
+    if (!quitarTarjetaDeColumna(colId, token)) return;
+    guardarOrdenTablero().then(renderTablero);
     return;
   }
   if (t.dataset.kanbanTarjeta) {

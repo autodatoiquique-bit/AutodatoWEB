@@ -220,6 +220,7 @@ function normalizarColumnaTablero(c) {
     servicios: idsDeColumna(c, "servicios"),
     portadas: idsDeColumna(c, "portadas"),
     orden_tarjetas: Array.isArray(c.orden_tarjetas) ? c.orden_tarjetas.map(String) : [],
+    ocultos: Array.isArray(c.ocultos) ? c.ocultos.map(String) : [],
   };
 }
 
@@ -245,8 +246,8 @@ function destinoEnColumna(dest, col) {
 
 function fotoPortadaColumna(col) {
   if (col && col.foto) return col.foto;
-  const flyer = (typeof portadaSlides !== "undefined" ? portadaSlides : []).find((s) => s.foto && itemEnColumna(s, col));
-  if (flyer) return flyer.foto;
+  const slides = portadasFlyerDeColumna(col);
+  if (slides[0] && slides[0].foto) return slides[0].foto;
   return fotoModeloDe(col && col.marca, col && col.modelo);
 }
 
@@ -254,12 +255,14 @@ function columnaDeVehiculo(v) {
   if (!v || !v.marca || !v.modelo) return null;
   const cols = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
   const mismoAuto = cols.filter((c) => c.marca === v.marca && c.modelo === v.modelo);
-  return (
-    mismoAuto.find((c) => anioEnRango(v.ano, c) && combustibleCoincide(c.combustible, v.combustible)) ||
-    mismoAuto.find((c) => anioEnRango(v.ano, c)) ||
-    mismoAuto[0] ||
-    null
-  );
+  if (v.ano != null && v.ano !== "") {
+    const porAnioComb = mismoAuto.find((c) => anioEnRango(v.ano, c) && combustibleCoincide(c.combustible, v.combustible));
+    if (porAnioComb) return porAnioComb;
+    const porAnio = mismoAuto.find((c) => anioEnRango(v.ano, c));
+    if (porAnio) return porAnio;
+  }
+  if (mismoAuto.length === 1) return mismoAuto[0];
+  return null;
 }
 
 function fotoPortadaVehiculo(v) {
@@ -268,12 +271,42 @@ function fotoPortadaVehiculo(v) {
   return fotoModeloDe(v && v.marca, v && v.modelo);
 }
 
+function itemOcultoEnColumna(col, tipo, id) {
+  const sid = String(id || "");
+  if (!col || !sid) return false;
+  const ocultos = Array.isArray(col.ocultos) ? col.ocultos : [];
+  return ocultos.includes(tokenTarjetaColumna(tipo, sid));
+}
+
+function quitarTarjetaDeColumna(colId, token) {
+  const col = (typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : []).find((c) => c.id === colId);
+  const tok = String(token || "");
+  const p = parseTokenTarjetaColumna(tok);
+  if (!col || !p) return false;
+  if (!Array.isArray(col.ocultos)) col.ocultos = [];
+  if (!col.ocultos.includes(tok)) col.ocultos.push(tok);
+  if (Array.isArray(col.orden_tarjetas)) col.orden_tarjetas = col.orden_tarjetas.filter((t) => t !== tok);
+  if (p.tipo === "servicio" && Array.isArray(col.servicios)) {
+    col.servicios = col.servicios.filter((x) => String(x) !== p.id);
+  }
+  if (p.tipo === "portada" && Array.isArray(col.portadas)) {
+    col.portadas = col.portadas.filter((x) => String(x) !== p.id);
+  }
+  return true;
+}
+
 function itemEnColumna(item, col) {
   if (!item || !col) return false;
   const id = String(item.id || "");
-  if (id && (idsDeColumna(col, "servicios").includes(id) || idsDeColumna(col, "portadas").includes(id))) {
-    return true;
+  const esPortada = typeof portadaSlides !== "undefined" && (portadaSlides || []).some((s) => s.id === id);
+  if (esPortada) {
+    if (itemOcultoEnColumna(col, "portada", id)) return false;
+    sincronizarOrdenTarjetasCol(col);
+    return idsDeColumna(col, "portadas").includes(id);
   }
+  const esServicio = typeof catalogo !== "undefined" && (catalogo || []).some((s) => s.id === id);
+  if (esServicio && itemOcultoEnColumna(col, "servicio", id)) return false;
+  if (id && idsDeColumna(col, "servicios").includes(id)) return true;
   const destinos = normalizarVehiculos(item && item.vehiculos);
   if (!destinos.length) return false;
   return destinos.some((v) => destinoEnColumna(v, col));
@@ -287,13 +320,9 @@ function sembrarMembresiaColumnas() {
     if (!Array.isArray(col.portadas)) col.portadas = [];
     (typeof catalogo !== "undefined" ? catalogo || [] : []).forEach((s) => {
       if (!s || !s.id || col.servicios.includes(String(s.id))) return;
+      if (itemOcultoEnColumna(col, "servicio", s.id)) return;
       const destinos = normalizarVehiculos(s.vehiculos);
       if (destinos.some((v) => destinoEnColumna(v, col))) col.servicios.push(String(s.id));
-    });
-    (typeof portadaSlides !== "undefined" ? portadaSlides || [] : []).forEach((s) => {
-      if (!s || !s.id || col.portadas.includes(String(s.id))) return;
-      const destinos = normalizarVehiculos(s.vehiculos);
-      if (destinos.some((v) => destinoEnColumna(v, col))) col.portadas.push(String(s.id));
     });
     sincronizarOrdenTarjetasCol(col);
   });
@@ -660,8 +689,40 @@ function normalizarServicio(s) {
     tiempo_min: Number(s && s.tiempo_min) > 0 ? Number(s.tiempo_min) : null,
     mano_obra: Number(s && s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
     insumos: normalizarInsumos(s && s.insumos),
+    agotado: Boolean(s && s.agotado),
+    stock_restante: stockRestanteDe(s),
   };
+  if (base.stock_restante != null && base.stock_restante <= 0) base.agotado = true;
   return aplicarMediaServicio(base, mediaServicio(base));
+}
+
+function stockRestanteDe(s) {
+  if (!s || s.stock_restante == null || s.stock_restante === "") return null;
+  const n = Number(s.stock_restante);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.floor(n));
+}
+
+function stockLimitado(s) {
+  return stockRestanteDe(s) != null;
+}
+
+function servicioAgotado(s) {
+  return Boolean(s && s.agotado);
+}
+
+function servicioSinStock(s) {
+  if (servicioAgotado(s)) return true;
+  const r = stockRestanteDe(s);
+  return r != null && r <= 0;
+}
+
+function etiquetaStock(s) {
+  const r = stockRestanteDe(s);
+  if (r == null || r <= 0) return "";
+  if (r === 1) return "¡Última unidad!";
+  if (r <= 5) return `Quedan ${r}`;
+  return "";
 }
 
 function serviciosEn(canal) {
@@ -692,7 +753,11 @@ async function cargarCatalogo() {
     try {
       const remoto = await nubeLeerCatalogo();
       if (remoto.length) {
-        catalogo = remoto.map(normalizarServicio);
+        let lista = remoto.map(normalizarServicio);
+        if (typeof nubeFusionarStockCatalogo === "function") {
+          lista = await nubeFusionarStockCatalogo(lista);
+        }
+        catalogo = lista.map(normalizarServicio);
         recolectarModelosExtra(catalogo);
         persistirModelosExtra();
         persistirFotosModelos();
@@ -978,18 +1043,31 @@ function portadasDefectoDe(lista) {
   return genericos.length ? genericos : base.slice(0, 1);
 }
 
+function portadasFlyerDeColumna(col, base) {
+  const lista = base || (portadaSlides || []).filter((s) => s.foto);
+  if (!col || !lista.length) return [];
+  sincronizarOrdenTarjetasCol(col);
+  const ids = new Set(idsDeColumna(col, "portadas").map(String));
+  return (col.orden_tarjetas || [])
+    .map((tok) => {
+      const p = parseTokenTarjetaColumna(tok);
+      if (!p || p.tipo !== "portada" || !ids.has(String(p.id))) return null;
+      const slide = lista.find((s) => String(s.id) === String(p.id));
+      if (!slide || slide.defecto || itemOcultoEnColumna(col, "portada", p.id)) return null;
+      return slide;
+    })
+    .filter(Boolean);
+}
+
 function slidesPortadaPara(vehiculo) {
   const todos = (portadaSlides || []).filter((s) => s.foto);
   const base = todos.length ? todos : PORTADA_DEFECTO.map(normalizarSlide);
   const reserva = portadasDefectoDe(base);
-  if (!vehiculo || !vehiculo.marca || !vehiculo.modelo || !vehiculo.ano) {
+  if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) {
     return reserva.length ? reserva : base;
   }
-  const propios = base.filter((s) => {
-    if (s.defecto) return false;
-    const dest = normalizarVehiculos(s.vehiculos);
-    return dest.length && slideAplicaAVehiculo(s, vehiculo);
-  });
+  const col = columnaDeVehiculo(vehiculo);
+  const propios = col ? portadasFlyerDeColumna(col, base) : [];
   const extra = reserva.filter((s) => !propios.some((p) => p.id === s.id));
   if (!propios.length) return reserva.length ? reserva : extra;
   return extra.length ? [...propios, ...extra] : propios;

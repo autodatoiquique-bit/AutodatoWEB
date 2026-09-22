@@ -77,6 +77,8 @@ async function nubeGuardarCatalogoCanales(lista) {
       mano_obra: Number(s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
       insumos: Array.isArray(s.insumos) ? s.insumos : [],
       media: Array.isArray(s.media) ? s.media : [],
+      agotado: Boolean(s.agotado),
+      stock_restante: stockRestanteDe(s),
     };
   });
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
@@ -142,9 +144,56 @@ async function nubeLeerCatalogo() {
       if (extra[s.id].mano_obra != null) s.mano_obra = Number(extra[s.id].mano_obra) || 0;
       if (Array.isArray(extra[s.id].insumos)) s.insumos = extra[s.id].insumos;
       if (Array.isArray(extra[s.id].media) && extra[s.id].media.length) s.media = extra[s.id].media;
+      if (extra[s.id].agotado != null) s.agotado = Boolean(extra[s.id].agotado);
+      if (extra[s.id].stock_restante != null && extra[s.id].stock_restante !== "") {
+        s.stock_restante = stockRestanteDe({ stock_restante: extra[s.id].stock_restante });
+      }
     }
     return s;
   });
+}
+
+async function nubeLeerServicioStockMapa() {
+  const sb = clienteNube();
+  if (!sb) return {};
+  const { data, error } = await sb.from("servicio_stock").select("servicio_id, restante");
+  if (error || !data) return {};
+  const map = {};
+  data.forEach((row) => {
+    if (row && row.servicio_id != null && row.restante != null) {
+      map[String(row.servicio_id)] = Math.max(0, Number(row.restante));
+    }
+  });
+  return map;
+}
+
+async function nubeFusionarStockCatalogo(lista) {
+  const map = await nubeLeerServicioStockMapa();
+  if (!Object.keys(map).length) return lista;
+  return (lista || []).map((s) => {
+    if (map[s.id] == null) return s;
+    return { ...s, stock_restante: map[s.id], agotado: map[s.id] <= 0 ? true : s.agotado };
+  });
+}
+
+async function nubeSyncServicioStock(lista) {
+  const sb = clienteNube();
+  if (!sb) return;
+  const ids = (lista || []).map((s) => s.id).filter(Boolean);
+  for (const s of lista || []) {
+    const lim = stockRestanteDe(s);
+    if (lim == null) {
+      await sb.from("servicio_stock").delete().eq("servicio_id", s.id);
+      continue;
+    }
+    const { error } = await sb.from("servicio_stock").upsert({ servicio_id: s.id, restante: lim });
+    if (error) throw error;
+  }
+  if (ids.length) {
+    const { data } = await sb.from("servicio_stock").select("servicio_id");
+    const sobran = (data || []).map((r) => r.servicio_id).filter((id) => !ids.includes(id));
+    if (sobran.length) await sb.from("servicio_stock").delete().in("servicio_id", sobran);
+  }
 }
 
 async function nubeGuardarCatalogo(lista) {
@@ -173,6 +222,7 @@ async function nubeGuardarCatalogo(lista) {
   if (errorU) throw errorU;
   try {
     await nubeGuardarCatalogoCanales(lista);
+    await nubeSyncServicioStock(lista);
   } catch (e) {
     console.warn("No se pudieron guardar los menús del catálogo.", e);
     throw e;

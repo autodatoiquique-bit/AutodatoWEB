@@ -207,6 +207,115 @@ app.post("/api/autonexus-ficha", async (req, res) => {
   }
 });
 
+function supabaseServiceConfig() {
+  const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const key = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  if (!url || !key) return null;
+  return { url, key };
+}
+
+async function supabaseRpc(nombre, body) {
+  const cfg = supabaseServiceConfig();
+  if (!cfg) return { ok: false, status: 501, error: "Stock no configurado en el servidor." };
+  const r = await fetch(`${cfg.url}/rest/v1/rpc/${nombre}`, {
+    method: "POST",
+    headers: {
+      apikey: cfg.key,
+      Authorization: `Bearer ${cfg.key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const texto = await r.text();
+  let data = null;
+  try {
+    data = texto ? JSON.parse(texto) : null;
+  } catch (_e) {
+    data = null;
+  }
+  if (!r.ok) {
+    return { ok: false, status: 502, error: (data && data.message) || "No se pudo validar el stock." };
+  }
+  return { ok: true, data };
+}
+
+async function descargarCatalogoCanales() {
+  const cfg = supabaseServiceConfig();
+  if (!cfg) return null;
+  const r = await fetch(`${cfg.url}/storage/v1/object/servicios/catalogo-canales.json`, {
+    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+  });
+  if (!r.ok) return null;
+  try {
+    return await r.json();
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function subirCatalogoCanales(mapa) {
+  const cfg = supabaseServiceConfig();
+  if (!cfg) return false;
+  const r = await fetch(`${cfg.url}/storage/v1/object/servicios/catalogo-canales.json`, {
+    method: "POST",
+    headers: {
+      apikey: cfg.key,
+      Authorization: `Bearer ${cfg.key}`,
+      "Content-Type": "application/json",
+      "x-upsert": "true",
+    },
+    body: JSON.stringify(mapa),
+  });
+  return r.ok;
+}
+
+async function actualizarStockEnCatalogo(idsCantidad) {
+  const mapa = await descargarCatalogoCanales();
+  if (!mapa) return {};
+  const restantes = {};
+  idsCantidad.forEach(({ id, qty }) => {
+    const sid = String(id);
+    const extra = mapa[sid];
+    if (!extra || extra.stock_restante == null || extra.stock_restante === "") return;
+    const n = Math.max(0, Math.floor(Number(extra.stock_restante)) - Math.max(1, Number(qty) || 1));
+    extra.stock_restante = n;
+    if (n <= 0) extra.agotado = true;
+    restantes[sid] = n;
+  });
+  await subirCatalogoCanales(mapa);
+  return restantes;
+}
+
+app.post("/api/consumir-stock", async (req, res) => {
+  const items = Array.isArray((req.body || {}).items) ? req.body.items : [];
+  const limpios = items
+    .map((x) => ({ id: String(x.id || ""), qty: Math.max(1, Number(x.qty) || 1) }))
+    .filter((x) => x.id);
+  if (!limpios.length) return res.json({ ok: true, skipped: true });
+
+  const rpc = await supabaseRpc("consumir_stock_servicios", { p_items: limpios });
+  if (!rpc.ok) return res.status(rpc.status || 502).json({ ok: false, error: rpc.error });
+  const out = rpc.data || {};
+  if (out.ok === false) {
+    const f = Array.isArray(out.faltantes) ? out.faltantes : [];
+    const nombres = f.map((x) => x.id).join(", ");
+    return res.status(409).json({
+      ok: false,
+      error: "Uno o más servicios se agotaron hace un momento.",
+      faltantes: f,
+      ids: nombres,
+    });
+  }
+
+  let restantes = {};
+  try {
+    restantes = await actualizarStockEnCatalogo(limpios);
+  } catch (e) {
+    console.warn("Stock descontado en BD pero no se actualizó catalogo-canales.json", e.message || e);
+  }
+  return res.json({ ok: true, restantes });
+});
+
 app.post("/api/autonexus-ticket", async (req, res) => {
   const url = urlWebhookAutonexus();
   const token = process.env.AUTONEXUS_WEBHOOK_TOKEN || "";
