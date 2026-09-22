@@ -1565,6 +1565,60 @@ function pintarFotoServicio() {
   if (img && m && m.tipo === "foto") img.style.cssText = estiloFotoPortada(m);
 }
 
+function htmlEnlaceServicioAdmin(s) {
+  if (!s || !s.id) {
+    return `<fieldset class="canales">
+      <legend>Enlace para asistente virtual</legend>
+      <p class="hint">Guarda el servicio una vez para generar la URL que el asistente enviará al cliente.</p>
+    </fieldset>`;
+  }
+  const plantilla =
+    typeof enlaceAutoDatoPlantillaServicio === "function"
+      ? enlaceAutoDatoPlantillaServicio(s.id)
+      : `https://autodato.cl/?marca=MARCA&modelo=MODELO&ano=ANO&combustible=ambos&servicio=${encodeURIComponent(s.id)}`;
+  const solo =
+    typeof enlaceAutoDatoConServicio === "function"
+      ? enlaceAutoDatoConServicio(s.id)
+      : `https://autodato.cl/?servicio=${encodeURIComponent(s.id)}`;
+  return `<fieldset class="canales">
+      <legend>Enlace para asistente virtual</legend>
+      <p class="hint">El cliente abre la ficha de este servicio. Completa MARCA, MODELO, ANO y combustible (o usa la plantilla en el chat).</p>
+      <label class="field"><span>Plantilla con vehículo</span><input id="e-url-plantilla" type="text" readonly value="${escapeAttr(plantilla)}" /></label>
+      <button class="btn-line btn-block" type="button" id="btn-copiar-url-plantilla">Copiar plantilla</button>
+      <label class="field"><span>Solo servicio (sin auto en la URL)</span><input id="e-url-servicio" type="text" readonly value="${escapeAttr(solo)}" /></label>
+      <button class="btn-line btn-block" type="button" id="btn-copiar-url-servicio">Copiar enlace corto</button>
+    </fieldset>`;
+}
+
+async function copiarTextoAdmin(texto, btn) {
+  const prev = btn && btn.textContent;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(texto);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = texto;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    if (btn) {
+      btn.textContent = "Copiado";
+      setTimeout(() => {
+        btn.textContent = prev;
+      }, 1600);
+    }
+    return true;
+  } catch (e) {
+    alert("No se pudo copiar. Selecciona el texto del campo y cópialo a mano.");
+    return false;
+  }
+}
+
 function renderEditor() {
   $("stage").classList.remove("stage-board");
   const s = editando;
@@ -1616,6 +1670,7 @@ function renderEditor() {
               <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
             </fieldset>
             <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
+            ${htmlEnlaceServicioAdmin(s)}
             <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
             <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
             ${htmlVehiculosEditor(s)}
@@ -2482,6 +2537,16 @@ $("stage").addEventListener("click", (e) => {
   const t = e.target.closest("button");
   if (!t || t.id === "portada-btn-drag") return;
   if (t.id === "btn-guardar") guardarServicio();
+  if (t.id === "btn-copiar-url-plantilla") {
+    const el = $("e-url-plantilla");
+    if (el) copiarTextoAdmin(el.value, t);
+    return;
+  }
+  if (t.id === "btn-copiar-url-servicio") {
+    const el = $("e-url-servicio");
+    if (el) copiarTextoAdmin(el.value, t);
+    return;
+  }
   if (t.id === "btn-toggle-ultima-unidad") {
     leerEditor();
     editando.ultima_unidad = !editando.ultima_unidad;

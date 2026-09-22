@@ -342,8 +342,28 @@ function aplicarVehiculoDesdeUrl() {
   const auto = vehiculoDesdeQuery();
   if (!auto) return false;
   state.vehiculo = auto;
-  if (typeof limpiarQueryVehiculoEnHistorial === "function") limpiarQueryVehiculoEnHistorial();
   return true;
+}
+
+function aplicarServicioDesdeUrl() {
+  if (typeof idServicioDesdeQuery !== "function") return false;
+  const id = idServicioDesdeQuery();
+  if (!id) return false;
+  const s = oferta(id);
+  if (!s) return false;
+  if (typeof vistaListaDeServicio === "function") state.origenLista = vistaListaDeServicio(s);
+  intentarAbrirOferta(id);
+  return true;
+}
+
+function aplicarEntradaDesdeUrl() {
+  const teniaV = aplicarVehiculoDesdeUrl();
+  const teniaS = aplicarServicioDesdeUrl();
+  if (teniaV) persistir();
+  if (teniaV || teniaS) {
+    if (typeof limpiarQueryEntradaEnHistorial === "function") limpiarQueryEntradaEnHistorial();
+  }
+  return teniaV || teniaS;
 }
 
 function hidratar() {
@@ -2246,7 +2266,7 @@ async function arrancar() {
   await cargarPortada();
   aplicarLogos();
   hidratar();
-  if (aplicarVehiculoDesdeUrl()) persistir();
+  aplicarEntradaDesdeUrl();
   pintarDatosFicha();
   renderVista({ quedarse: true });
   renderTotales(false);

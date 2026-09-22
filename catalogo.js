@@ -1194,6 +1194,10 @@ const QUERY_VEHICULO_KEYS = [
   "model",
 ];
 
+const QUERY_SERVICIO_KEYS = ["servicio", "promo", "promocion", "oferta"];
+
+const QUERY_ENTRADA_KEYS = [...QUERY_VEHICULO_KEYS, ...QUERY_SERVICIO_KEYS];
+
 function rawVehiculoDesdeQuery(search) {
   const q = new URLSearchParams(search || (typeof location !== "undefined" ? location.search : ""));
   const keys = [...q.keys()].map((k) => k.toLowerCase());
@@ -1212,6 +1216,23 @@ function vehiculoDesdeQuery(search) {
   return encajarVehiculoTaller(raw);
 }
 
+function idServicioDesdeQuery(search) {
+  const q = new URLSearchParams(search || (typeof location !== "undefined" ? location.search : ""));
+  for (const k of QUERY_SERVICIO_KEYS) {
+    const v = q.get(k);
+    if (v != null && String(v).trim()) return String(v).trim();
+  }
+  return "";
+}
+
+function vistaListaDeServicio(s) {
+  const c = (s && s.canales) || {};
+  if (c.ofertas) return "ofertas";
+  if (c.mantencion) return "mantencion";
+  if (c.diagnostico) return "diagnostico";
+  return "ofertas";
+}
+
 /** Enlace a autodato.cl con el vehículo precargado (botón en ficha AutoNexus). */
 function enlaceAutoDatoConVehiculo(v, base) {
   const origin =
@@ -1227,15 +1248,42 @@ function enlaceAutoDatoConVehiculo(v, base) {
   return u.toString();
 }
 
-function limpiarQueryVehiculoEnHistorial() {
+function enlaceAutoDatoConServicio(servicioId, v, base) {
+  const sid = String(servicioId || "").trim();
+  if (!sid) return enlaceAutoDatoConVehiculo(v, base);
+  const origin =
+    typeof location !== "undefined" && location.origin && !/^file:/i.test(location.origin)
+      ? location.origin
+      : "https://autodato.cl";
+  const u = new URL(base || `${origin}/`);
+  if (v && v.marca && v.modelo) {
+    u.searchParams.set("marca", String(v.marca));
+    u.searchParams.set("modelo", String(v.modelo));
+    if (v.ano != null && v.ano !== "") u.searchParams.set("ano", String(v.ano));
+    u.searchParams.set("combustible", normalizarCombustible(v.combustible));
+  }
+  u.searchParams.set("servicio", sid);
+  return u.toString();
+}
+
+function enlaceAutoDatoPlantillaServicio(servicioId) {
+  const sid = encodeURIComponent(String(servicioId || "").trim());
+  return `https://autodato.cl/?marca=MARCA&modelo=MODELO&ano=ANO&combustible=ambos&servicio=${sid}`;
+}
+
+function limpiarQueryEntradaEnHistorial() {
   if (typeof history === "undefined" || !history.replaceState) return;
   const u = new URL(location.href);
   [...u.searchParams.keys()].forEach((k) => {
-    if (QUERY_VEHICULO_KEYS.includes(k.toLowerCase())) u.searchParams.delete(k);
+    if (QUERY_ENTRADA_KEYS.includes(k.toLowerCase())) u.searchParams.delete(k);
   });
   const qs = u.searchParams.toString();
   const next = u.pathname + (qs ? `?${qs}` : "") + u.hash;
   history.replaceState(history.state, "", next);
+}
+
+function limpiarQueryVehiculoEnHistorial() {
+  limpiarQueryEntradaEnHistorial();
 }
 
 function slideVacio(orden) {
