@@ -690,6 +690,7 @@ function normalizarServicio(s) {
     mano_obra: Number(s && s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
     insumos: normalizarInsumos(s && s.insumos),
     agotado: Boolean(s && s.agotado),
+    ultima_unidad: Boolean(s && s.ultima_unidad),
     stock_restante: stockRestanteDe(s),
   };
   if (base.stock_restante != null && base.stock_restante <= 0) base.agotado = true;
@@ -717,10 +718,18 @@ function servicioSinStock(s) {
   return r != null && r <= 0;
 }
 
+function servicioUltimaUnidad(s) {
+  if (!s || servicioSinStock(s)) return false;
+  if (s.ultima_unidad) return true;
+  const r = stockRestanteDe(s);
+  return r != null && r === 1;
+}
+
 function etiquetaStock(s) {
+  if (servicioSinStock(s)) return "";
+  if (servicioUltimaUnidad(s)) return "¡Última unidad!";
   const r = stockRestanteDe(s);
   if (r == null || r <= 0) return "";
-  if (r === 1) return "¡Última unidad!";
   if (r <= 5) return `Quedan ${r}`;
   return "";
 }

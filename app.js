@@ -11,6 +11,8 @@ const PAGINAS = {
   },
 };
 
+const agendaAutonexus = { dias: [], ts: 0, cargando: false };
+
 const state = {
   vista: "portada",
   ofertaAbierta: null,
@@ -590,6 +592,13 @@ function htmlSumaRelacionados(s, enCarro) {
   return bloques.join("");
 }
 
+function volverAlCatalogoDesdeDetalle() {
+  state.ofertaAbierta = null;
+  state.ofertaPendiente = null;
+  state.vista = state.origenLista || "ofertas";
+  renderVista();
+}
+
 function htmlIconoCarro() {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2l1 2h14l-1.6 8H8L6 7"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>`;
 }
@@ -730,6 +739,7 @@ function renderDetalleOferta() {
             }
           </div>
           ${htmlSumaRelacionados(s, enCarro)}
+          <button class="btn-line btn-block btn-volver-catalogo" type="button" data-volver-catalogo>Volver al catálogo</button>
         </div>
       </div>
     </article>
@@ -913,6 +923,57 @@ function esHabil(date) {
   return d >= 1 && d <= 5;
 }
 
+async function refrescarAgendaAutonexus(force) {
+  const ttl = 5 * 60 * 1000;
+  if (!force && agendaAutonexus.dias.length && Date.now() - agendaAutonexus.ts < ttl) {
+    return agendaAutonexus;
+  }
+  if (agendaAutonexus.cargando) return agendaAutonexus;
+  agendaAutonexus.cargando = true;
+  try {
+    const r = await fetch("/api/agenda-disponibilidad?dias=21", { cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok && j.data && Array.isArray(j.data.dias)) {
+      agendaAutonexus.dias = j.data.dias;
+      agendaAutonexus.ts = Date.now();
+    }
+  } catch (e) {
+    console.warn("No se pudo cargar agenda AutoNexus.", e);
+  }
+  agendaAutonexus.cargando = false;
+  return agendaAutonexus;
+}
+
+function diaAgenda(iso) {
+  return agendaAutonexus.dias.find((d) => d.fecha_iso === iso) || null;
+}
+
+function libresDeDia(iso) {
+  const d = diaAgenda(iso);
+  if (!d) return null;
+  if (d.motivo_dia_cerrado) return [];
+  return Array.isArray(d.libres) ? d.libres.map(String) : [];
+}
+
+function diaAgendaReservable(fecha) {
+  if (!esHabil(fecha) || fecha < hoy0()) return false;
+  const iso = ymd(fecha);
+  const d = diaAgenda(iso);
+  if (!d) return true;
+  if (d.motivo_dia_cerrado) return false;
+  const libres = libresDeDia(iso);
+  return libres != null && libres.length > 0;
+}
+
+function etiquetaAgendaDia(iso) {
+  const d = diaAgenda(iso);
+  if (!d) return "";
+  if (d.motivo_dia_cerrado) return String(d.motivo_dia_cerrado);
+  if (d.agenda_web_cerrada) return "Sin cupo web hoy";
+  if (!(d.libres || []).length) return "Cupos tomados";
+  return "";
+}
+
 function ymd(date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
@@ -946,9 +1007,12 @@ function htmlCalendario() {
   for (let d = 1; d <= days; d += 1) {
     const fecha = new Date(y, m, d);
     const id = ymd(fecha);
-    const ok = esHabil(fecha) && fecha >= hoy0();
+    const ok = fecha >= hoy0() && diaAgendaReservable(fecha);
     const on = state.cita.fecha === id ? "is-on" : "";
-    celdas.push(`<button type="button" data-dia="${id}" ${ok ? "" : "disabled"} class="${on}">${d}</button>`);
+    const title = etiquetaAgendaDia(id);
+    celdas.push(
+      `<button type="button" data-dia="${id}" ${ok ? "" : "disabled"} class="${on}"${title ? ` title="${escapeAttr(title)}"` : ""}>${d}</button>`
+    );
   }
   return `
     <div class="cal-wrap">
@@ -961,19 +1025,28 @@ function htmlCalendario() {
         <b>L</b><b>M</b><b>M</b><b>J</b><b>V</b><b>S</b><b>D</b>
         ${celdas.join("")}
       </div>
-      <p class="muted">${state.cita.fecha && state.cita.hora ? `Elegiste ${fechaBonita(state.cita.fecha)} · ${state.cita.hora}` : "Pincha un día hábil. Se abre un recuadro con las horas."}</p>
+      <p class="muted" id="cal-ayuda">${state.cita.fecha && state.cita.hora ? `Elegiste ${fechaBonita(state.cita.fecha)} · ${state.cita.hora}` : agendaAutonexus.cargando ? "Cargando cupos del taller…" : agendaAutonexus.dias.length ? "Pincha un día con cupo. Horarios: 09:00, 11:00 y 15:00." : "Pincha un día hábil. Se abre un recuadro con las horas."}</p>
     </div>
   `;
 }
 
 function abrirModalHoras(fecha) {
+  const libres = libresDeDia(fecha);
+  const bloques =
+    libres != null
+      ? BLOQUES.filter((b) => libres.includes(b.hora))
+      : BLOQUES.slice();
   $("modal-horas").hidden = false;
   $("overlay").hidden = false;
   $("modal-horas-fecha").textContent = fechaBonita(fecha);
-  $("modal-horas-lista").innerHTML = BLOQUES.map(
-    (b) =>
-      `<button type="button" data-hora="${b.hora}" class="${state.cita.hora === b.hora && state.cita.fecha === fecha ? "is-on" : ""}">${b.etiqueta}</button>`
-  ).join("");
+  $("modal-horas-lista").innerHTML = bloques.length
+    ? bloques
+        .map(
+          (b) =>
+            `<button type="button" data-hora="${b.hora}" class="${state.cita.hora === b.hora && state.cita.fecha === fecha ? "is-on" : ""}">${b.etiqueta}</button>`
+        )
+        .join("")
+    : `<p class="muted">No hay cupo en este día. Elige otra fecha.</p>`;
 }
 
 function cerrarModalHoras() {
@@ -1103,7 +1176,27 @@ function iconoBasura() {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>`;
 }
 
-function renderDatosAgenda() {
+function enfocarBtnTicketAgenda() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const btn = $("btn-ticket");
+      const stage = $("stage");
+      if (!btn || !stage) return;
+      const stageRect = stage.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      const margen = 20;
+      const fueraAbajo = btnRect.bottom - stageRect.bottom + margen;
+      if (fueraAbajo > 0) {
+        stage.scrollTo({ top: stage.scrollTop + fueraAbajo, behavior: "smooth" });
+        return;
+      }
+      btn.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+  });
+}
+
+async function renderDatosAgenda(opts = {}) {
+  await refrescarAgendaAutonexus(Boolean(opts.forceAgenda));
   const { items, subtotal, total, ahorro } = calcular();
   $("stage").innerHTML = `
     <section class="panel claro">
@@ -1137,6 +1230,7 @@ function renderDatosAgenda() {
     if (!el) return;
     el.addEventListener("input", guardarClienteDesdeForma);
   });
+  if (opts.scrollToTicket && state.cita.fecha && state.cita.hora) enfocarBtnTicketAgenda();
 }
 
 function escapeHtml(v) {
@@ -1476,13 +1570,19 @@ async function enviarTicketAutonexus(payload) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (r.ok) return true;
     const j = await r.json().catch(() => ({}));
-    console.warn("AutoNexus no recibió el ticket.", r.status, j.error || "");
-    return false;
+    if (r.ok && j.ok) {
+      return { ok: true, code: j.code || "", ticket_whatsapp_enviado: Boolean(j.ticket_whatsapp_enviado) };
+    }
+    console.warn("AutoNexus no recibió el ticket.", r.status, j.error || j.codigo || "");
+    return {
+      ok: false,
+      error: j.error || "AutoNexus no aceptó el ticket.",
+      codigo: j.codigo || "",
+    };
   } catch (e) {
     console.warn("No se pudo avisar a AutoNexus.", e);
-    return false;
+    return { ok: false, error: "No se pudo conectar con la agenda del taller." };
   }
 }
 
@@ -1514,12 +1614,9 @@ async function generarTicket() {
     alert(stockOk.error);
     return;
   }
-  const code = nuevoCodeTicket();
-  const payload = {
+  const borrador = {
     origen: "autodato_web",
     accion: "crear_ingreso",
-    code,
-    folio: code,
     agendado: true,
     marca: state.vehiculo.marca,
     modelo: state.vehiculo.modelo,
@@ -1545,6 +1642,21 @@ async function generarTicket() {
     creado: new Date().toISOString(),
   };
 
+  const autonexus = await enviarTicketAutonexus(borrador);
+  if (!autonexus.ok) {
+    if (autonexus.codigo === "SLOT_OCUPADO" || autonexus.codigo === "HORARIO_INVALIDO") {
+      await refrescarAgendaAutonexus(true);
+      state.cita.hora = "";
+      await renderDatosAgenda({ forceAgenda: true });
+    }
+    alert(autonexus.error || "No se pudo agendar en AutoNexus. Elige otra fecha u hora.");
+    return;
+  }
+
+  const code = autonexus.code || nuevoCodeTicket();
+  const payload = { ...borrador, code, folio: code };
+  llegoAgenda = true;
+
   const tickets = JSON.parse(localStorage.getItem("autodato_tickets") || "[]");
   tickets.unshift(payload);
   localStorage.setItem("autodato_tickets", JSON.stringify(tickets));
@@ -1556,7 +1668,6 @@ async function generarTicket() {
     }
   }
 
-  llegoAgenda = await enviarTicketAutonexus(payload);
   if (typeof cargarCatalogo === "function") await cargarCatalogo();
   vaciarCarritoTrasTicket();
   abrirTicket(payload);
@@ -1566,9 +1677,6 @@ async function generarTicket() {
       btn.disabled = false;
       btn.textContent = "Generar ticket y agendar";
     }
-  }
-  if (!llegoAgenda) {
-    alert("El ticket se generó, pero no llegó a la agenda de AutoNexus. Revisa el CODE y reintenta o avisa en el taller.");
   }
 }
 
@@ -1762,7 +1870,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], #btn-ticket, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], #btn-ticket, #chip-auto"
   );
   if (!t) return;
 
@@ -1831,6 +1939,7 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
   if (t.dataset.pedirQuitar) pedirQuitar(t.dataset.pedirQuitar);
+  if (t.hasAttribute("data-volver-catalogo")) volverAlCatalogoDesdeDetalle();
   if (t.dataset.abrirOferta) intentarAbrirOferta(t.dataset.abrirOferta);
   if (t.dataset.addOferta) agregarOferta(t.dataset.addOferta);
   if (t.dataset.addDiag) agregarDiagnostico(t.dataset.addDiag);
@@ -1839,23 +1948,23 @@ document.addEventListener("click", (e) => {
 
   if (t.dataset.dia) {
     state.cita.fecha = t.dataset.dia;
+    state.cita.hora = "";
     guardarClienteDesdeForma();
     persistir();
-    renderDatosAgenda();
-    abrirModalHoras(t.dataset.dia);
+    renderDatosAgenda().then(() => abrirModalHoras(t.dataset.dia));
   }
   if (t.dataset.hora) {
     state.cita.hora = t.dataset.hora;
     guardarClienteDesdeForma();
     persistir();
     cerrarModalHoras();
-    renderDatosAgenda();
+    renderDatosAgenda({ scrollToTicket: true });
   }
   if (t.dataset.cal) {
     const next = new Date(state.cal.y, state.cal.m + Number(t.dataset.cal), 1);
     state.cal = { y: next.getFullYear(), m: next.getMonth() };
     guardarClienteDesdeForma();
-    renderDatosAgenda();
+    renderDatosAgenda({ forceAgenda: true });
   }
   if (t.id === "btn-ticket") generarTicket();
 });

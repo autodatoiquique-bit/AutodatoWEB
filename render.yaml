@@ -16,3 +16,5 @@ services:
         sync: false
       - key: AUTONEXUS_WEBHOOK_TOKEN
         sync: false
+      - key: AUTONEXUS_ID_TALLER
+        sync: false

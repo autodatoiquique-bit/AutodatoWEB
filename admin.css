@@ -342,6 +342,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .kanban-card-del:hover { background: #ffebe6; }
 .btn-agotado.is-on { background: #ffebe6; color: #bf2600; border-color: #ffbdad; }
+.btn-ultima.is-on { background: #fff0b3; color: #172b4d; border-color: #ffc400; }
 .editor-tag-agotado { margin-top: 8px; display: inline-block; }
 .tag-agotado { background: #dfe1e6; color: #42526e; font-size: 0.72rem; font-weight: 800; padding: 4px 8px; border-radius: 999px; }
 .kanban-card {

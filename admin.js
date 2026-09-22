@@ -160,6 +160,7 @@ function servicioVacio() {
     complementos: [],
     activo: true,
     agotado: false,
+    ultima_unidad: false,
     stock_restante: null,
     tiempo_min: null,
     mano_obra: 0,
@@ -268,7 +269,7 @@ function htmlTarjetaKanbanServicio(s, colId, token) {
   const inner = `<button class="kanban-card" type="button" data-kanban-servicio="${s.id}">
     <div class="kanban-cover">${s.foto ? `<img src="${s.foto}" alt="" draggable="false" />` : ""}</div>
     <div class="kanban-body">
-      <strong>${escapeText(s.nombre || "Sin nombre")}${s.agotado ? " · Agotado" : ""}</strong>
+      <strong>${escapeText(s.nombre || "Sin nombre")}${s.ultima_unidad && !s.agotado ? " · Última unidad" : ""}${s.agotado ? " · Agotado" : ""}</strong>
       <div class="kanban-kpis">
         <div>
           <span>Normal</span>
@@ -1105,7 +1106,7 @@ function renderLista() {
           ${foto}
           <div>
             <strong>${s.nombre || "Sin nombre"}</strong>
-            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${etiquetaVehiculos(s)}${s.agotado ? " · Agotado" : ""}</span>
+            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${etiquetaVehiculos(s)}${s.ultima_unidad && !s.agotado ? " · Última unidad" : ""}${s.agotado ? " · Agotado" : ""}</span>
           </div>
         </button>
       `;
@@ -1474,7 +1475,9 @@ function renderEditor() {
                 ${
                   s.agotado
                     ? `<span class="tag tag-agotado editor-tag-agotado">Agotado</span>`
-                    : `<button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>`
+                    : s.ultima_unidad || (s.stock_restante === 1)
+                      ? `<span class="tag tag-stock editor-tag-agotado">¡Última unidad!</span>`
+                      : `<button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>`
                 }
               </div>
             </div>
@@ -1540,6 +1543,8 @@ function renderEditor() {
             <p class="hint">Al revés: si el cliente ya lleva <strong>${s.nombre || "este servicio"}</strong>, puedes bajar el precio de otro trabajo del mismo ingreso.</p>
             <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
             <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
+            <button class="btn-line btn-block btn-ultima${s.ultima_unidad ? " is-on" : ""}" type="button" id="btn-toggle-ultima-unidad">${s.ultima_unidad ? "Quitar aviso de última unidad" : "Marcar como última unidad"}</button>
+            <p class="hint" id="hint-ultima-unidad"${s.ultima_unidad ? "" : " hidden"}>En el celular verán la etiqueta «¡Última unidad!». Si no pusiste unidades disponibles, al activar esto se fija en 1 unidad al guardar.</p>
             <button class="btn-line btn-block btn-agotado${s.agotado ? " is-on" : ""}" type="button" id="btn-toggle-agotado">${s.agotado ? "Marcar como disponible" : "Marcar como agotado"}</button>
             <p class="hint" id="hint-agotado"${s.agotado ? "" : " hidden"}>En el celular el cliente verá el servicio, pero no podrá agregarlo al carrito hasta que lo marques disponible y guardes.</p>
             <div class="btn-row">
@@ -1628,6 +1633,7 @@ async function guardarServicio() {
     alert("En algún vehículo el año desde es mayor que el año hasta.");
     return;
   }
+  if (editando.ultima_unidad && editando.stock_restante == null) editando.stock_restante = 1;
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
   const copia = JSON.parse(JSON.stringify(editando));
   const idx = catalogo.findIndex((s) => s.id === copia.id);
@@ -2347,9 +2353,20 @@ $("stage").addEventListener("click", (e) => {
   const t = e.target.closest("button");
   if (!t || t.id === "portada-btn-drag") return;
   if (t.id === "btn-guardar") guardarServicio();
+  if (t.id === "btn-toggle-ultima-unidad") {
+    leerEditor();
+    editando.ultima_unidad = !editando.ultima_unidad;
+    if (editando.ultima_unidad) {
+      editando.agotado = false;
+      if (editando.stock_restante == null) editando.stock_restante = 1;
+    }
+    renderEditor();
+    return;
+  }
   if (t.id === "btn-toggle-agotado") {
     leerEditor();
     editando.agotado = !editando.agotado;
+    if (editando.agotado) editando.ultima_unidad = false;
     renderEditor();
     return;
   }

@@ -78,6 +78,7 @@ async function nubeGuardarCatalogoCanales(lista) {
       insumos: Array.isArray(s.insumos) ? s.insumos : [],
       media: Array.isArray(s.media) ? s.media : [],
       agotado: Boolean(s.agotado),
+      ultima_unidad: Boolean(s.ultima_unidad),
       stock_restante: stockRestanteDe(s),
     };
   });
@@ -145,6 +146,7 @@ async function nubeLeerCatalogo() {
       if (Array.isArray(extra[s.id].insumos)) s.insumos = extra[s.id].insumos;
       if (Array.isArray(extra[s.id].media) && extra[s.id].media.length) s.media = extra[s.id].media;
       if (extra[s.id].agotado != null) s.agotado = Boolean(extra[s.id].agotado);
+      if (extra[s.id].ultima_unidad != null) s.ultima_unidad = Boolean(extra[s.id].ultima_unidad);
       if (extra[s.id].stock_restante != null && extra[s.id].stock_restante !== "") {
         s.stock_restante = stockRestanteDe({ stock_restante: extra[s.id].stock_restante });
       }

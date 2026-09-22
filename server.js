@@ -37,37 +37,60 @@ function urlWebhookAutonexus() {
   return raw;
 }
 
-function cuerpoAutonexus(payload, token) {
+function tokenAutonexus() {
+  return String(process.env.AUTONEXUS_WEBHOOK_TOKEN || "").trim();
+}
+
+function idTallerAutonexus() {
+  return String(process.env.AUTONEXUS_ID_TALLER || "").trim();
+}
+
+async function postAutonexus(body) {
+  const url = urlWebhookAutonexus();
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const texto = await r.text();
+  let parsed = null;
+  try {
+    parsed = texto ? JSON.parse(texto) : null;
+  } catch (_e) {
+    parsed = null;
+  }
+  return { ok: r.ok, status: r.status, parsed, texto };
+}
+
+function cuerpoAutonexus(payload, token, idTaller) {
   const items = Array.isArray(payload.servicios) ? payload.servicios : [];
   const total = Number(payload.total);
   const ahorro = Number(payload.ahorro) || 0;
   const marca = [payload.marca, payload.modelo, payload.ano].filter(Boolean).join(" ");
   const servicios = items
-    .map((s) => {
+    .map((s, i) => {
       const precio = s.precio == null ? "A confirmar" : String(s.precio);
-      return `${s.nombre} ${precio}`;
+      return `${i + 1}. ${s.nombre} $${precio}`;
     })
-    .join(", ");
-  const code = String(payload.code || "").trim();
+    .join("\n");
   return {
     accion: "crear_ticket",
     token,
     asistente: "clientes",
+    id_taller: idTaller,
     nombre_cliente: String(payload.nombre_cliente || "").trim(),
     telefono: telefonoLimpio(payload.telefono),
-    code,
     fecha_atencion: fechaDmy(payload.fecha_cita),
     hora_atencion: String(payload.hora || "").trim(),
     vehiculo: marca,
     marca_modelo_ano: marca,
     marca_modelo_anio: marca,
     servicios_solicitados: servicios,
-    servicio_solicitado: servicios,
-    total_pactado: Number.isFinite(total) ? Math.round(total) : "",
+    total_pactado: Number.isFinite(total) ? String(Math.round(total)) : "",
     antecedentes: String(payload.sintoma || "").trim(),
     correo: String(payload.correo || "").trim(),
     patente: String(payload.patente || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase(),
-    estatus_tarifa: ahorro > 0 ? "bonificacion" : "estandar",
+    estatus_tarifa: ahorro > 0 ? "bonificación" : "TARIFA ESTÁNDAR",
   };
 }
 
@@ -316,35 +339,61 @@ app.post("/api/consumir-stock", async (req, res) => {
   return res.json({ ok: true, restantes });
 });
 
+app.get("/api/agenda-disponibilidad", async (req, res) => {
+  const token = tokenAutonexus();
+  const id_taller = idTallerAutonexus();
+  if (!token || !id_taller) {
+    return res.status(501).json({ ok: false, error: "Agenda AutoNexus no configurada en el servidor." });
+  }
+  const dias = Math.min(60, Math.max(1, Number(req.query.dias) || 21));
+  const body = {
+    accion: "consultar_disponibilidad",
+    token,
+    asistente: "clientes",
+    id_taller,
+    dias,
+  };
+  const f = String(req.query.fecha || "").trim();
+  if (f) body.fecha = /^\d{4}-\d{2}-\d{2}$/.test(f) ? fechaDmy(f) : f;
+  try {
+    const { ok, status, parsed } = await postAutonexus(body);
+    if (!ok || !parsed || parsed.exito === false) {
+      return res.status(status >= 400 ? status : 502).json({
+        ok: false,
+        error: (parsed && (parsed.error || parsed.mensaje_para_asistente)) || "No se pudo consultar la agenda.",
+        codigo: (parsed && parsed.codigo) || "",
+      });
+    }
+    return res.json({ ok: true, data: parsed });
+  } catch (e) {
+    console.warn("Agenda AutoNexus error", e.message || e);
+    return res.status(502).json({ ok: false, error: "No se pudo consultar la agenda." });
+  }
+});
+
 app.post("/api/autonexus-ticket", async (req, res) => {
-  const url = urlWebhookAutonexus();
-  const token = process.env.AUTONEXUS_WEBHOOK_TOKEN || "";
-  if (!token) {
+  const token = tokenAutonexus();
+  const id_taller = idTallerAutonexus();
+  if (!token || !id_taller) {
     return res.status(501).json({ ok: false, error: "Webhook no configurado" });
   }
   try {
-    const body = cuerpoAutonexus(req.body || {}, token);
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+    const body = cuerpoAutonexus(req.body || {}, token, id_taller);
+    const { ok, status, parsed } = await postAutonexus(body);
+    if (!ok || !parsed || parsed.exito === false) {
+      const codigo = (parsed && (parsed.codigo || parsed.error)) || "";
+      const msg =
+        (parsed && (parsed.mensaje_para_asistente || parsed.error)) || "AutoNexus no aceptó el ticket";
+      console.warn("AutoNexus webhook falló", status, codigo, msg);
+      const http = codigo === "SLOT_OCUPADO" || codigo === "HORARIO_INVALIDO" ? 409 : 502;
+      return res.status(http).json({ ok: false, error: msg, codigo });
+    }
+    return res.json({
+      ok: true,
+      code: parsed.code || parsed.codigo_ticket || "",
+      ticket_whatsapp_enviado: Boolean(parsed.ticket_whatsapp_enviado),
+      data: parsed,
     });
-    const texto = await r.text();
-    let parsed = null;
-    try {
-      parsed = JSON.parse(texto);
-    } catch (_e) {
-      parsed = null;
-    }
-    if (!r.ok || !parsed || parsed.exito === false) {
-      console.warn("AutoNexus webhook falló", r.status, parsed && parsed.error);
-      return res.status(502).json({
-        ok: false,
-        error: (parsed && (parsed.error || parsed.mensaje_para_asistente)) ||
-          "AutoNexus no aceptó el ticket",
-      });
-    }
-    return res.json({ ok: true, code: parsed.code || body.code });
   } catch (e) {
     console.warn("AutoNexus webhook error", e.message || e);
     return res.status(502).json({ ok: false, error: "No se pudo avisar a AutoNexus" });

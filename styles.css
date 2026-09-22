@@ -568,6 +568,7 @@ body.hay-perfil .panel { padding-top: 88px; }
 .tag-agotado { background: #dfe1e6; color: #42526e; }
 .tag-stock { background: #fff0b3; color: #172b4d; }
 .detalle-stock { margin: 0 0 8px; }
+.detalle-copy .btn-volver-catalogo { margin-top: 20px; margin-bottom: 8px; }
 .card-agotado { opacity: 0.92; }
 .card-agotado .card-photo { filter: grayscale(0.35); }
 .tag-agotado-detalle { font-size: 0.95rem; padding: 10px 14px; border-radius: 999px; }
