@@ -337,6 +337,15 @@ function persistir() {
   );
 }
 
+function aplicarVehiculoDesdeUrl() {
+  if (typeof vehiculoDesdeQuery !== "function") return false;
+  const auto = vehiculoDesdeQuery();
+  if (!auto) return false;
+  state.vehiculo = auto;
+  if (typeof limpiarQueryVehiculoEnHistorial === "function") limpiarQueryVehiculoEnHistorial();
+  return true;
+}
+
 function hidratar() {
   try {
     const raw = JSON.parse(localStorage.getItem("autodato_sesion") || "null");
@@ -2237,6 +2246,7 @@ async function arrancar() {
   await cargarPortada();
   aplicarLogos();
   hidratar();
+  if (aplicarVehiculoDesdeUrl()) persistir();
   pintarDatosFicha();
   renderVista({ quedarse: true });
   renderTotales(false);

@@ -1180,6 +1180,64 @@ function encajarVehiculoTaller(raw) {
   return { marca, modelo, ano, combustible: normalizarCombustible(raw.combustible) };
 }
 
+const QUERY_VEHICULO_KEYS = [
+  "marca",
+  "modelo",
+  "ano",
+  "anio",
+  "año",
+  "year",
+  "combustible",
+  "comb",
+  "fuel",
+  "brand",
+  "model",
+];
+
+function rawVehiculoDesdeQuery(search) {
+  const q = new URLSearchParams(search || (typeof location !== "undefined" ? location.search : ""));
+  const keys = [...q.keys()].map((k) => k.toLowerCase());
+  if (!keys.some((k) => QUERY_VEHICULO_KEYS.includes(k))) return null;
+  return {
+    marca: q.get("marca") || q.get("brand") || "",
+    modelo: q.get("modelo") || q.get("model") || "",
+    ano: q.get("ano") || q.get("anio") || q.get("año") || q.get("year") || "",
+    combustible: q.get("combustible") || q.get("comb") || q.get("fuel") || "",
+  };
+}
+
+function vehiculoDesdeQuery(search) {
+  const raw = rawVehiculoDesdeQuery(search);
+  if (!raw) return null;
+  return encajarVehiculoTaller(raw);
+}
+
+/** Enlace a autodato.cl con el vehículo precargado (botón en ficha AutoNexus). */
+function enlaceAutoDatoConVehiculo(v, base) {
+  const origin =
+    typeof location !== "undefined" && location.origin && !/^file:/i.test(location.origin)
+      ? location.origin
+      : "https://autodato.cl";
+  const u = new URL(base || `${origin}/`);
+  if (!v) return u.toString();
+  if (v.marca) u.searchParams.set("marca", String(v.marca));
+  if (v.modelo) u.searchParams.set("modelo", String(v.modelo));
+  if (v.ano != null && v.ano !== "") u.searchParams.set("ano", String(v.ano));
+  u.searchParams.set("combustible", normalizarCombustible(v.combustible));
+  return u.toString();
+}
+
+function limpiarQueryVehiculoEnHistorial() {
+  if (typeof history === "undefined" || !history.replaceState) return;
+  const u = new URL(location.href);
+  [...u.searchParams.keys()].forEach((k) => {
+    if (QUERY_VEHICULO_KEYS.includes(k.toLowerCase())) u.searchParams.delete(k);
+  });
+  const qs = u.searchParams.toString();
+  const next = u.pathname + (qs ? `?${qs}` : "") + u.hash;
+  history.replaceState(history.state, "", next);
+}
+
 function slideVacio(orden) {
   return normalizarSlide(
     {
