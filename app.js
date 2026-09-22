@@ -587,13 +587,39 @@ function htmlHintCombo(s, pagado) {
   return `<p class="combo-hint">Si también llevas ${nombreServicioDe(mejor.si)}, baja a <strong>${clp(mejor.precio)}</strong></p>`;
 }
 
+function complementosDesdeTicket() {
+  const idsCarrito = state.carrito.filter((x) => x.tipo === "oferta").map((x) => x.id);
+  const out = [];
+  const vistos = new Set();
+  idsCarrito.forEach((pid) => {
+    const padre = oferta(pid);
+    if (!padre) return;
+    (padre.complementos || []).forEach((c) => {
+      if (vistos.has(c.id)) return;
+      const servicio = oferta(c.id);
+      if (!servicio || !servicioAplicaAVehiculo(servicio, state.vehiculo)) return;
+      vistos.add(c.id);
+      out.push({ combo: c, servicio });
+    });
+  });
+  return out;
+}
+
 function htmlSumaRelacionados(s, enCarro) {
   const padres = combosEntrantesDe(s.id)
     .map((r) => ({ regla: r, servicio: oferta(r.si) }))
     .filter((x) => x.servicio && servicioAplicaAVehiculo(x.servicio, state.vehiculo));
-  const hijos = (s.complementos || [])
+  const hijosLocales = (s.complementos || [])
     .map((c) => ({ combo: c, servicio: oferta(c.id) }))
     .filter((x) => x.servicio && servicioAplicaAVehiculo(x.servicio, state.vehiculo));
+  const map = new Map();
+  const agregarRelacionado = (x) => {
+    if (!x || !x.servicio) return;
+    map.set(String(x.servicio.id), x);
+  };
+  complementosDesdeTicket().forEach(agregarRelacionado);
+  if (enCarro) hijosLocales.forEach(agregarRelacionado);
+  const relacionados = [...map.values()];
   const bloques = [];
   if (padres.length) {
     const mejor = padres.reduce((a, b) => (a.regla.precio <= b.regla.precio ? a : b));
@@ -604,11 +630,11 @@ function htmlSumaRelacionados(s, enCarro) {
       </section>
     `);
   }
-  if (enCarro && hijos.length) {
+  if (relacionados.length) {
     bloques.push(`
       <section class="suma-ofertas">
         <h3>Suma estos servicios y activa la oferta</h3>
-        <div class="minis">${hijos.map((x) => htmlMini(x.servicio, x.combo)).join("")}</div>
+        <div class="minis">${relacionados.map((x) => htmlMini(x.servicio, x.combo)).join("")}</div>
       </section>
     `);
   }
@@ -745,7 +771,6 @@ function renderDetalleOferta() {
         ${htmlCarruselServicio(s)}
         <div class="detalle-copy">
           <h2>${s.nombre}</h2>
-          ${htmlAvisoTicketCorto()}
           ${avisoStock ? `<p class="detalle-stock"><span class="tag tag-stock">${avisoStock}</span></p>` : ""}
           ${s.resumen ? `<p class="detalle-resumen">${s.resumen}</p>` : ""}
           <p class="lead">${s.detalle}</p>
