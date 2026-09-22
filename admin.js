@@ -1425,17 +1425,16 @@ function leerCostosEditor() {
   }
 }
 
-function aplicarStockDesdeEditor() {
-  if (!editando) return;
-  if (editando.ultima_unidad) {
-    if (editando.stock_restante == null || editando.stock_restante <= 0) editando.stock_restante = 1;
-    editando.agotado = false;
-    return;
-  }
-  if (!editando.agotado && editando.stock_restante != null && editando.stock_restante > 0) return;
-  if (!editando.agotado && (editando.stock_restante == null || editando.stock_restante <= 0)) {
-    editando.stock_restante = 1;
-  }
+function aplicarUltimaUnidadDesdeEditor() {
+  if (!editando || !editando.ultima_unidad) return;
+  if (editando.stock_restante == null || editando.stock_restante <= 0) editando.stock_restante = 1;
+  editando.agotado = false;
+}
+
+function aplicarDisponibleDesdeEditor() {
+  if (!editando || editando.agotado) return;
+  editando.ultima_unidad = false;
+  if (editando.stock_restante === 0) editando.stock_restante = null;
 }
 
 function pintarCalculadoraEditor() {
@@ -1488,7 +1487,7 @@ function renderEditor() {
                 ${
                   s.agotado
                     ? `<span class="tag tag-agotado editor-tag-agotado">Agotado</span>`
-                    : s.ultima_unidad || (s.stock_restante === 1)
+                    : s.ultima_unidad
                       ? `<span class="tag tag-stock editor-tag-agotado">¡Última unidad!</span>`
                       : `<button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>`
                 }
@@ -1557,9 +1556,9 @@ function renderEditor() {
             <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
             <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
             <button class="btn-line btn-block btn-ultima${s.ultima_unidad ? " is-on" : ""}" type="button" id="btn-toggle-ultima-unidad">${s.ultima_unidad ? "Quitar aviso de última unidad" : "Marcar como última unidad"}</button>
-            <p class="hint" id="hint-ultima-unidad"${s.ultima_unidad ? "" : " hidden"}>Etiqueta «¡Última unidad!» en el celular. Si estaba agotado, al guardar queda con 1 unidad otra vez.</p>
+            <p class="hint" id="hint-ultima-unidad"${s.ultima_unidad ? "" : " hidden"}>Solo aviso + 1 unidad al guardar. No uses esto si quieres stock ilimitado.</p>
             <button class="btn-line btn-block btn-agotado${s.agotado ? " is-on" : ""}" type="button" id="btn-toggle-agotado">${s.agotado ? "Marcar como disponible" : "Marcar como agotado"}</button>
-            <p class="hint" id="hint-agotado"${s.agotado ? "" : " hidden"}>Para volver a vender: «Marcar como disponible», pon unidades (o «última unidad») y pulsa <strong>Guardar</strong>.</p>
+            <p class="hint" id="hint-agotado"${s.agotado ? "" : " hidden"}><strong>Disponible</strong> = sin bloqueo (stock ilimitado si «Unidades» está vacío). <strong>Última unidad</strong> = 1 unidad y etiqueta en el celular.</p>
             <div class="btn-row">
               <button class="btn-primary" type="button" id="btn-guardar">Guardar</button>
               ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar">Eliminar</button>` : ""}
@@ -1646,7 +1645,9 @@ async function guardarServicio() {
     alert("En algún vehículo el año desde es mayor que el año hasta.");
     return;
   }
-  aplicarStockDesdeEditor();
+  if (editando.ultima_unidad) aplicarUltimaUnidadDesdeEditor();
+  else if (!editando.agotado) aplicarDisponibleDesdeEditor();
+  if (editando.agotado) editando.ultima_unidad = false;
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
   const copia = JSON.parse(JSON.stringify(editando));
   const idx = catalogo.findIndex((s) => s.id === copia.id);
@@ -2374,7 +2375,11 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-toggle-ultima-unidad") {
     leerEditor();
     editando.ultima_unidad = !editando.ultima_unidad;
-    if (editando.ultima_unidad) aplicarStockDesdeEditor();
+    if (editando.ultima_unidad) {
+      aplicarUltimaUnidadDesdeEditor();
+    } else if (editando.stock_restante === 1) {
+      editando.stock_restante = null;
+    }
     renderEditor();
     return;
   }
@@ -2383,8 +2388,9 @@ $("stage").addEventListener("click", (e) => {
     editando.agotado = !editando.agotado;
     if (editando.agotado) {
       editando.ultima_unidad = false;
+      if (editando.stock_restante != null) editando.stock_restante = 0;
     } else {
-      aplicarStockDesdeEditor();
+      aplicarDisponibleDesdeEditor();
     }
     renderEditor();
     return;

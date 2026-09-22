@@ -754,9 +754,7 @@ function aplicarStockRestanteLocal(restantes) {
 
 function servicioUltimaUnidad(s) {
   if (!s || servicioSinStock(s)) return false;
-  if (s.ultima_unidad) return true;
-  const r = stockRestanteDe(s);
-  return r != null && r === 1;
+  return Boolean(s.ultima_unidad);
 }
 
 function etiquetaStock(s) {
