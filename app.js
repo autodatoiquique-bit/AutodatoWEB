@@ -116,6 +116,9 @@ function pintarChipAuto() {
   document.body.classList.toggle("hay-perfil", mostrar);
   if (!chip) return;
   chip.hidden = !mostrar;
+  const bloqueado = carritoBloqueaCambioAuto();
+  chip.classList.toggle("chip-auto-bloqueado", bloqueado);
+  chip.title = bloqueado ? "Vacía el carrito para cambiar de vehículo" : "Cambiar vehículo";
   if (!mostrar) return;
   const foto = $("perfil-auto-foto");
   if (foto) {
@@ -126,7 +129,21 @@ function pintarChipAuto() {
   if (texto) texto.textContent = textoVehiculoCorto();
 }
 
+function carritoBloqueaCambioAuto() {
+  return state.carrito.length > 0;
+}
+
+function avisoCambioAutoConCarrito() {
+  alert(
+    "Tienes servicios en el carrito. Los precios dependen del vehículo que elegiste. Vacía el carrito o genera tu ticket antes de cambiar de auto."
+  );
+}
+
 function abrirModalAuto() {
+  if (carritoBloqueaCambioAuto()) {
+    avisoCambioAutoConCarrito();
+    return;
+  }
   if (!$("modal-auto-cuerpo")) return;
   $("modal-auto-cuerpo").innerHTML = htmlFiltro("editar");
   $("modal-auto").hidden = false;
@@ -258,6 +275,11 @@ function irAContenido() {
 
 function syncCromo() {
   document.body.classList.toggle("en-portada", state.vista === "portada");
+  const datosAgenda =
+    esMovil() &&
+    (state.vista === "carrito-agenda" ||
+      (state.vista === "agendamiento" && state.carrito.length && vehiculoOk()));
+  document.body.classList.toggle("en-agenda-datos", datosAgenda);
 }
 
 function marcarMenu() {
@@ -294,6 +316,7 @@ function renderTotales(animar) {
   const { total, ahorro } = calcular();
   $("total-valor").textContent = clp(total);
   $("saldo-valor").textContent = clp(ahorro);
+  pintarChipAuto();
   if (animar) {
     const bar = $("totales-bar");
     bar.classList.remove("pop");
@@ -1088,6 +1111,8 @@ function cerrarModalKpi() {
   if (overlayLibre()) $("overlay").hidden = true;
 }
 
+const IDS_CAMPOS_AGENDA = ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo"];
+
 function tecladoFichaActivo() {
   const a = document.activeElement;
   return Boolean(
@@ -1098,21 +1123,47 @@ function tecladoFichaActivo() {
   );
 }
 
-function syncTecladoFicha() {
+function campoAgendaActivo() {
+  const a = document.activeElement;
+  return Boolean(a && IDS_CAMPOS_AGENDA.includes(a.id));
+}
+
+function llevarCampoSobreTeclado(el) {
+  if (!el || !esMovil()) return;
+  const vv = window.visualViewport;
+  const reservado = document.body.classList.contains("en-agenda-datos") ? 72 : 96;
+  const teclado = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 280;
+  const limite = (vv ? vv.height + vv.offsetTop : window.innerHeight) - reservado;
+  const r = el.getBoundingClientRect();
+  if (r.bottom > limite || r.top < 56) {
+    const delta = r.bottom - limite + 16;
+    window.scrollBy({ top: delta > 0 ? delta : r.top - 72, behavior: "smooth" });
+  }
+}
+
+function syncTecladoViewport() {
   const modal = $("modal-informe");
-  const abierta = Boolean(modal && !modal.hidden);
+  const fichaAbierta = Boolean(modal && !modal.hidden);
   let cubierto = 0;
-  if (abierta && window.visualViewport) {
+  if (window.visualViewport) {
     const vv = window.visualViewport;
     cubierto = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
   }
   document.documentElement.style.setProperty("--teclado", `${cubierto}px`);
-  document.body.classList.toggle("teclado-abierto", abierta && (cubierto > 80 || tecladoFichaActivo()));
-  if (abierta && (cubierto > 80 || tecladoFichaActivo())) {
+  const agendaCampo = esMovil() && campoAgendaActivo();
+  const teclado =
+    cubierto > 60 ||
+    agendaCampo ||
+    (fichaAbierta && (cubierto > 80 || tecladoFichaActivo()));
+  document.body.classList.toggle("teclado-abierto", teclado);
+  if (fichaAbierta && (cubierto > 80 || tecladoFichaActivo())) {
     const btn = $("btn-abrir-informe");
     if (btn) btn.scrollIntoView({ block: "nearest", behavior: "auto" });
   }
+  if (agendaCampo) llevarCampoSobreTeclado(document.activeElement);
 }
+
+const syncTecladoFicha = syncTecladoViewport;
 
 function guardarDatosFicha() {
   const pat = $("informe-patente");
@@ -1280,6 +1331,11 @@ function aplicarFiltro(contexto) {
   const combustible = $("f-combustible") && $("f-combustible").value;
   if (!marca || !modelo || !ano || !combustible) {
     alert("Elige marca, modelo, año y combustible. Si tu auto no está en la lista, no podemos abrirte el servicio.");
+    return;
+  }
+  if (contexto === "editar" && carritoBloqueaCambioAuto()) {
+    avisoCambioAutoConCarrito();
+    cerrarModalAuto();
     return;
   }
   state.vehiculo = { marca, modelo, ano: Number(ano), combustible };
@@ -2094,6 +2150,20 @@ if ($("contacto-copiar")) {
     } catch (err) {
       alert("No se pudo copiar. Selecciona el texto y cópialo a mano.");
     }
+  });
+}
+
+const stageEl = $("stage");
+if (stageEl) {
+  stageEl.addEventListener("focusin", (e) => {
+    const t = e.target;
+    if (!t || !IDS_CAMPOS_AGENDA.includes(t.id)) return;
+    document.body.classList.add("teclado-abierto");
+    setTimeout(syncTecladoViewport, 60);
+    setTimeout(syncTecladoViewport, 320);
+  });
+  stageEl.addEventListener("focusout", (e) => {
+    if (IDS_CAMPOS_AGENDA.includes(e.target.id)) setTimeout(syncTecladoViewport, 150);
   });
 }
 

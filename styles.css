@@ -164,6 +164,7 @@ button { font-family: inherit; cursor: pointer; }
   min-height: 44px;
 }
 .perfil-auto[hidden] { display: none !important; }
+.perfil-auto.chip-auto-bloqueado { cursor: default; opacity: 0.92; }
 .perfil-auto .kpi-cart {
   overflow: hidden;
   background: #fff;
@@ -1205,7 +1206,16 @@ body.hay-perfil .panel { padding-top: 88px; }
   body:not(.en-portada) .sidebar {
     background: rgba(47, 47, 47, 0.88);
   }
-  body.teclado-abierto .sidebar { display: none !important; }
+  body.teclado-abierto .sidebar,
+  body.en-agenda-datos .sidebar { display: none !important; }
+  body.en-agenda-datos .panel { padding-bottom: 28px; }
+  body.en-agenda-datos.teclado-abierto .panel {
+    padding-bottom: calc(20px + var(--teclado, 0px));
+  }
+  body.en-agenda-datos.teclado-abierto .kpi-stack {
+    opacity: 0.35;
+    pointer-events: none;
+  }
   .sidebar .logo-btn,
   .sidebar-note { display: none; }
   .menu [data-vista="portada"] .ico svg {

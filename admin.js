@@ -641,7 +641,7 @@ function renderTablero() {
   capturarScrollTablero();
   editando = null;
   hidratarTablero();
-  sembrarMembresiaColumnas();
+  if (sembrarMembresiaColumnas()) persistirTablero();
   const sembrar = !TABLERO_COLUMNAS.length;
   if (sembrar) sembrarColumnasTablero();
   $("stage").classList.add("stage-board");
@@ -2224,8 +2224,13 @@ async function guardarEditorPortada() {
   });
   try {
     await guardarPortada(portadaSlides);
+    try {
+      await guardarTableroNube();
+    } catch (eTab) {
+      console.warn("Portada guardada; no se pudo sincronizar el tablero.", eTab);
+    }
     renderEditorPortada();
-    alert("Portada publicada en autodato.cl. Recarga esa página para verla.");
+    alert("Portada publicada. Revisa el tablero de promociones y recarga autodato.cl para verla en el celular.");
   } catch (e) {
     alert(
       (e && e.message) ||

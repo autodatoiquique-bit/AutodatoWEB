@@ -312,6 +312,25 @@ function itemEnColumna(item, col) {
   return destinos.some((v) => destinoEnColumna(v, col));
 }
 
+function sembrarPortadasEnColumnas() {
+  const cols = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  const slides = typeof portadaSlides !== "undefined" ? portadaSlides || [] : [];
+  if (!cols.length || !slides.length) return false;
+  let cambio = false;
+  slides.forEach((s) => {
+    if (!s || !s.id || !s.foto || s.defecto) return;
+    const destinos = normalizarVehiculos(s.vehiculos);
+    if (!destinos.length) return;
+    cols.forEach((col) => {
+      if (!destinos.some((v) => destinoEnColumna(v, col))) return;
+      if (itemOcultoEnColumna(col, "portada", s.id)) return;
+      if (sumarItemAColumna(col, s.id, "portadas")) cambio = true;
+    });
+  });
+  if (cambio) cols.forEach((col) => sincronizarOrdenTarjetasCol(col));
+  return cambio;
+}
+
 function sembrarMembresiaColumnas() {
   const cols = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
   if (!cols.length) return;
@@ -326,6 +345,7 @@ function sembrarMembresiaColumnas() {
     });
     sincronizarOrdenTarjetasCol(col);
   });
+  return sembrarPortadasEnColumnas();
 }
 
 function sembrarColumnasTablero() {
@@ -1181,6 +1201,8 @@ async function guardarPortada(lista) {
   portadaUi = ui;
   portadaSlides = lista.map((s, i) => normalizarSlide({ ...s, ...ui, orden: i }, i));
   localStorage.setItem(PORTADA_KEY, JSON.stringify(portadaSlides));
+  sembrarPortadasEnColumnas();
+  persistirTablero();
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     await nubeGuardarPortada(portadaSlides);

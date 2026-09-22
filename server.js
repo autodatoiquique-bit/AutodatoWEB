@@ -400,6 +400,10 @@ app.post("/api/autonexus-ticket", async (req, res) => {
   }
 });
 
+app.get("/admin", (_req, res) => {
+  res.redirect(302, "/admin.html");
+});
+
 app.use(express.static(path.join(__dirname)));
 
 app.listen(puerto, () => {
