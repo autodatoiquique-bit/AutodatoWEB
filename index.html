@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=agenda-teclado1" />
+  <link rel="stylesheet" href="styles.css?v=ticket-label1" />
 </head>
 <body>
   <div class="split">
@@ -54,13 +54,13 @@
         <span id="chip-auto-texto" class="perfil-nom">Tu auto</span>
       </button>
       <div class="kpi-stack">
-        <button id="totales-bar" class="totales-bar" type="button" data-abrir-kpi title="Abrir carrito">
+        <button id="totales-bar" class="totales-bar" type="button" data-abrir-kpi title="Ver ticket y agendar">
           <span class="kpi-cart" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M3 5h2l1 2h14l-1.6 8H8L6 7"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>
           </span>
           <div class="kpi-total">
             <strong id="total-valor">$0</strong>
-            <span>Total carrito</span>
+            <span>Total ticket</span>
           </div>
           <div class="kpi-ahorro">
             <strong id="saldo-valor">$0</strong>
@@ -80,9 +80,10 @@
     <div class="modal-card">
       <button class="drawer-close" type="button" data-cerrar-kpi>×</button>
       <h3>¿Qué quieres hacer?</h3>
-      <p class="muted">¿Quieres ir al carrito con los servicios seleccionados o quieres seguir explorando ofertas?</p>
+      <p class="muted">Sin pago en línea: armas un ticket de entrada para agendar en el taller.</p>
+      <p class="muted">¿Agendar con lo seleccionado o seguir explorando?</p>
       <div class="kpi-acciones">
-        <button class="btn-green btn-block" type="button" data-kpi="ticket">Ir al carrito</button>
+        <button class="btn-green btn-block" type="button" data-kpi="ticket">Ir a agendar ticket</button>
         <button class="btn-soft btn-block" type="button" data-kpi="explorar">Seguir explorando</button>
       </div>
     </div>
@@ -159,6 +160,6 @@
   <script src="config.js"></script>
   <script src="nube.js?v=png4"></script>
   <script src="catalogo.js?v=ultima1"></script>
-  <script src="app.js?v=agenda-teclado1"></script>
+  <script src="app.js?v=ticket-label1"></script>
 </body>
 </html>

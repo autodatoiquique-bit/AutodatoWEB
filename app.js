@@ -118,7 +118,7 @@ function pintarChipAuto() {
   chip.hidden = !mostrar;
   const bloqueado = carritoBloqueaCambioAuto();
   chip.classList.toggle("chip-auto-bloqueado", bloqueado);
-  chip.title = bloqueado ? "Vacía el carrito para cambiar de vehículo" : "Cambiar vehículo";
+  chip.title = bloqueado ? "Quita servicios del ticket para cambiar de vehículo" : "Cambiar vehículo";
   if (!mostrar) return;
   const foto = $("perfil-auto-foto");
   if (foto) {
@@ -135,7 +135,7 @@ function carritoBloqueaCambioAuto() {
 
 function avisoCambioAutoConCarrito() {
   alert(
-    "Tienes servicios en el carrito. Los precios dependen del vehículo que elegiste. Vacía el carrito o genera tu ticket antes de cambiar de auto."
+    "Tienes servicios en tu ticket. Los precios dependen del vehículo que elegiste. Quítalos o genera el ticket antes de cambiar de auto."
   );
 }
 
@@ -368,7 +368,7 @@ function htmlSlidePortada(s) {
       <img class="home-foto" src="${s.foto}" alt="${ofertaOk ? oferta(s.servicio_id).nombre : "Portada AutoDato"}" style="${estiloFotoPortadaAttr(s)}" />
       ${
         ofertaOk
-          ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al carrito"}</button>`
+          ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al ticket"}</button>`
           : ""
       }
     </article>`;
@@ -639,7 +639,7 @@ function htmlTarjetaOferta(s) {
           <div class="card-tags">
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
-            ${enCarro ? `<span class="tag tag-carrito">En carrito</span>` : ""}
+            ${enCarro ? `<span class="tag tag-carrito">En ticket</span>` : ""}
             ${!enCarro && !agotado && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
           </div>
         </div>
@@ -661,7 +661,7 @@ function htmlTarjetaOferta(s) {
       ${
         enCarro || agotado
           ? ""
-          : `<button class="card-add" type="button" data-add-oferta="${s.id}" title="Agregar al carrito" aria-label="Agregar al carrito">
+          : `<button class="card-add" type="button" data-add-oferta="${s.id}" title="Agregar al ticket" aria-label="Agregar al ticket">
               <span class="kpi-cart">${htmlIconoCarro()}</span>
             </button>`
       }
@@ -677,6 +677,10 @@ function serviciosParaVehiculo(lista) {
   return filtrados;
 }
 
+function htmlAvisoTicketCorto() {
+  return `<p class="aviso-ticket">No es una compra en línea: armas un ticket para agendar en el taller. Montos referenciales.</p>`;
+}
+
 function htmlListaCotizacion(titulo, lead, lista, opts = {}) {
   const hayCarro = state.carrito.some((x) => x.tipo === "oferta");
   const vacio = vehiculoOk()
@@ -684,10 +688,11 @@ function htmlListaCotizacion(titulo, lead, lista, opts = {}) {
     : `<p class="muted">Aún no hay servicios en esta sección.</p>`;
   const texto = opts.fijo || !hayCarro
     ? lead
-    : "Los servicios con etiqueta En carrito ya están seleccionados. En el resto ves el descuento de combo si aplica.";
+    : "Los servicios con etiqueta En ticket ya están seleccionados. En el resto ves el descuento de combo si aplica.";
   return `
     <section class="panel claro">
       <h2>${titulo}</h2>
+      ${htmlAvisoTicketCorto()}
       <p class="lead">${texto}</p>
       <div class="grid">
         ${lista.length ? lista.map(htmlTarjetaOferta).join("") : vacio}
@@ -707,7 +712,7 @@ function renderOfertas() {
 function renderMantencion() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Mantención preventiva",
-    "¡Arma tu combo y ahorra en mano de obra! Al realizar varios servicios en una misma visita optimizamos los tiempos de taller y desarme, permitiéndonos ofrecerte un descuento especial en cada mantención adicional que sumes al carrito.",
+    "¡Arma tu combo y ahorra en mano de obra! Al realizar varios servicios en una misma visita optimizamos los tiempos de taller y desarme, permitiéndonos ofrecerte un descuento especial en cada mantención adicional que sumes a tu ticket.",
     serviciosParaVehiculo(serviciosMantencion()),
     { fijo: true }
   );
@@ -740,6 +745,7 @@ function renderDetalleOferta() {
         ${htmlCarruselServicio(s)}
         <div class="detalle-copy">
           <h2>${s.nombre}</h2>
+          ${htmlAvisoTicketCorto()}
           ${avisoStock ? `<p class="detalle-stock"><span class="tag tag-stock">${avisoStock}</span></p>` : ""}
           ${s.resumen ? `<p class="detalle-resumen">${s.resumen}</p>` : ""}
           <p class="lead">${s.detalle}</p>
@@ -755,10 +761,10 @@ function renderDetalleOferta() {
             </div>
             ${
               enCarro
-                ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En carrito</button>`
+                ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En ticket</button>`
                 : agotado
                   ? `<span class="tag tag-agotado tag-agotado-detalle">Agotado</span>`
-                  : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al carrito</button>`
+                  : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al ticket</button>`
             }
           </div>
           ${htmlSumaRelacionados(s, enCarro)}
@@ -839,7 +845,7 @@ function htmlMini(s, combo) {
       <div class="mini-foto" style="background-image:url('${s.foto}')"></div>
       <div class="mini-body">
         ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
-        ${enCarro ? `<span class="tag tag-carrito">En carrito</span>` : ""}
+        ${enCarro ? `<span class="tag tag-carrito">En ticket</span>` : ""}
         <strong>${s.nombre}</strong>
         ${
           hayOferta
@@ -1252,7 +1258,8 @@ async function renderDatosAgenda(opts = {}) {
   $("stage").innerHTML = `
     <section class="panel claro">
       <h2>Tus datos y la hora</h2>
-      <p class="lead">${textoVehiculo()}. Al generar el ticket, la visita queda agendada.</p>
+      ${htmlAvisoTicketCorto()}
+      <p class="lead">${textoVehiculo()}. Sin pago aquí: generas un ticket de entrada y queda agendada tu visita.</p>
       <ul class="resumen">
         ${items
           .map((s) => {

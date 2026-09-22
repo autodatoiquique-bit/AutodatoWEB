@@ -596,6 +596,16 @@ body.hay-perfil .panel { padding-top: 88px; }
   color: var(--ink);
 }
 
+.aviso-ticket {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: rgba(255, 208, 0, 0.14);
+  border-left: 3px solid var(--yellow);
+  color: #2a2a2a;
+}
+
 .field { display: block; margin-top: 14px; }
 .field span { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; }
 .field input, .field select, .field textarea {
