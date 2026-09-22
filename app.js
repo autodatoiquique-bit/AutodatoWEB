@@ -678,7 +678,7 @@ function serviciosParaVehiculo(lista) {
 }
 
 function htmlAvisoTicketCorto() {
-  return `<p class="aviso-ticket">No es una compra en línea: armas un ticket para agendar en el taller. Montos referenciales.</p>`;
+  return `<p class="aviso-ticket">No es una compra en línea: armas un ticket para agendar en el taller.</p>`;
 }
 
 function htmlListaCotizacion(titulo, lead, lista, opts = {}) {
