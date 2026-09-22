@@ -985,7 +985,13 @@ async function refrescarAgendaAutonexus(force) {
   if (agendaAutonexus.cargando) return agendaAutonexus;
   agendaAutonexus.cargando = true;
   try {
-    const r = await fetch("/api/agenda-disponibilidad?dias=21", { cache: "no-store" });
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+    const r = await fetch("/api/agenda-disponibilidad?dias=21", {
+      cache: "no-store",
+      signal: ctrl ? ctrl.signal : undefined,
+    });
+    if (timer) clearTimeout(timer);
     const j = await r.json().catch(() => ({}));
     if (r.ok && j.ok && j.data && Array.isArray(j.data.dias)) {
       agendaAutonexus.dias = j.data.dias;
@@ -1120,6 +1126,7 @@ function irAAgendaDesdeKpi() {
   state.vista = "carrito-agenda";
   cerrarModalKpi();
   renderVista();
+  irAContenido();
 }
 
 function seguirExplorandoOfertas() {
@@ -1277,10 +1284,19 @@ function enfocarBtnTicketAgenda() {
   });
 }
 
-async function renderDatosAgenda(opts = {}) {
-  await refrescarAgendaAutonexus(Boolean(opts.forceAgenda));
+let renderDatosAgendaGen = 0;
+
+function enlazarFormularioDatosAgenda() {
+  ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo"].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener("input", guardarClienteDesdeForma);
+  });
+}
+
+function htmlPanelDatosAgenda() {
   const { items, subtotal, total, ahorro } = calcular();
-  $("stage").innerHTML = `
+  return `
     <section class="panel claro">
       <h2>Tus datos y la hora</h2>
       ${htmlAvisoTicketCorto()}
@@ -1303,16 +1319,27 @@ async function renderDatosAgenda(opts = {}) {
       <label class="field"><span>Falla o síntoma (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Ruido, check engine, fuga u otra falla que notes">${escapeHtml(state.cliente.sintoma)}</textarea></label>
       <label class="field"><span>Correo (opcional)</span><input id="c-correo" type="email" value="${escapeAttr(state.cliente.correo)}" /></label>
       <h3>Fecha de visita</h3>
-      ${htmlCalendario()}
+      <div data-agenda-cal>${htmlCalendario()}</div>
       <button class="btn-green btn-block" type="button" id="btn-ticket">Generar ticket y agendar</button>
     </section>
   `;
+}
 
-  ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo"].forEach((id) => {
-    const el = $(id);
-    if (!el) return;
-    el.addEventListener("input", guardarClienteDesdeForma);
-  });
+function actualizarCalendarioAgendaEnDom() {
+  const host = $("stage") && $("stage").querySelector("[data-agenda-cal]");
+  if (host) host.innerHTML = htmlCalendario();
+}
+
+async function renderDatosAgenda(opts = {}) {
+  const gen = ++renderDatosAgendaGen;
+  $("stage").innerHTML = htmlPanelDatosAgenda();
+  enlazarFormularioDatosAgenda();
+  if (opts.scrollToTicket && state.cita.fecha && state.cita.hora) enfocarBtnTicketAgenda();
+
+  await refrescarAgendaAutonexus(Boolean(opts.forceAgenda));
+  if (gen !== renderDatosAgendaGen) return;
+  if (state.vista !== "carrito-agenda" && state.vista !== "agendamiento") return;
+  actualizarCalendarioAgendaEnDom();
   if (opts.scrollToTicket && state.cita.fecha && state.cita.hora) enfocarBtnTicketAgenda();
 }
 
