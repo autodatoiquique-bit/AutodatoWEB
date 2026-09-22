@@ -1425,6 +1425,19 @@ function leerCostosEditor() {
   }
 }
 
+function aplicarStockDesdeEditor() {
+  if (!editando) return;
+  if (editando.ultima_unidad) {
+    if (editando.stock_restante == null || editando.stock_restante <= 0) editando.stock_restante = 1;
+    editando.agotado = false;
+    return;
+  }
+  if (!editando.agotado && editando.stock_restante != null && editando.stock_restante > 0) return;
+  if (!editando.agotado && (editando.stock_restante == null || editando.stock_restante <= 0)) {
+    editando.stock_restante = 1;
+  }
+}
+
 function pintarCalculadoraEditor() {
   if (!editando || !$("e-kpis")) return;
   leerCostosEditor();
@@ -1544,9 +1557,9 @@ function renderEditor() {
             <div class="complementos" id="e-combos">${htmlComplementos(s)}</div>
             <button class="btn-line btn-block" type="button" id="btn-add-combo">Agregar servicio asociado</button>
             <button class="btn-line btn-block btn-ultima${s.ultima_unidad ? " is-on" : ""}" type="button" id="btn-toggle-ultima-unidad">${s.ultima_unidad ? "Quitar aviso de última unidad" : "Marcar como última unidad"}</button>
-            <p class="hint" id="hint-ultima-unidad"${s.ultima_unidad ? "" : " hidden"}>En el celular verán la etiqueta «¡Última unidad!». Si no pusiste unidades disponibles, al activar esto se fija en 1 unidad al guardar.</p>
+            <p class="hint" id="hint-ultima-unidad"${s.ultima_unidad ? "" : " hidden"}>Etiqueta «¡Última unidad!» en el celular. Si estaba agotado, al guardar queda con 1 unidad otra vez.</p>
             <button class="btn-line btn-block btn-agotado${s.agotado ? " is-on" : ""}" type="button" id="btn-toggle-agotado">${s.agotado ? "Marcar como disponible" : "Marcar como agotado"}</button>
-            <p class="hint" id="hint-agotado"${s.agotado ? "" : " hidden"}>En el celular el cliente verá el servicio, pero no podrá agregarlo al carrito hasta que lo marques disponible y guardes.</p>
+            <p class="hint" id="hint-agotado"${s.agotado ? "" : " hidden"}>Para volver a vender: «Marcar como disponible», pon unidades (o «última unidad») y pulsa <strong>Guardar</strong>.</p>
             <div class="btn-row">
               <button class="btn-primary" type="button" id="btn-guardar">Guardar</button>
               ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar">Eliminar</button>` : ""}
@@ -1633,7 +1646,7 @@ async function guardarServicio() {
     alert("En algún vehículo el año desde es mayor que el año hasta.");
     return;
   }
-  if (editando.ultima_unidad && editando.stock_restante == null) editando.stock_restante = 1;
+  aplicarStockDesdeEditor();
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
   const copia = JSON.parse(JSON.stringify(editando));
   const idx = catalogo.findIndex((s) => s.id === copia.id);
@@ -2361,17 +2374,18 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-toggle-ultima-unidad") {
     leerEditor();
     editando.ultima_unidad = !editando.ultima_unidad;
-    if (editando.ultima_unidad) {
-      editando.agotado = false;
-      if (editando.stock_restante == null) editando.stock_restante = 1;
-    }
+    if (editando.ultima_unidad) aplicarStockDesdeEditor();
     renderEditor();
     return;
   }
   if (t.id === "btn-toggle-agotado") {
     leerEditor();
     editando.agotado = !editando.agotado;
-    if (editando.agotado) editando.ultima_unidad = false;
+    if (editando.agotado) {
+      editando.ultima_unidad = false;
+    } else {
+      aplicarStockDesdeEditor();
+    }
     renderEditor();
     return;
   }
