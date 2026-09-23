@@ -107,9 +107,57 @@ async function nubeLeerCatalogoCanales() {
   return JSON.parse(await data.text());
 }
 
-async function nubeLeerCatalogo() {
+function aplicarMetaCatalogoExtra(extra) {
+  if (!extra || typeof extra !== "object") return;
+  if (extra._modelos && typeof extra._modelos === "object") {
+    MODELOS_EXTRA = extra._modelos;
+  }
+  if (extra._fotos_modelos && typeof extra._fotos_modelos === "object") {
+    FOTOS_MODELOS = extra._fotos_modelos;
+    if (typeof persistirFotosModelos === "function") persistirFotosModelos();
+  }
+  if (Array.isArray(extra._tablero_columnas)) {
+    TABLERO_COLUMNAS = extra._tablero_columnas.map(normalizarColumnaTablero).filter(Boolean);
+    if (typeof persistirTablero === "function") persistirTablero();
+  }
+}
+
+function fusionarExtraEnServicio(s, extra, opts) {
+  const lite = opts && opts.lite;
+  const ex = extra && extra[s.id] && String(s.id).charAt(0) !== "_" ? extra[s.id] : null;
+  if (!ex) return s;
+  s.canales = ex;
+  if (ex.tiene_oferta != null) s.tiene_oferta = Boolean(ex.tiene_oferta) && Number(ex.precio_oferta) > 0;
+  if (ex.oferta_combo != null) s.oferta_combo = Boolean(ex.oferta_combo);
+  if (Number(ex.precio_oferta) > 0) s.precio_oferta = Number(ex.precio_oferta);
+  else if (ex.precio_oferta != null) s.precio_oferta = null;
+  if (ex.vehiculos) s.vehiculos = ex.vehiculos;
+  if (ex.agotado != null) s.agotado = Boolean(ex.agotado);
+  if (ex.ultima_unidad != null) s.ultima_unidad = Boolean(ex.ultima_unidad);
+  if (ex.stock_restante != null && ex.stock_restante !== "") {
+    s.stock_restante = stockRestanteDe({ stock_restante: ex.stock_restante });
+  }
+  if (lite) {
+    if (Array.isArray(ex.media) && ex.media.length) {
+      const portada = ex.media.find((m) => m && m.src) || ex.media[0];
+      if (portada && portada.src && !s.foto) s.foto = portada.src;
+    }
+    return s;
+  }
+  if (ex.dots_x != null) s.dots_x = Number(ex.dots_x);
+  if (ex.dots_y != null) s.dots_y = Number(ex.dots_y);
+  if (ex.tiempo_min != null) s.tiempo_min = Number(ex.tiempo_min) || null;
+  if (ex.mano_obra != null) s.mano_obra = Number(ex.mano_obra) || 0;
+  if (Array.isArray(ex.insumos)) s.insumos = ex.insumos;
+  if (Array.isArray(ex.media) && ex.media.length) s.media = ex.media;
+  return s;
+}
+
+async function nubeLeerCatalogo(opts) {
+  const lite = !(opts && opts.completo);
   const sb = clienteNube();
-  const { data: rows, error } = await sb.from("servicios").select("*").order("nombre");
+  const cols = lite ? "id,tipo,nombre,resumen,foto,precio,activo" : "*";
+  const { data: rows, error } = await sb.from("servicios").select(cols).order("nombre");
   if (error) throw error;
   const { data: comps, error: errorC } = await sb.from("complementos").select("*");
   if (errorC) throw errorC;
@@ -119,40 +167,35 @@ async function nubeLeerCatalogo() {
   } catch (e) {
     extra = null;
   }
-  if (extra && extra._modelos && typeof extra._modelos === "object") {
-    MODELOS_EXTRA = extra._modelos;
-  }
-  if (extra && extra._fotos_modelos && typeof extra._fotos_modelos === "object") {
-    FOTOS_MODELOS = extra._fotos_modelos;
-    if (typeof persistirFotosModelos === "function") persistirFotosModelos();
-  }
-  if (extra && Array.isArray(extra._tablero_columnas)) {
-    TABLERO_COLUMNAS = extra._tablero_columnas.map(normalizarColumnaTablero).filter(Boolean);
-    if (typeof persistirTablero === "function") persistirTablero();
-  }
+  aplicarMetaCatalogoExtra(extra);
   return (rows || []).map((row) => {
     const s = filaAServicio(row, comps || []);
-    if (extra && extra[s.id] && String(s.id).charAt(0) !== "_") {
-      s.canales = extra[s.id];
-      if (extra[s.id].tiene_oferta != null) s.tiene_oferta = Boolean(extra[s.id].tiene_oferta) && Number(extra[s.id].precio_oferta) > 0;
-      if (extra[s.id].oferta_combo != null) s.oferta_combo = Boolean(extra[s.id].oferta_combo);
-      if (Number(extra[s.id].precio_oferta) > 0) s.precio_oferta = Number(extra[s.id].precio_oferta);
-      else s.precio_oferta = null;
-      if (extra[s.id].dots_x != null) s.dots_x = Number(extra[s.id].dots_x);
-      if (extra[s.id].dots_y != null) s.dots_y = Number(extra[s.id].dots_y);
-      if (extra[s.id].vehiculos) s.vehiculos = extra[s.id].vehiculos;
-      if (extra[s.id].tiempo_min != null) s.tiempo_min = Number(extra[s.id].tiempo_min) || null;
-      if (extra[s.id].mano_obra != null) s.mano_obra = Number(extra[s.id].mano_obra) || 0;
-      if (Array.isArray(extra[s.id].insumos)) s.insumos = extra[s.id].insumos;
-      if (Array.isArray(extra[s.id].media) && extra[s.id].media.length) s.media = extra[s.id].media;
-      if (extra[s.id].agotado != null) s.agotado = Boolean(extra[s.id].agotado);
-      if (extra[s.id].ultima_unidad != null) s.ultima_unidad = Boolean(extra[s.id].ultima_unidad);
-      if (extra[s.id].stock_restante != null && extra[s.id].stock_restante !== "") {
-        s.stock_restante = stockRestanteDe({ stock_restante: extra[s.id].stock_restante });
-      }
+    if (lite) {
+      s.detalle = "";
+      s.galeria = [];
+      s.videos = [];
     }
-    return s;
+    return fusionarExtraEnServicio(s, extra, { lite });
   });
+}
+
+async function nubeLeerServicioDetalle(id) {
+  const sid = String(id || "").trim();
+  if (!sid) return null;
+  const sb = clienteNube();
+  const { data: row, error } = await sb.from("servicios").select("*").eq("id", sid).maybeSingle();
+  if (error) throw error;
+  if (!row) return null;
+  const { data: comps, error: errorC } = await sb.from("complementos").select("*");
+  if (errorC) throw errorC;
+  let extra = null;
+  try {
+    extra = await nubeLeerCatalogoCanales();
+  } catch (e) {
+    extra = null;
+  }
+  const s = filaAServicio(row, comps || []);
+  return fusionarExtraEnServicio(s, extra, { lite: false });
 }
 
 async function nubeLeerServicioStockMapa() {

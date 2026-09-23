@@ -553,7 +553,14 @@ body.hay-perfil .panel { padding-top: 88px; }
   border-radius: 10px;
 }
 .card-en-carro { box-shadow: 0 0 0 2px var(--yellow), 0 8px 24px rgba(255, 208, 0, 0.22); }
-.card-photo { position: relative; height: 170px; background: #222 center/cover no-repeat; }
+.card-photo { position: relative; height: 170px; background: #222 center/cover no-repeat; overflow: hidden; }
+.card-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
 .card-tags {
   position: absolute;
   top: 10px;

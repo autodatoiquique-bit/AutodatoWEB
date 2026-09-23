@@ -752,7 +752,8 @@ function htmlTarjetaOferta(s) {
   return `
     <article class="card ${enCarro ? "card-en-carro" : agotado ? "card-agotado" : "card-con-add"}">
       <button class="card-abrir" type="button" data-abrir-oferta="${s.id}">
-        <div class="card-photo" style="background-image:url('${s.foto}')">
+        <div class="card-photo">
+          ${s.foto ? `<img class="card-photo-img" src="${s.foto}" alt="" loading="lazy" decoding="async" />` : ""}
           <div class="card-tags">
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
@@ -844,9 +845,22 @@ function renderFiltroMenu() {
 }
 
 function renderDetalleOferta() {
-  const s = oferta(state.ofertaAbierta);
+  const id = state.ofertaAbierta;
+  const s = oferta(id);
   if (!s) {
     renderOfertas();
+    return;
+  }
+  if (!s.detalleListo) {
+    $("stage").innerHTML = `<section class="panel claro"><p class="lead">Cargando servicio…</p></section>`;
+    void ensureDetalleServicio(id)
+      .then(() => {
+        if (state.vista === "oferta-detalle" && state.ofertaAbierta === id) renderDetalleOferta();
+      })
+      .catch(() => {
+        alert("No pudimos cargar la ficha de este servicio. Reintenta.");
+        volverAlCatalogoDesdeDetalle();
+      });
     return;
   }
   const enCarro = state.carrito.some((x) => x.id === s.id);

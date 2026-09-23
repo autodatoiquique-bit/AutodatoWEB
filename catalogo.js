@@ -1,4 +1,5 @@
 const CATALOGO_KEY = "autodato_catalogo";
+const DETALLE_CACHE_KEY = "autodato_servicio_detalle";
 
 const MARCAS = ["Hyundai", "Kia", "Mazda", "Suzuki", "Nissan", "Toyota", "Mitsubishi", "Honda"];
 const MODELOS = {
@@ -741,7 +742,115 @@ function normalizarServicio(s) {
     stock_restante: stockRestanteDe(s),
   };
   if (base.stock_restante != null && base.stock_restante <= 0) base.agotado = true;
-  return aplicarMediaServicio(base, mediaServicio(base));
+  const out = aplicarMediaServicio(base, mediaServicio(base));
+  out.detalleListo = true;
+  return out;
+}
+
+function normalizarServicioLista(s) {
+  const canales = normalizarCanales(s && s.canales, s && s.tipo);
+  const base = {
+    ...s,
+    canales,
+    tipo: (s && s.tipo) || tipoDesdeCanales(canales),
+    tiene_oferta: tieneOferta(s),
+    oferta_combo: s && (s.oferta_combo === true || s.oferta_combo === "si" || (s.oferta_combo == null && (s.complementos || []).length > 0)),
+    precio_oferta: precioOfertaDe({ ...s, tiene_oferta: tieneOferta(s) }),
+    vehiculos: normalizarVehiculos(s && s.vehiculos),
+    detalle: "",
+    galeria: [],
+    videos: [],
+    media: [],
+    insumos: [],
+    mano_obra: 0,
+    tiempo_min: null,
+    dots_x: 50,
+    dots_y: 62,
+    agotado: Boolean(s && s.agotado),
+    ultima_unidad: Boolean(s && s.ultima_unidad),
+    stock_restante: stockRestanteDe(s),
+  };
+  if (base.stock_restante != null && base.stock_restante <= 0) base.agotado = true;
+  base.foto = String(base.foto || "").trim();
+  base.detalleListo = false;
+  return base;
+}
+
+function leerDetalleCache(id) {
+  try {
+    const map = JSON.parse(localStorage.getItem(DETALLE_CACHE_KEY) || "{}");
+    return map[String(id)] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function guardarDetalleCache(id, s) {
+  if (!id || !s) return;
+  try {
+    const map = JSON.parse(localStorage.getItem(DETALLE_CACHE_KEY) || "{}");
+    map[String(id)] = {
+      detalle: s.detalle || "",
+      galeria: s.galeria || [],
+      videos: s.videos || [],
+      media: s.media || [],
+      foto: s.foto || "",
+      foto_ui: s.foto_ui || null,
+      dots_x: s.dots_x,
+      dots_y: s.dots_y,
+      tiempo_min: s.tiempo_min,
+      mano_obra: s.mano_obra,
+      insumos: s.insumos || [],
+    };
+    localStorage.setItem(DETALLE_CACHE_KEY, JSON.stringify(map));
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function fusionarDetalleEnServicio(dest, full) {
+  if (!dest || !full) return dest;
+  const campos = [
+    "detalle",
+    "galeria",
+    "videos",
+    "media",
+    "foto",
+    "foto_ui",
+    "dots_x",
+    "dots_y",
+    "tiempo_min",
+    "mano_obra",
+    "insumos",
+  ];
+  campos.forEach((k) => {
+    if (full[k] != null) dest[k] = full[k];
+  });
+  dest.detalleListo = true;
+  return dest;
+}
+
+async function ensureDetalleServicio(id) {
+  const sid = String(id || "");
+  if (!sid) return null;
+  let s = (catalogo || []).find((x) => String(x.id) === sid);
+  if (!s) return null;
+  if (s.detalleListo) return s;
+  const cached = leerDetalleCache(sid);
+  if (cached) {
+    fusionarDetalleEnServicio(s, normalizarServicio({ ...s, ...cached }));
+    return s;
+  }
+  if (typeof nubeActiva !== "function" || !nubeActiva() || typeof nubeLeerServicioDetalle !== "function") {
+    return s;
+  }
+  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
+  const remoto = await nubeLeerServicioDetalle(sid);
+  if (!remoto) return s;
+  const full = normalizarServicio(remoto);
+  fusionarDetalleEnServicio(s, full);
+  guardarDetalleCache(sid, s);
+  return s;
 }
 
 function stockRestanteDe(s) {
@@ -812,10 +921,11 @@ function etiquetaCanales(s) {
   return partes.join(" · ") || "Sin menú";
 }
 
-async function ensureCatalogoCargado() {
-  if (catalogoEstaListo()) return catalogo;
+async function ensureCatalogoCargado(opts) {
+  if (catalogoEstaListo() && !(opts && opts.completo)) return catalogo;
+  if (opts && opts.completo) catalogoListo = false;
   if (catalogoPromesa) return catalogoPromesa;
-  catalogoPromesa = cargarCatalogo()
+  catalogoPromesa = cargarCatalogo(opts)
     .then((lista) => {
       catalogoListo = true;
       return lista;
@@ -826,39 +936,41 @@ async function ensureCatalogoCargado() {
   return catalogoPromesa;
 }
 
-async function cargarCatalogo() {
+async function cargarCatalogo(opts) {
+  const completo = Boolean(opts && opts.completo);
+  const normalizar = completo ? normalizarServicio : normalizarServicioLista;
   hidratarModelosExtra();
   hidratarFotosModelos();
   hidratarTablero();
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {
-      const remoto = await nubeLeerCatalogo();
+      const remoto = await nubeLeerCatalogo({ completo });
       if (remoto.length) {
-        let lista = remoto.map(normalizarServicio);
+        let lista = remoto.map(normalizar);
         if (typeof nubeFusionarStockCatalogo === "function") {
           lista = await nubeFusionarStockCatalogo(lista);
         }
-        catalogo = lista.map(normalizarServicio);
+        catalogo = lista.map(normalizar);
         recolectarModelosExtra(catalogo);
         persistirModelosExtra();
         persistirFotosModelos();
         persistirCatalogoLocal(catalogo);
         catalogoListo = true;
-        sembrarMembresiaColumnas();
+        if (completo) sembrarMembresiaColumnas();
         return catalogo;
       }
     } catch (e) {
       console.warn("No se pudo leer el catálogo en la nube.", e);
     }
   }
-  catalogo = hidratarCatalogo().map(normalizarServicio);
+  catalogo = hidratarCatalogo().map((s) => (completo ? normalizarServicio(s) : normalizarServicioLista(s)));
   recolectarModelosExtra(catalogo);
   persistirModelosExtra();
   persistirFotosModelos();
   persistirCatalogoLocal(catalogo);
   catalogoListo = true;
-  sembrarMembresiaColumnas();
+  if (completo) sembrarMembresiaColumnas();
   return catalogo;
 }
 

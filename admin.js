@@ -75,7 +75,7 @@ function pintarTaller() {
 async function mostrarPanel() {
   $("acceso").hidden = true;
   $("panel").hidden = false;
-  await cargarCatalogo();
+  await cargarCatalogo({ completo: true });
   await cargarPortada();
   aplicarLogos();
   pintarTaller();
