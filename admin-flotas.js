@@ -356,7 +356,7 @@ function renderFlotaKanban(flotaId) {
           <button type="button" class="btn-soft btn-back-flota" id="btn-volver-flotas">← Flotas</button>
           <div>
             <h2>${escapeText(flota.nombre)}</h2>
-            <p>Precios netos (se muestran con «+ IVA»). Arrastra ⋮⋮ para mover columnas; mantén pulsada una tarjeta para reordenar.</p>
+            <p>Precios netos (se muestran con «+ IVA»). Arrastra ⋮⋮ para mover columnas; arrastra tarjetas para reordenar o moverlas a otra categoría.</p>
           </div>
           <button type="button" class="btn-soft" id="btn-flota-config">Configuración</button>
           <button type="button" class="btn-soft" id="btn-flota-clave-cliente">Clave cliente</button>
@@ -400,9 +400,42 @@ function limpiarClasesDragFlotaKanban() {
     limpiarFlotaKanbanCardFlotante(flotaKanbanCardPointer);
   }
   flotaKanbanCardPointer = null;
-  document.querySelectorAll(".kanban-flota .kanban-col.is-dragging, .kanban-flota .kanban-col.is-drop-before, .kanban-flota .kanban-cards.is-card-dragging").forEach((el) => {
-    el.classList.remove("is-dragging", "is-drop-before", "is-card-dragging");
+  document.querySelectorAll(".kanban-flota .kanban-col.is-dragging, .kanban-flota .kanban-col.is-drop-before, .kanban-flota .kanban-col.is-card-drop-target, .kanban-flota .kanban-cards.is-card-dragging").forEach((el) => {
+    el.classList.remove("is-dragging", "is-drop-before", "is-card-drop-target", "is-card-dragging");
   });
+}
+
+function cajaFlotaCardsEnPunto(track, clientX, clientY, fallbackBox) {
+  if (!track) return fallbackBox;
+  const cols = [...track.querySelectorAll(".kanban-col:not(.kanban-col-add)")];
+  for (const col of cols) {
+    const rect = col.getBoundingClientRect();
+    if (clientX >= rect.left - 6 && clientX <= rect.right + 6 && clientY >= rect.top && clientY <= rect.bottom) {
+      return col.querySelector("[data-flota-cards]") || fallbackBox;
+    }
+  }
+  return fallbackBox;
+}
+
+function syncFlotaKanbanCajaActiva(st, box) {
+  if (!box || st.box === box) return;
+  st.box?.classList.remove("is-card-dragging");
+  st.box = box;
+  st.destColId = box.dataset.flotaCards || st.colId;
+  box.classList.add("is-card-dragging");
+}
+
+function marcarColumnaFlotaDropTarget(track, clientX, clientY) {
+  if (!track) return;
+  track.querySelectorAll(".kanban-col.is-card-drop-target").forEach((el) => el.classList.remove("is-card-drop-target"));
+  const cols = [...track.querySelectorAll(".kanban-col:not(.kanban-col-add)")];
+  for (const col of cols) {
+    const rect = col.getBoundingClientRect();
+    if (clientX >= rect.left - 6 && clientX <= rect.right + 6 && clientY >= rect.top && clientY <= rect.bottom) {
+      col.classList.add("is-card-drop-target");
+      return;
+    }
+  }
 }
 
 function autoScrollFlotaKanbanCards(box, clientY) {
@@ -460,7 +493,7 @@ function activarFlotaKanbanCardDrag(st) {
   try {
     st.row.setPointerCapture(st.pointerId);
   } catch (err) {}
-  pintarMarcadorSoltarFlota(st, st.lastY);
+  pintarMarcadorSoltarFlota(st, st.lastX, st.lastY);
   st.raf = requestAnimationFrame(loopFlotaKanbanCardScroll);
 }
 
@@ -478,9 +511,12 @@ function slotSoltarTarjetaFlota(box, clientY, dragToken) {
   return "";
 }
 
-function pintarMarcadorSoltarFlota(st, clientY) {
+function pintarMarcadorSoltarFlota(st, clientX, clientY) {
+  const box = cajaFlotaCardsEnPunto(st.track, clientX, clientY, st.box);
+  syncFlotaKanbanCajaActiva(st, box);
+  marcarColumnaFlotaDropTarget(st.track, clientX, clientY);
   const beforeToken = slotSoltarTarjetaFlota(st.box, clientY, st.token);
-  const slotKey = beforeToken || "__end__";
+  const slotKey = `${st.destColId || st.colId}|${beforeToken || "__end__"}`;
   st.dropBefore = beforeToken;
   if (st.markerBefore === slotKey && st.marker && st.marker.parentElement === st.box) return;
   st.markerBefore = slotKey;
@@ -501,7 +537,7 @@ function programarFlotaKanbanDragPintado(st) {
     st.paintRaf = 0;
     if (!st.active) return;
     moverFlotaKanbanGhost(st);
-    pintarMarcadorSoltarFlota(st, st.lastY);
+    pintarMarcadorSoltarFlota(st, st.lastX, st.lastY);
   });
 }
 
@@ -559,9 +595,11 @@ function armarFlotaKanbanCardPointer(track) {
         active: false,
         touch: e.pointerType === "touch",
         colId,
+        destColId: colId,
         token,
         row,
         box,
+        track,
         startX: e.clientX,
         startY: e.clientY,
         lastX: e.clientX,
@@ -625,8 +663,9 @@ function armarFlotaKanbanCardPointer(track) {
     if (wasDrag) {
       e.preventDefault();
       flotaKanbanSuppressClick = true;
-      const destino = st.markerBefore ? (st.markerBefore === "__end__" ? "" : st.markerBefore) : st.dropBefore;
-      moverTarjetaFlota(flotaKanbanId, st.colId, st.token, destino);
+      const destino = st.dropBefore || "";
+      const destCol = st.destColId || st.colId;
+      moverTarjetaFlota(flotaKanbanId, st.colId, st.token, destino, destCol);
       limpiarClasesDragFlotaKanban();
       await guardarOrdenFlotaKanban();
       renderFlotaKanban(flotaKanbanId);

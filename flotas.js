@@ -641,20 +641,45 @@ function ordenarColumnaFlotaPorPrecio(flotaId, colId) {
   return true;
 }
 
-function moverTarjetaFlota(flotaId, colId, token, beforeToken) {
+function moverTarjetaFlota(flotaId, colId, token, beforeToken, destColId) {
   const flota = flotaPorId(flotaId);
-  const col = flota && flota.columnas.find((c) => c.id === colId);
-  if (!col || !token) return;
-  sincronizarOrdenTarjetasFlota(col);
-  const list = col.orden_tarjetas.slice();
-  const from = list.indexOf(token);
-  if (from < 0) return;
-  list.splice(from, 1);
+  if (!flota || !token) return;
+  const destId = String(destColId || colId || "");
+  const srcCol = flota.columnas.find((c) => c.id === colId);
+  const dstCol = flota.columnas.find((c) => c.id === destId);
+  if (!srcCol || !dstCol) return;
+
+  if (colId === destId) {
+    sincronizarOrdenTarjetasFlota(srcCol);
+    const list = srcCol.orden_tarjetas.slice();
+    const from = list.indexOf(token);
+    if (from < 0) return;
+    list.splice(from, 1);
+    let to = beforeToken ? list.indexOf(beforeToken) : list.length;
+    if (to < 0) to = list.length;
+    if (from < to) to -= 1;
+    list.splice(to, 0, token);
+    aplicarTokensOrdenColFlota(srcCol, list);
+    return;
+  }
+
+  sincronizarOrdenTarjetasFlota(srcCol);
+  sincronizarOrdenTarjetasFlota(dstCol);
+  const sid = parseTokenFlotaServicio(token);
+  if (!sid) return;
+  const srv = (srcCol.servicios || []).find((s) => s.id === sid);
+  if (!srv) return;
+  srcCol.servicios = (srcCol.servicios || []).filter((s) => s.id !== sid);
+  srcCol.orden_tarjetas = (srcCol.orden_tarjetas || []).filter((t) => t !== token);
+
+  dstCol.servicios = dstCol.servicios || [];
+  dstCol.servicios.push(srv);
+  let list = (dstCol.orden_tarjetas || []).slice();
+  list = list.filter((t) => t !== token);
   let to = beforeToken ? list.indexOf(beforeToken) : list.length;
   if (to < 0) to = list.length;
-  if (from < to) to -= 1;
   list.splice(to, 0, token);
-  aplicarTokensOrdenColFlota(col, list);
+  aplicarTokensOrdenColFlota(dstCol, list);
 }
 
 function quitarServicioFlotaCol(flotaId, colId, token) {
