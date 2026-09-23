@@ -418,7 +418,6 @@ function hidratarNavFlota() {
       typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
     if (fid) state.flotaActivaId = fid;
     else if (raw.flotaActivaId) state.flotaActivaId = raw.flotaActivaId;
-    state.areaFlotas = true;
     if (!fid || typeof sesionFlotaOk !== "function" || !sesionFlotaOk(fid)) return;
     const vistasOk = [
       "flotas-categorias",
@@ -429,6 +428,7 @@ function hidratarNavFlota() {
     ];
     if (raw.vista && vistasOk.includes(raw.vista)) {
       state.vista = raw.vista;
+      state.areaFlotas = true;
       if (raw.flotaCategoriaId) state.flotaCategoriaId = raw.flotaCategoriaId;
     }
   } catch (_e) {
@@ -737,17 +737,22 @@ function reconciliarAreaTrasCarrito() {
     alert("El carrito mezclaba flota y particulares; se vació por seguridad.");
     state.carrito = [];
     state.servicioAgenda = null;
+    state.areaFlotas = false;
     persistir();
     return;
   }
   if (carritoTieneFlota()) {
-    state.areaFlotas = true;
     const fid =
       typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
     if (fid) state.flotaActivaId = fid;
-  } else if (carritoTieneParticular()) {
+  } else {
     state.areaFlotas = false;
   }
+}
+
+function vistaEnModuloFlotas(v) {
+  const id = String(v || state.vista || "");
+  return id.startsWith("flotas") || (id === "carrito-agenda" && carritoSoloFlota());
 }
 
 function redirigirSiCarritoFlotaEnVistaParticular() {
@@ -796,6 +801,11 @@ function carritoMixto() {
 }
 
 function syncAreaFlotasUi() {
+  if (!carritoTieneFlota() && !vistaEnModuloFlotas()) {
+    state.areaFlotas = false;
+  } else if (vistaEnModuloFlotas()) {
+    state.areaFlotas = true;
+  }
   const on = Boolean(state.areaFlotas);
   document.body.classList.toggle("en-area-flotas", on);
   document.body.classList.toggle("en-flotas-pin", on && state.vista === "flotas-pin");
@@ -805,8 +815,10 @@ function syncAreaFlotasUi() {
 function vaciarCarritoSilencioso() {
   state.carrito = [];
   state.servicioAgenda = null;
+  state.areaFlotas = false;
   localStorage.removeItem(FLOTA_NAV_KEY);
   persistir();
+  syncAreaFlotasUi();
   renderTotales(false);
 }
 
