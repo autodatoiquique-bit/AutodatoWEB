@@ -4,6 +4,9 @@ const BLOQUES = [
   { hora: "15:00", etiqueta: "Tarde 15:00" },
 ];
 
+const ENTREGA_CORTE_HORA = 18;
+const TRASLADO_MIN_NETO_FLOTA = 50000;
+
 const PAGINAS = {
   flotas: {
     titulo: "Flotas",
@@ -24,6 +27,7 @@ const state = {
   servicioAgenda: null,
   cliente: { nombre: "", telefono: "", patente: "", correo: "", sintoma: "", solicitanteId: "" },
   entrega: { fecha: "", hora: "" },
+  trasladoFlota: false,
   cita: { fecha: "", hora: "" },
   cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
   vistaAnterior: "ofertas",
@@ -444,6 +448,7 @@ function persistir() {
       vehiculo: state.vehiculo,
       cliente: state.cliente,
       entrega: state.entrega,
+      trasladoFlota: Boolean(state.trasladoFlota),
       cita: state.cita,
     })
   );
@@ -466,6 +471,74 @@ function bloquesVisitaDia(iso) {
   const libres = libresDeDia(iso);
   if (libres != null) return libres;
   return BLOQUES.map((b) => b.hora);
+}
+
+function minFechaEntregaIso() {
+  const now = new Date();
+  const min = new Date(now);
+  min.setHours(0, 0, 0, 0);
+  if (now.getHours() >= ENTREGA_CORTE_HORA) min.setDate(min.getDate() + 1);
+  return ymd(min);
+}
+
+function esDiaEntregaHabil(date) {
+  const d = date.getDay();
+  if (d === 0) return false;
+  return d >= 1 && d <= 6;
+}
+
+function horasEntregaHabiles(iso) {
+  const p = String(iso || "").split("-").map(Number);
+  if (p.length < 3 || !p[0]) return [];
+  const date = new Date(p[0], p[1] - 1, p[2]);
+  if (!esDiaEntregaHabil(date)) return [];
+  const dow = date.getDay();
+  const endMin = dow === 6 ? 13 * 60 : 18 * 60;
+  const startMin = 9 * 60;
+  const out = [];
+  for (let t = startMin; t <= endMin; t += 30) {
+    const hh = Math.floor(t / 60);
+    const mm = t % 60;
+    out.push(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+  }
+  return out;
+}
+
+function horasEntregaHabilesDisponibles(iso) {
+  const minIso = minFechaEntregaIso();
+  if (!iso || iso < minIso) return [];
+  let horas = horasEntregaHabiles(iso);
+  const hoyIso = ymd(new Date());
+  if (iso === hoyIso) {
+    const now = new Date();
+    horas = horas.filter((h) => instanteDesdeIsoHora(iso, h) > now);
+  }
+  return horas;
+}
+
+function etiquetaHoraEntrega(h) {
+  const [hh, mm] = String(h || "0:0").split(":").map(Number);
+  const d = new Date(2000, 0, 1, hh || 0, mm || 0);
+  return d.toLocaleTimeString("es-CL", { hour: "numeric", minute: "2-digit" });
+}
+
+function normalizarEntregaFlotaEnState() {
+  if (!carritoSoloFlota()) return;
+  const minIso = minFechaEntregaIso();
+  let { fecha, hora } = state.entrega || { fecha: "", hora: "" };
+  fecha = String(fecha || "").trim();
+  hora = String(hora || "").trim();
+  if (!fecha) {
+    state.entrega = { fecha: "", hora: "" };
+    return;
+  }
+  if (fecha < minIso || !horasEntregaHabiles(fecha).length) {
+    state.entrega = { fecha: "", hora: "" };
+    return;
+  }
+  const permitidas = horasEntregaHabilesDisponibles(fecha);
+  if (hora && !permitidas.includes(hora)) hora = "";
+  state.entrega = { fecha, hora };
 }
 
 function instanteDesdeIsoHora(iso, hora) {
@@ -906,6 +979,7 @@ function hidratar() {
     }
     if (raw.cliente) state.cliente = { ...state.cliente, ...raw.cliente };
     if (raw.entrega) state.entrega = { ...state.entrega, ...raw.entrega };
+    if (raw.trasladoFlota != null) state.trasladoFlota = Boolean(raw.trasladoFlota);
     if (raw.cita) state.cita = { ...state.cita, ...raw.cita };
     reconciliarAreaTrasCarrito();
     hidratarNavFlota();
@@ -1905,14 +1979,55 @@ function enfocarBtnTicketAgenda() {
 
 let renderDatosAgendaGen = 0;
 
+function actualizarBloqueEntregaFlotaEnDom() {
+  const host = document.querySelector("[data-flota-entrega]");
+  if (!host || !carritoSoloFlota()) return;
+  host.innerHTML = htmlCamposEntregaFlota();
+  enlazarEntregaFlota();
+}
+
+function enlazarTrasladoFlota() {
+  const chk = $("c-traslado-flota");
+  if (!chk) return;
+  chk.addEventListener("change", () => {
+    const neto = netoTotalCarritoFlota();
+    if (neto < TRASLADO_MIN_NETO_FLOTA) {
+      state.trasladoFlota = false;
+      chk.checked = false;
+    } else {
+      state.trasladoFlota = Boolean(chk.checked);
+    }
+    persistir();
+  });
+}
+
+function enlazarEntregaFlota() {
+  const fInp = $("c-entrega-fecha");
+  const hSel = $("c-entrega-hora");
+  if (fInp) {
+    fInp.addEventListener("change", () => {
+      guardarClienteDesdeForma();
+      actualizarBloqueEntregaFlotaEnDom();
+    });
+    fInp.addEventListener("input", guardarClienteDesdeForma);
+  }
+  if (hSel) {
+    hSel.addEventListener("change", guardarClienteDesdeForma);
+  }
+}
+
 function enlazarFormularioDatosAgenda() {
-  ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo", "c-entrega-fecha", "c-entrega-hora"].forEach((id) => {
+  ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo"].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener("input", guardarClienteDesdeForma);
     el.addEventListener("change", guardarClienteDesdeForma);
   });
-  if (carritoSoloFlota()) enlazarComboboxSolicitanteFlota();
+  if (carritoSoloFlota()) {
+    enlazarComboboxSolicitanteFlota();
+    enlazarTrasladoFlota();
+    enlazarEntregaFlota();
+  }
 }
 
 function htmlCamposClienteAgendaFlota(flota) {
@@ -1942,11 +2057,57 @@ function htmlCamposClienteAgendaFlota(flota) {
     <label class="field"><span>Patente</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" required /></label>
     <label class="field"><span>Notas del servicio (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Detalle adicional para el taller">${escapeHtml(state.cliente.sintoma)}</textarea></label>
     <label class="field"><span>Correo (opcional)</span><input id="c-correo" type="email" value="${escapeAttr(state.cliente.correo)}" /></label>
-    <h3>Hora de solicitud de entrega</h3>
-    <p class="muted flota-entrega-hint">Fecha y hora en que necesitas el vehículo listo (ej. 07/08/2026 10:30).</p>
+  `;
+}
+
+function netoTotalCarritoFlota() {
+  if (!carritoSoloFlota()) return 0;
+  const { netoTotal } = calcular();
+  return Number(netoTotal) || 0;
+}
+
+function syncTrasladoFlotaConNeto(neto) {
+  if (!carritoSoloFlota()) return;
+  if ((Number(neto) || 0) < TRASLADO_MIN_NETO_FLOTA) state.trasladoFlota = false;
+}
+
+function htmlTrasladoFlota(netoTotal) {
+  const neto = Number(netoTotal) || 0;
+  syncTrasladoFlotaConNeto(neto);
+  const califica = neto >= TRASLADO_MIN_NETO_FLOTA;
+  const checked = califica && Boolean(state.trasladoFlota);
+  return `
+    <div class="flota-traslado-block">
+      <label class="check flota-traslado-check">
+        <input type="checkbox" id="c-traslado-flota" ${checked ? "checked" : ""}${califica ? "" : " disabled"} />
+        <span>Solicitar retiro del vehículo en instalaciones del cliente</span>
+      </label>
+      <p class="muted flota-traslado-hint">${
+        califica
+          ? `Traslado gratuito desde las instalaciones del cliente hasta nuestro taller (ticket neto ${textoTotalNetoFlota(neto)}, sin IVA).`
+          : `Retiro gratuito solo si el ticket supera ${clp(TRASLADO_MIN_NETO_FLOTA)} neto (sin IVA). Total neto actual: ${textoTotalNetoFlota(neto)}.`
+      }</p>
+    </div>
+  `;
+}
+
+function htmlCamposEntregaFlota() {
+  normalizarEntregaFlotaEnState();
+  const minIso = minFechaEntregaIso();
+  const fecha = state.entrega.fecha || "";
+  const horas = fecha ? horasEntregaHabilesDisponibles(fecha) : [];
+  const horaSel = horas.includes(state.entrega.hora) ? state.entrega.hora : "";
+  return `
+    <h3>Hora de solicitud de entrega <span class="muted flota-entrega-opc">(opcional)</span></h3>
+    <p class="muted flota-entrega-hint">Cuándo necesitas el vehículo listo. Lun–vie 9:00–18:00, sáb 9:00–13:00. Si son las 18:00 o más tarde, la fecha parte desde mañana.</p>
     <div class="field-row flota-entrega-row">
-      <label class="field"><span>Fecha</span><input id="c-entrega-fecha" type="date" value="${escapeAttr(state.entrega.fecha)}" /></label>
-      <label class="field"><span>Hora</span><input id="c-entrega-hora" type="time" step="300" value="${escapeAttr(state.entrega.hora)}" /></label>
+      <label class="field"><span>Fecha</span><input id="c-entrega-fecha" type="date" min="${escapeAttr(minIso)}" value="${escapeAttr(fecha)}" /></label>
+      <label class="field"><span>Hora</span>
+        <select id="c-entrega-hora"${fecha ? "" : " disabled"}>
+          <option value="">Sin preferencia</option>
+          ${horas.map((h) => `<option value="${escapeAttr(h)}"${h === horaSel ? " selected" : ""}>${escapeHtml(etiquetaHoraEntrega(h))}</option>`).join("")}
+        </select>
+      </label>
     </div>
   `;
 }
@@ -2000,6 +2161,8 @@ function htmlPanelDatosAgenda() {
       <h3>Fecha de visita al taller</h3>
       ${soloFlota ? `<button type="button" class="btn-soft btn-block btn-atencion-inmediata" data-atencion-inmediata-flota>Quiero atención inmediata</button>` : ""}
       <div data-agenda-cal>${htmlCalendario()}</div>
+      ${soloFlota ? htmlTrasladoFlota(netoTotal) : ""}
+      ${soloFlota ? `<div class="flota-entrega-block" data-flota-entrega>${htmlCamposEntregaFlota()}</div>` : ""}
       <button class="btn-green btn-block" type="button" id="btn-ticket">Generar ticket y agendar</button>
     </section>
   `;
@@ -2043,8 +2206,6 @@ function faltantesTicket() {
   if (!state.cliente.telefono.trim()) falta.push("teléfono");
   if (carritoSoloFlota()) {
     if (!state.cliente.patente.trim()) falta.push("patente");
-    if (!state.entrega.fecha) falta.push("fecha de entrega solicitada");
-    if (!state.entrega.hora) falta.push("hora de entrega solicitada");
   } else if (!state.cliente.patente.trim()) {
     /* patente opcional particulares */
   }
@@ -2523,6 +2684,8 @@ async function generarTicket() {
       tipo: s.tipo,
     })),
     neto: soloFlota ? netoFlota : null,
+    traslado:
+      soloFlota && netoFlota >= TRASLADO_MIN_NETO_FLOTA && state.trasladoFlota ? "si" : soloFlota ? "no" : "",
     subtotal,
     ahorro,
     total,
@@ -2578,6 +2741,7 @@ function vaciarCarritoTrasTicket() {
   state.origenAgenda = "menu";
   state.cliente = { nombre: "", telefono: "", patente: "", correo: "", sintoma: "", solicitanteId: "" };
   state.entrega = { fecha: "", hora: "" };
+  state.trasladoFlota = false;
   state.flotaActivaId = "";
   state.flotaCategoriaId = "";
   state.flotaPendienteId = "";
@@ -2812,6 +2976,7 @@ function guardarClienteDesdeForma() {
   if (carritoSoloFlota()) sincronizarSolicitanteIdDesdeNombreFlota();
   if ($("c-entrega-fecha")) state.entrega.fecha = $("c-entrega-fecha").value;
   if ($("c-entrega-hora")) state.entrega.hora = $("c-entrega-hora").value;
+  if (carritoSoloFlota()) normalizarEntregaFlotaEnState();
   persistir();
 }
 

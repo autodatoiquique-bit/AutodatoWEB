@@ -111,6 +111,7 @@ function cuerpoAutonexusSalfa(payload, token) {
     patente,
     telefono_canal: telefono,
     total_pactado: Number.isFinite(total) ? String(Math.round(total)) : "",
+    traslado: String(payload.traslado || "").trim().toLowerCase() === "si" ? "si" : "no",
   };
 }
 
