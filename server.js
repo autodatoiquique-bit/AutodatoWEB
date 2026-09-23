@@ -103,7 +103,9 @@ function cuerpoAutonexusSalfa(payload, token) {
     servicios_solicitados: servicios,
     neto: Number.isFinite(neto) ? String(Math.round(neto)) : "",
     oc_pre: String(payload.oc_pre || "").trim(),
-    fecha_entrega: fechaEntregaDmyHora(payload.fecha_cita, payload.hora),
+    fecha_entrega:
+      fechaEntregaDmyHora(payload.entrega_fecha, payload.entrega_hora) ||
+      fechaEntregaDmyHora(payload.fecha_cita, payload.hora),
     vehiculo,
     antecedentes: String(payload.sintoma || payload.antecedentes || "").trim(),
     patente,

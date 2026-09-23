@@ -105,6 +105,10 @@ function normalizarFlota(f) {
     .map(normalizarColumnaFlota)
     .filter(Boolean);
   const pinHash = String(f.pin_hash || f.clave_hash || "").trim();
+  const solicitantes = (Array.isArray(f.solicitantes) ? f.solicitantes : [])
+    .map(normalizarSolicitanteFlota)
+    .filter(Boolean);
+  const agendaModo = String(f.agenda_modo || "limitada").trim().toLowerCase();
   return {
     id: String(f.id || uidFlota("flota")),
     nombre: String(f.nombre).trim(),
@@ -112,7 +116,33 @@ function normalizarFlota(f) {
     pin_hash: pinHash,
     link_acceso: String(f.link_acceso || "").trim(),
     canal_webhook: String(f.canal_webhook || "").trim(),
+    agenda_modo: agendaModo === "libre" ? "libre" : "limitada",
+    solicitantes,
   };
+}
+
+function normalizarSolicitanteFlota(s) {
+  if (!s || !s.nombre) return null;
+  return {
+    id: String(s.id || uidFlota("sol")),
+    nombre: String(s.nombre).trim(),
+    telefono: String(s.telefono || "").trim(),
+    correo: String(s.correo || "").trim(),
+    patente: String(s.patente || "")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toUpperCase(),
+  };
+}
+
+function flotaAgendaEsLibre(f) {
+  return Boolean(f && String(f.agenda_modo || "").toLowerCase() === "libre");
+}
+
+function solicitanteFlotaPorId(flotaId, solId) {
+  const f = flotaPorId(flotaId);
+  if (!f) return null;
+  const id = String(solId || "").trim();
+  return (f.solicitantes || []).find((s) => s.id === id) || null;
 }
 
 function tokenLinkAccesoFlota() {

@@ -10,6 +10,53 @@ let flotaColFotoDraftColId = "";
 let flotaSrvFotoDraft = null;
 let flotaSrvFotoDraftSrvId = "";
 
+function htmlFilaSolicitanteConfigFlota(s) {
+  const sol = s || {};
+  return `<tr data-sol-id="${escapeAttr(sol.id || "")}">
+    <td><input type="text" class="sol-nombre" value="${escapeAttr(sol.nombre)}" placeholder="Nombre" /></td>
+    <td><input type="tel" class="sol-telefono" value="${escapeAttr(sol.telefono)}" placeholder="+56…" /></td>
+    <td><input type="email" class="sol-correo" value="${escapeAttr(sol.correo)}" placeholder="correo@…" /></td>
+    <td><input type="text" class="sol-patente" maxlength="8" value="${escapeAttr(sol.patente)}" placeholder="ABCD12" /></td>
+    <td><button type="button" class="btn-soft btn-quitar-sol" aria-label="Quitar">×</button></td>
+  </tr>`;
+}
+
+function pintarModalConfigFlota() {
+  if (!flotaKanbanId) return;
+  hidratarFlotas();
+  const flota = flotaPorId(flotaKanbanId);
+  if (!flota) return;
+  const sel = $("flota-config-agenda");
+  if (sel) sel.value = flota.agenda_modo === "libre" ? "libre" : "limitada";
+  const tbody = $("flota-config-solicitantes-body");
+  if (!tbody) return;
+  const lista = flota.solicitantes || [];
+  tbody.innerHTML = lista.length
+    ? lista.map((s) => htmlFilaSolicitanteConfigFlota(s)).join("")
+    : htmlFilaSolicitanteConfigFlota({ id: "", nombre: "", telefono: "", correo: "", patente: "" });
+}
+
+function leerSolicitantesDesdeModalConfig() {
+  const tbody = $("flota-config-solicitantes-body");
+  if (!tbody) return [];
+  const out = [];
+  tbody.querySelectorAll("tr").forEach((tr) => {
+    const nombre = (tr.querySelector(".sol-nombre") && tr.querySelector(".sol-nombre").value.trim()) || "";
+    if (!nombre) return;
+    const raw = {
+      id: tr.getAttribute("data-sol-id") || "",
+      nombre,
+      telefono: (tr.querySelector(".sol-telefono") && tr.querySelector(".sol-telefono").value.trim()) || "",
+      correo: (tr.querySelector(".sol-correo") && tr.querySelector(".sol-correo").value.trim()) || "",
+      patente: (tr.querySelector(".sol-patente") && tr.querySelector(".sol-patente").value.trim()) || "",
+    };
+    const norm =
+      typeof normalizarSolicitanteFlota === "function" ? normalizarSolicitanteFlota(raw) : raw;
+    if (norm) out.push(norm);
+  });
+  return out;
+}
+
 function pintarLinkAccesoFlotaEnModal() {
   if (!flotaKanbanId || typeof asegurarLinkAccesoFlota !== "function") return;
   asegurarLinkAccesoFlota(flotaKanbanId);
@@ -299,6 +346,7 @@ function renderFlotaKanban(flotaId) {
             <h2>${escapeText(flota.nombre)}</h2>
             <p>Precios netos (se muestran con «+ IVA»). Arrastra ⋮⋮ para mover columnas; mantén pulsada una tarjeta para reordenar.</p>
           </div>
+          <button type="button" class="btn-soft" id="btn-flota-config">Configuración</button>
           <button type="button" class="btn-soft" id="btn-flota-clave-cliente">Clave cliente</button>
         </div>
       </div>
@@ -684,6 +732,16 @@ function initFlotasAdmin() {
       renderListadoFlotas();
       return;
     }
+    if (e.target.id === "btn-flota-config") {
+      pintarModalConfigFlota();
+      $("modal-flota-config").hidden = false;
+      return;
+    }
+    if (e.target.classList.contains("btn-quitar-sol")) {
+      const tr = e.target.closest("tr");
+      if (tr && tr.parentElement) tr.remove();
+      return;
+    }
     if (e.target.id === "btn-flota-clave-cliente") {
       $("flota-clave-pin").value = "";
       pintarLinkAccesoFlotaEnModal();
@@ -725,6 +783,31 @@ function initFlotasAdmin() {
 
   $("cerrar-flota-clave").addEventListener("click", () => {
     $("modal-flota-clave").hidden = true;
+  });
+  $("cerrar-flota-config").addEventListener("click", () => {
+    $("modal-flota-config").hidden = true;
+  });
+  $("btn-flota-config-add-sol").addEventListener("click", () => {
+    const tbody = $("flota-config-solicitantes-body");
+    if (!tbody) return;
+    tbody.insertAdjacentHTML("beforeend", htmlFilaSolicitanteConfigFlota({}));
+  });
+  $("btn-flota-config-guardar").addEventListener("click", async () => {
+    if (!flotaKanbanId) return;
+    hidratarFlotas();
+    const flota = flotaPorId(flotaKanbanId);
+    if (!flota) return;
+    const modo = ($("flota-config-agenda") && $("flota-config-agenda").value) || "limitada";
+    flota.agenda_modo = modo === "libre" ? "libre" : "limitada";
+    flota.solicitantes = leerSolicitantesDesdeModalConfig();
+    persistirFlotas();
+    try {
+      await guardarFlotasNube();
+      $("modal-flota-config").hidden = true;
+      alert("Configuración guardada.");
+    } catch (err) {
+      alert((err && err.message) || "No se pudo sincronizar la flota.");
+    }
   });
   $("btn-flota-clave-guardar").addEventListener("click", async () => {
     if (!flotaKanbanId) return;

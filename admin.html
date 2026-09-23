@@ -140,6 +140,39 @@
     </div>
   </div>
 
+  <div id="modal-flota-config" class="modal" hidden>
+    <div class="modal-card modal-card-wide">
+      <button class="x" type="button" id="cerrar-flota-config">×</button>
+      <h3>Configuración de flota</h3>
+      <p class="muted">Lista de solicitantes para el ticket (desplegable en la app) y reglas de agenda.</p>
+      <label class="field">
+        <span>Agenda</span>
+        <select id="flota-config-agenda">
+          <option value="limitada">Agenda limitada (solo cupos libres en la web)</option>
+          <option value="libre">Agenda libre (cualquier horario hábil aunque el cupo esté lleno)</option>
+        </select>
+      </label>
+      <h4>Solicitantes</h4>
+      <p class="muted">Al elegir un nombre en la app se completan teléfono, correo y patente por defecto.</p>
+      <div class="flota-config-sol-wrap">
+        <table class="flota-config-sol-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Teléfono</th>
+              <th>Correo</th>
+              <th>Patente</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="flota-config-solicitantes-body"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn-soft" id="btn-flota-config-add-sol">+ Agregar solicitante</button>
+      <button class="btn-primary btn-block" type="button" id="btn-flota-config-guardar">Guardar configuración</button>
+    </div>
+  </div>
+
   <div id="modal-flota-nueva" class="modal" hidden>
     <div class="modal-card">
       <button class="x" type="button" id="cerrar-flota-nueva">×</button>
@@ -215,6 +248,6 @@
   <script src="catalogo.js?v=rapido2"></script>
   <script src="flotas.js?v=flotas-foto1"></script>
   <script src="admin.js?v=menu-admin2"></script>
-  <script src="admin-flotas.js?v=flotas-thumb1"></script>
+  <script src="admin-flotas.js?v=flotas-config1"></script>
 </body>
 </html>

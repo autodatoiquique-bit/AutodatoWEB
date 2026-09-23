@@ -22,7 +22,8 @@ const state = {
   origenAgenda: "menu",
   pasoAgenda: "filtro",
   servicioAgenda: null,
-  cliente: { nombre: "", telefono: "", patente: "", correo: "", sintoma: "" },
+  cliente: { nombre: "", telefono: "", patente: "", correo: "", sintoma: "", solicitanteId: "" },
+  entrega: { fecha: "", hora: "" },
   cita: { fecha: "", hora: "" },
   cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
   vistaAnterior: "ofertas",
@@ -364,9 +365,78 @@ function persistir() {
       carrito: state.carrito,
       vehiculo: state.vehiculo,
       cliente: state.cliente,
+      entrega: state.entrega,
       cita: state.cita,
     })
   );
+}
+
+function flotaActivaDelCarrito() {
+  if (!carritoSoloFlota() || typeof flotaIdDesdeCarrito !== "function") return null;
+  const id = flotaIdDesdeCarrito(state.carrito);
+  return id && typeof flotaPorId === "function" ? flotaPorId(id) : null;
+}
+
+function flotaAgendaLibreActiva() {
+  const f = flotaActivaDelCarrito();
+  return typeof flotaAgendaEsLibre === "function" && flotaAgendaEsLibre(f);
+}
+
+function bloquesVisitaDia(iso) {
+  if (flotaAgendaLibreActiva()) return BLOQUES.map((b) => b.hora);
+  const libres = libresDeDia(iso);
+  if (libres != null) return libres;
+  return BLOQUES.map((b) => b.hora);
+}
+
+function instanteDesdeIsoHora(iso, hora) {
+  const p = String(iso || "").split("-").map(Number);
+  const t = String(hora || "09:00").split(":");
+  return new Date(p[0], p[1] - 1, p[2], Number(t[0]) || 0, Number(t[1]) || 0, 0, 0);
+}
+
+function aplicarSolicitanteFlotaAlFormulario(sol) {
+  if (!sol) return;
+  state.cliente.solicitanteId = sol.id;
+  state.cliente.nombre = sol.nombre || "";
+  state.cliente.telefono = sol.telefono || "";
+  state.cliente.correo = sol.correo || "";
+  if (sol.patente) state.cliente.patente = sol.patente;
+  persistir();
+  const sel = $("c-solicitante");
+  const nom = $("c-nombre");
+  const tel = $("c-telefono");
+  const cor = $("c-correo");
+  const pat = $("c-patente");
+  if (sel) sel.value = sol.id;
+  if (nom) nom.value = state.cliente.nombre;
+  if (tel) tel.value = state.cliente.telefono;
+  if (cor) cor.value = state.cliente.correo;
+  if (pat) pat.value = state.cliente.patente;
+}
+
+async function elegirAtencionInmediataFlota() {
+  await refrescarAgendaAutonexus(false);
+  const ahora = new Date();
+  for (let add = 0; add < 21; add += 1) {
+    const day = new Date(ahora);
+    day.setDate(day.getDate() + add);
+    if (!esHabil(day)) continue;
+    const iso = ymd(day);
+    const horas = bloquesVisitaDia(iso);
+    for (const h of horas) {
+      const slot = instanteDesdeIsoHora(iso, h);
+      if (slot > ahora) {
+        state.cita.fecha = iso;
+        state.cita.hora = h;
+        persistir();
+        actualizarCalendarioAgendaEnDom();
+        cerrarModalHoras();
+        return;
+      }
+    }
+  }
+  alert("No hay un horario hábil disponible en los próximos días.");
 }
 
 function aplicarVehiculoDesdeUrl() {
@@ -516,6 +586,7 @@ function hidratar() {
       if (state.vehiculo && !state.vehiculo.combustible) state.vehiculo.combustible = "ambos";
     }
     if (raw.cliente) state.cliente = { ...state.cliente, ...raw.cliente };
+    if (raw.entrega) state.entrega = { ...state.entrega, ...raw.entrega };
     if (raw.cita) state.cita = { ...state.cita, ...raw.cita };
   } catch (e) {
     /* ignore */
@@ -1224,6 +1295,7 @@ function libresDeDia(iso) {
 
 function diaAgendaReservable(fecha) {
   if (!esHabil(fecha) || fecha < hoy0()) return false;
+  if (flotaAgendaLibreActiva()) return true;
   const iso = ymd(fecha);
   const d = diaAgenda(iso);
   if (!d) return true;
@@ -1298,11 +1370,8 @@ function htmlCalendario() {
 }
 
 function abrirModalHoras(fecha) {
-  const libres = libresDeDia(fecha);
-  const bloques =
-    libres != null
-      ? BLOQUES.filter((b) => libres.includes(b.hora))
-      : BLOQUES.slice();
+  const horas = bloquesVisitaDia(fecha);
+  const bloques = BLOQUES.filter((b) => horas.includes(b.hora));
   $("modal-horas").hidden = false;
   $("overlay").hidden = false;
   $("modal-horas-fecha").textContent = fechaBonita(fecha);
@@ -1513,24 +1582,88 @@ function enfocarBtnTicketAgenda() {
 let renderDatosAgendaGen = 0;
 
 function enlazarFormularioDatosAgenda() {
-  ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo"].forEach((id) => {
+  ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo", "c-entrega-fecha", "c-entrega-hora"].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.addEventListener("input", guardarClienteDesdeForma);
+    el.addEventListener("change", guardarClienteDesdeForma);
   });
+  const sel = $("c-solicitante");
+  if (sel) {
+    sel.addEventListener("change", () => {
+      const flotaId =
+        typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+      const sol =
+        typeof solicitanteFlotaPorId === "function"
+          ? solicitanteFlotaPorId(flotaId, sel.value)
+          : null;
+      if (sol) aplicarSolicitanteFlotaAlFormulario(sol);
+      else {
+        state.cliente.solicitanteId = sel.value || "";
+        state.cliente.nombre = "";
+        if ($("c-nombre")) $("c-nombre").value = "";
+        persistir();
+      }
+    });
+  }
+  const selIni = $("c-solicitante");
+  if (selIni && selIni.value && typeof solicitanteFlotaPorId === "function") {
+    const flotaId =
+      typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+    const sol = solicitanteFlotaPorId(flotaId, selIni.value);
+    if (sol && !state.cliente.nombre.trim()) aplicarSolicitanteFlotaAlFormulario(sol);
+    else if ($("c-nombre") && state.cliente.nombre) $("c-nombre").value = state.cliente.nombre;
+  }
+}
+
+function htmlCamposClienteAgendaFlota(flota) {
+  const lista = (flota && flota.solicitantes) || [];
+  const usaLista = lista.length > 0;
+  const nombreHtml = usaLista
+    ? `<label class="field"><span>Solicitante</span><select id="c-solicitante">
+        <option value="">Elige…</option>
+        ${lista
+          .map(
+            (s) =>
+              `<option value="${escapeAttr(s.id)}"${state.cliente.solicitanteId === s.id ? " selected" : ""}>${escapeHtml(s.nombre)}</option>`
+          )
+          .join("")}
+      </select></label>`
+    : `<label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" /></label>`;
+  const nombreHidden = usaLista
+    ? `<input type="hidden" id="c-nombre" value="${escapeAttr(state.cliente.nombre)}" />`
+    : "";
+  return `
+    ${nombreHtml}
+    ${nombreHidden}
+    <label class="field"><span>Teléfono</span><input id="c-telefono" type="tel" value="${escapeAttr(state.cliente.telefono)}" /></label>
+    <label class="field"><span>Patente</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" required /></label>
+    <label class="field"><span>Notas del servicio (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Detalle adicional para el taller">${escapeHtml(state.cliente.sintoma)}</textarea></label>
+    <label class="field"><span>Correo (opcional)</span><input id="c-correo" type="email" value="${escapeAttr(state.cliente.correo)}" /></label>
+    <h3>Hora de solicitud de entrega</h3>
+    <p class="muted flota-entrega-hint">Fecha y hora en que necesitas el vehículo listo (ej. 07/08/2026 10:30).</p>
+    <div class="field-row flota-entrega-row">
+      <label class="field"><span>Fecha</span><input id="c-entrega-fecha" type="date" value="${escapeAttr(state.entrega.fecha)}" /></label>
+      <label class="field"><span>Hora</span><input id="c-entrega-hora" type="time" step="300" value="${escapeAttr(state.entrega.hora)}" /></label>
+    </div>
+  `;
 }
 
 function htmlPanelDatosAgenda() {
   const { items, subtotal, total, ahorro } = calcular();
+  const soloFlota = carritoSoloFlota();
+  const flota = soloFlota ? flotaActivaDelCarrito() : null;
+  const agendaLibre = soloFlota && flotaAgendaLibreActiva();
   return `
     <section class="panel claro">
-      <h2>Tus datos y la hora</h2>
+      <h2>${soloFlota ? "Ticket flota y agenda" : "Tus datos y la hora"}</h2>
       ${htmlAvisoTicketCorto()}
       <p class="lead">${
-        carritoSoloFlota()
+        soloFlota
           ? "Servicios de flota con IVA incluido en el total. Sin pago aquí: generas ticket de entrada."
           : `${textoVehiculo()}. Sin pago aquí: generas un ticket de entrada y queda agendada tu visita.`
       }</p>
+      ${agendaLibre ? `<p class="muted">Esta flota tiene <strong>agenda libre</strong>: puedes elegir cualquier horario hábil aunque el cupo web esté lleno.</p>` : ""}
       <ul class="resumen">
         ${items
           .map((s) => {
@@ -1543,12 +1676,14 @@ function htmlPanelDatosAgenda() {
         <li><span>Ahorro</span><strong style="color:var(--red)">${clp(ahorro)}</strong></li>
         <li><span>Total</span><strong style="color:var(--green)">${clp(total)}</strong></li>
       </ul>
+      ${soloFlota ? htmlCamposClienteAgendaFlota(flota) : `
       <label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" /></label>
       <label class="field"><span>Teléfono</span><input id="c-telefono" type="tel" value="${escapeAttr(state.cliente.telefono)}" /></label>
       <label class="field"><span>Patente (opcional)</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" /></label>
       <label class="field"><span>Falla o síntoma (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Ruido, check engine, fuga u otra falla que notes">${escapeHtml(state.cliente.sintoma)}</textarea></label>
-      <label class="field"><span>Correo (opcional)</span><input id="c-correo" type="email" value="${escapeAttr(state.cliente.correo)}" /></label>
-      <h3>Fecha de visita</h3>
+      <label class="field"><span>Correo (opcional)</span><input id="c-correo" type="email" value="${escapeAttr(state.cliente.correo)}" /></label>`}
+      <h3>Fecha de visita al taller</h3>
+      ${soloFlota ? `<button type="button" class="btn-soft btn-block btn-atencion-inmediata" data-atencion-inmediata-flota>Quiero atención inmediata</button>` : ""}
       <div data-agenda-cal>${htmlCalendario()}</div>
       <button class="btn-green btn-block" type="button" id="btn-ticket">Generar ticket y agendar</button>
     </section>
@@ -1589,9 +1724,15 @@ function faltantesTicket() {
   const falta = [];
   if (!state.carrito.length) falta.push("al menos un servicio");
   if (!carritoSoloFlota() && !vehiculoOk()) falta.push("marca, modelo, año y combustible del vehículo");
-  if (!state.cliente.nombre.trim()) falta.push("nombre");
+  if (!state.cliente.nombre.trim()) falta.push("nombre o solicitante");
   if (!state.cliente.telefono.trim()) falta.push("teléfono");
-  if (carritoSoloFlota() && !state.cliente.patente.trim()) falta.push("patente");
+  if (carritoSoloFlota()) {
+    if (!state.cliente.patente.trim()) falta.push("patente");
+    if (!state.entrega.fecha) falta.push("fecha de entrega solicitada");
+    if (!state.entrega.hora) falta.push("hora de entrega solicitada");
+  } else if (!state.cliente.patente.trim()) {
+    /* patente opcional particulares */
+  }
   if (!state.cita.fecha) falta.push("día de visita");
   if (!state.cita.hora) falta.push("bloque horario");
   return falta;
@@ -2034,6 +2175,9 @@ async function generarTicket() {
     correo: state.cliente.correo.trim() || null,
     sintoma: (state.cliente.sintoma || "").trim() || null,
     oc_pre: "",
+    entrega_fecha: soloFlota ? state.entrega.fecha : "",
+    entrega_hora: soloFlota ? state.entrega.hora : "",
+    agenda_flota_libre: soloFlota && flotaAgendaLibreActiva(),
     fecha_cita: state.cita.fecha,
     hora: state.cita.hora,
     servicios: items.map((s) => ({
@@ -2099,7 +2243,8 @@ function vaciarCarritoTrasTicket() {
   state.cita = { fecha: "", hora: "" };
   state.pasoAgenda = "filtro";
   state.origenAgenda = "menu";
-  state.cliente = { nombre: "", telefono: "", patente: "", correo: "", sintoma: "" };
+  state.cliente = { nombre: "", telefono: "", patente: "", correo: "", sintoma: "", solicitanteId: "" };
+  state.entrega = { fecha: "", hora: "" };
   state.flotaActivaId = "";
   state.flotaCategoriaId = "";
   state.flotaPendienteId = "";
@@ -2304,13 +2449,16 @@ function guardarClienteDesdeForma() {
   if ($("c-patente")) state.cliente.patente = $("c-patente").value.toUpperCase();
   if ($("c-sintoma")) state.cliente.sintoma = $("c-sintoma").value;
   if ($("c-correo")) state.cliente.correo = $("c-correo").value;
+  if ($("c-solicitante")) state.cliente.solicitanteId = $("c-solicitante").value;
+  if ($("c-entrega-fecha")) state.entrega.fecha = $("c-entrega-fecha").value;
+  if ($("c-entrega-hora")) state.entrega.hora = $("c-entrega-hora").value;
   persistir();
 }
 
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -2423,6 +2571,7 @@ document.addEventListener("click", (e) => {
   }
   if (t.id === "btn-flota-pin-ingresar") void intentarPinFlota();
   if (t.id === "btn-flota-atras" && typeof atrasNavegacionFlota === "function") atrasNavegacionFlota();
+  if (t.hasAttribute("data-atencion-inmediata-flota")) void elegirAtencionInmediataFlota();
   if (t.dataset.quitarOferta) quitarOferta(t.dataset.quitarOferta);
   if (t.dataset.filtrar) void aplicarFiltro(t.dataset.filtrar);
 
