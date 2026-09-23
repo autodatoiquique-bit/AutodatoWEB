@@ -2372,12 +2372,43 @@ function pistaMenuDesplazable() {
   const menu = $("menu-principal");
   if (!menu || window.innerWidth > 860) return;
   if (menu.scrollWidth <= menu.clientWidth + 12) return;
-  menu.classList.remove("menu-hint");
-  void menu.offsetWidth;
-  menu.classList.add("menu-hint");
-  const fin = () => menu.classList.remove("menu-hint");
-  menu.addEventListener("animationend", fin, { once: true });
+
+  const peek = menu.clientWidth * 0.125;
+  let cancelado = false;
+  const fin = () => {
+    cancelado = true;
+    menu.classList.remove("menu-hint");
+    menu.scrollLeft = 0;
+  };
   menu.addEventListener("pointerdown", fin, { once: true });
+
+  const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+  function animScroll(desde, hasta, ms) {
+    return new Promise((resolve) => {
+      const t0 = performance.now();
+      const step = (now) => {
+        if (cancelado) return resolve();
+        const p = Math.min(1, (now - t0) / ms);
+        menu.scrollLeft = desde + (hasta - desde) * ease(p);
+        if (p < 1) requestAnimationFrame(step);
+        else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  void (async () => {
+    await new Promise((r) => setTimeout(r, 350));
+    if (cancelado) return;
+    menu.classList.add("menu-hint");
+    for (let i = 0; i < 2 && !cancelado; i++) {
+      await animScroll(menu.scrollLeft, peek, 420);
+      await animScroll(menu.scrollLeft, 0, 520);
+      if (i < 1) await new Promise((r) => setTimeout(r, 90));
+    }
+    fin();
+  })();
 }
 
 if ($("modal-contacto")) {

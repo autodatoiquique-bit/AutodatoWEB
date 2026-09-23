@@ -410,12 +410,6 @@ body.hay-perfil .panel { padding-top: 88px; }
 }
 .home-dots-hint { animation: dots-hint 1.3s ease 0.4s 2; }
 
-@keyframes menu-hint {
-  0%, 100% { transform: translateX(0); }
-  30% { transform: translateX(-28px); }
-  62% { transform: translateX(14px); }
-}
-
 .home-pill {
   display: flex;
   align-items: center;
@@ -1260,7 +1254,7 @@ body.hay-perfil .panel { padding-top: 88px; }
     scrollbar-width: none;
   }
   .menu.menu-hint {
-    animation: menu-hint 1.3s ease 0.35s 2;
+    scroll-snap-type: none;
   }
   .menu::-webkit-scrollbar { display: none; }
   .menu button {
