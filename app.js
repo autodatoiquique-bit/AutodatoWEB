@@ -5,6 +5,8 @@ const BLOQUES = [
 ];
 
 const ENTREGA_CORTE_HORA = 18;
+const ENTREGA_ALMUERZO_DESDE_MIN = 13 * 60 + 15;
+const ENTREGA_ALMUERZO_HASTA_MIN = 14 * 60 + 15;
 const TRASLADO_MIN_NETO_FLOTA = 50000;
 
 const PAGINAS = {
@@ -482,9 +484,17 @@ function minFechaEntregaIso() {
 }
 
 function esDiaEntregaHabil(date) {
-  const d = date.getDay();
-  if (d === 0) return false;
-  return d >= 1 && d <= 6;
+  return esHabil(date);
+}
+
+function minutosHoraEntrega(h) {
+  const [hh, mm] = String(h || "0:0").split(":").map(Number);
+  return (hh || 0) * 60 + (mm || 0);
+}
+
+function horaEntregaEnAlmuerzo(h) {
+  const t = minutosHoraEntrega(h);
+  return t >= ENTREGA_ALMUERZO_DESDE_MIN && t <= ENTREGA_ALMUERZO_HASTA_MIN;
 }
 
 function horasEntregaHabiles(iso) {
@@ -492,14 +502,15 @@ function horasEntregaHabiles(iso) {
   if (p.length < 3 || !p[0]) return [];
   const date = new Date(p[0], p[1] - 1, p[2]);
   if (!esDiaEntregaHabil(date)) return [];
-  const dow = date.getDay();
-  const endMin = dow === 6 ? 13 * 60 : 18 * 60;
   const startMin = 9 * 60;
+  const endMin = 18 * 60;
   const out = [];
   for (let t = startMin; t <= endMin; t += 30) {
     const hh = Math.floor(t / 60);
     const mm = t % 60;
-    out.push(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+    const h = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    if (horaEntregaEnAlmuerzo(h)) continue;
+    out.push(h);
   }
   return out;
 }
@@ -1741,7 +1752,7 @@ function htmlCalendario() {
   for (let d = 1; d <= days; d += 1) {
     const fecha = new Date(y, m, d);
     const id = ymd(fecha);
-    const ok = fecha >= hoy0() && diaAgendaReservable(fecha);
+    const ok = fecha >= hoy0() && esHabil(fecha) && diaAgendaReservable(fecha);
     const on = state.cita.fecha === id ? "is-on" : "";
     const title = etiquetaAgendaDia(id);
     celdas.push(
@@ -2006,6 +2017,16 @@ function enlazarEntregaFlota() {
   const hSel = $("c-entrega-hora");
   if (fInp) {
     fInp.addEventListener("change", () => {
+      const val = fInp.value;
+      if (val) {
+        const p = val.split("-").map(Number);
+        const d = new Date(p[0], p[1] - 1, p[2]);
+        if (!esDiaEntregaHabil(d)) {
+          fInp.value = "";
+          state.entrega.fecha = "";
+          state.entrega.hora = "";
+        }
+      }
       guardarClienteDesdeForma();
       actualizarBloqueEntregaFlotaEnDom();
     });
@@ -2099,7 +2120,7 @@ function htmlCamposEntregaFlota() {
   const horaSel = horas.includes(state.entrega.hora) ? state.entrega.hora : "";
   return `
     <h3>Hora de solicitud de entrega <span class="muted flota-entrega-opc">(opcional)</span></h3>
-    <p class="muted flota-entrega-hint">Cuándo necesitas el vehículo listo. Lun–vie 9:00–18:00, sáb 9:00–13:00. Si son las 18:00 o más tarde, la fecha parte desde mañana.</p>
+    <p class="muted flota-entrega-hint">Cuándo necesitas el vehículo listo. Solo lun–vie, 9:00–18:00 (sin 13:15–14:15). Si son las 18:00 o más tarde, la fecha parte desde mañana.</p>
     <div class="field-row flota-entrega-row">
       <label class="field"><span>Fecha</span><input id="c-entrega-fecha" type="date" min="${escapeAttr(minIso)}" value="${escapeAttr(fecha)}" /></label>
       <label class="field"><span>Hora</span>
