@@ -1375,7 +1375,14 @@ function serviciosParaVehiculo(lista) {
 }
 
 function htmlAvisoTicketCorto() {
-  return `<p class="aviso-ticket">No es una compra en línea: armas un ticket para agendar en el taller.</p>`;
+  const flota =
+    Boolean(state.areaFlotas) ||
+    String(state.vista || "").startsWith("flotas") ||
+    (typeof carritoSoloFlota === "function" && carritoSoloFlota());
+  const txt = flota
+    ? "Los precios pueden variar con el tiempo según el ajuste del mercado."
+    : "No es una compra en línea: armas un ticket para agendar en el taller.";
+  return `<p class="aviso-ticket">${txt}</p>`;
 }
 
 function htmlListaCotizacion(titulo, lead, lista, opts = {}) {
