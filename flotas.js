@@ -145,6 +145,89 @@ function solicitanteFlotaPorId(flotaId, solId) {
   return (f.solicitantes || []).find((s) => s.id === id) || null;
 }
 
+function claveUnicaSolicitanteFlota(s) {
+  const mail = String((s && s.correo) || "")
+    .trim()
+    .toLowerCase();
+  if (mail) return `m:${mail}`;
+  return `n:${String((s && s.nombre) || "")
+    .trim()
+    .toLowerCase()}`;
+}
+
+function fusionarSolicitanteEnFlota(flota, raw) {
+  if (!flota) return null;
+  if (!Array.isArray(flota.solicitantes)) flota.solicitantes = [];
+  const norm = normalizarSolicitanteFlota(raw);
+  if (!norm) return null;
+  const clave = claveUnicaSolicitanteFlota(norm);
+  const exist = flota.solicitantes.find((s) => claveUnicaSolicitanteFlota(s) === clave);
+  if (exist) {
+    if (!exist.telefono && norm.telefono) exist.telefono = norm.telefono;
+    if (!exist.correo && norm.correo) exist.correo = norm.correo;
+    if (!exist.patente && norm.patente) exist.patente = norm.patente;
+    return exist;
+  }
+  flota.solicitantes.push(norm);
+  return norm;
+}
+
+let _semillaSolicitantesSalfa = null;
+
+async function semillaSolicitantesSalfa() {
+  if (_semillaSolicitantesSalfa) return _semillaSolicitantesSalfa;
+  try {
+    const res = await fetch(`solicitantes-salfa-seed.json?t=${Date.now()}`, { cache: "no-store" });
+    if (res.ok) _semillaSolicitantesSalfa = await res.json();
+  } catch (_e) {
+    /* sin semilla */
+  }
+  _semillaSolicitantesSalfa = Array.isArray(_semillaSolicitantesSalfa) ? _semillaSolicitantesSalfa : [];
+  return _semillaSolicitantesSalfa;
+}
+
+async function asegurarSolicitantesSemillaSalfa() {
+  if (!(FLOTAS && FLOTAS.length)) hidratarFlotas();
+  const flota = (FLOTAS || []).find((f) => String(f.nombre).toLowerCase() === "salfa");
+  if (!flota) return false;
+  const seeds = await semillaSolicitantesSalfa();
+  if (!seeds.length) return false;
+  const keys = new Set((flota.solicitantes || []).map(claveUnicaSolicitanteFlota));
+  let changed = false;
+  for (const seed of seeds) {
+    const k = claveUnicaSolicitanteFlota(seed);
+    if (keys.has(k)) continue;
+    fusionarSolicitanteEnFlota(flota, seed);
+    keys.add(k);
+    changed = true;
+  }
+  if (changed) persistirFlotas();
+  return changed;
+}
+
+const FLOTA_LINK_SESION_PREFIX = "autodato_flota_link_";
+
+function guardarTokenLinkFlotaSesion(flotaId, token) {
+  const id = String(flotaId || "").trim();
+  const tok = String(token || "").trim();
+  if (!id || !tok) return;
+  try {
+    sessionStorage.setItem(`${FLOTA_LINK_SESION_PREFIX}${id}`, tok);
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
+function tokenLinkFlotaSesion(flotaId) {
+  const id = String(flotaId || "").trim();
+  if (!id) return "";
+  try {
+    return sessionStorage.getItem(`${FLOTA_LINK_SESION_PREFIX}${id}`) || "";
+  } catch (_e) {
+    return "";
+  }
+}
+
 function tokenLinkAccesoFlota() {
   const a = new Uint8Array(16);
   crypto.getRandomValues(a);

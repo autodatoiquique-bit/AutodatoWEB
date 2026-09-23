@@ -1004,7 +1004,11 @@ function initFlotasAdmin() {
 async function arrancarFlotasAdmin() {
   if (!(FLOTAS && FLOTAS.length)) hidratarFlotas();
   const sembrado = await sembrarFlotaSalfaSiCorresponde();
-  if (sembrado && typeof nubeActiva === "function" && nubeActiva()) {
+  let subir = sembrado;
+  if (typeof asegurarSolicitantesSemillaSalfa === "function") {
+    subir = (await asegurarSolicitantesSemillaSalfa()) || subir;
+  }
+  if (subir && typeof nubeActiva === "function" && nubeActiva()) {
     try {
       await guardarFlotasNube();
     } catch (e) {

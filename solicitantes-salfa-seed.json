@@ -1,0 +1,44 @@
+[
+  {
+    "id": "sol-salfa-yonder-pena",
+    "nombre": "YONDER PENA",
+    "correo": "ypenav@salfa.cl",
+    "telefono": "",
+    "patente": ""
+  },
+  {
+    "id": "sol-salfa-claudio-cortes",
+    "nombre": "CLAUDIO CORTES",
+    "correo": "ccortesr@salfa.cl",
+    "telefono": "",
+    "patente": ""
+  },
+  {
+    "id": "sol-salfa-diego-rios",
+    "nombre": "DIEGO RIOS",
+    "correo": "driose@salfa.cl",
+    "telefono": "",
+    "patente": ""
+  },
+  {
+    "id": "sol-salfa-fabiola-guzman",
+    "nombre": "FABIOLA GUZMAN",
+    "correo": "fguzmanh@salfa.cl",
+    "telefono": "",
+    "patente": ""
+  },
+  {
+    "id": "sol-salfa-pablo-parra",
+    "nombre": "PABLO PARRA",
+    "correo": "pparram@salfa.cl",
+    "telefono": "",
+    "patente": ""
+  },
+  {
+    "id": "sol-salfa-priscila",
+    "nombre": "PRISCILA",
+    "correo": "pfigueroac@salfa.cl",
+    "telefono": "",
+    "patente": ""
+  }
+]

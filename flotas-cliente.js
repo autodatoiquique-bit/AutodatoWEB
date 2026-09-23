@@ -429,6 +429,7 @@ async function entrarFlotaPorLinkAcceso(token) {
   if (!f) return false;
   if (typeof entrarAreaFlotas === "function" && !entrarAreaFlotas()) return false;
   marcarSesionFlota(f.id);
+  if (typeof guardarTokenLinkFlotaSesion === "function") guardarTokenLinkFlotaSesion(f.id, token);
   state.flotaBienvenida = f.nombre;
   entrarFlota(f.id, { bienvenida: true });
   return true;

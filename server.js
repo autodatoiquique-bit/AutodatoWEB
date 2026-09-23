@@ -344,6 +344,60 @@ async function subirCatalogoCanales(mapa) {
   return r.ok;
 }
 
+const SOLICITANTES_SALFA_SEED = require("./solicitantes-salfa-seed.json");
+
+function claveUnicaSolicitanteServidor(s) {
+  const mail = String((s && s.correo) || "")
+    .trim()
+    .toLowerCase();
+  if (mail) return `m:${mail}`;
+  return `n:${String((s && s.nombre) || "")
+    .trim()
+    .toLowerCase()}`;
+}
+
+function normalizarSolicitanteServidor(raw) {
+  const nombre = String((raw && raw.nombre) || "").trim();
+  if (!nombre) return null;
+  return {
+    id: String((raw && raw.id) || `sol-${Date.now().toString(36)}`),
+    nombre,
+    telefono: String((raw && raw.telefono) || "").trim(),
+    correo: String((raw && raw.correo) || "").trim(),
+    patente: String((raw && raw.patente) || "")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toUpperCase(),
+  };
+}
+
+function fusionarSolicitanteEnFlotaServidor(flota, raw) {
+  if (!flota) return null;
+  if (!Array.isArray(flota.solicitantes)) flota.solicitantes = [];
+  const norm = normalizarSolicitanteServidor(raw);
+  if (!norm) return null;
+  const clave = claveUnicaSolicitanteServidor(norm);
+  const exist = flota.solicitantes.find((s) => claveUnicaSolicitanteServidor(s) === clave);
+  if (exist) {
+    if (!exist.telefono && norm.telefono) exist.telefono = norm.telefono;
+    if (!exist.correo && norm.correo) exist.correo = norm.correo;
+    if (!exist.patente && norm.patente) exist.patente = norm.patente;
+    return exist;
+  }
+  flota.solicitantes.push(norm);
+  return norm;
+}
+
+function asegurarSemillaSolicitantesSalfaServidor(flota) {
+  if (!flota || String(flota.nombre || "").toLowerCase() !== "salfa") return;
+  const keys = new Set((flota.solicitantes || []).map(claveUnicaSolicitanteServidor));
+  for (const seed of SOLICITANTES_SALFA_SEED) {
+    const k = claveUnicaSolicitanteServidor(seed);
+    if (keys.has(k)) continue;
+    fusionarSolicitanteEnFlotaServidor(flota, seed);
+    keys.add(k);
+  }
+}
+
 function stockEnExtra(extra) {
   if (!extra || extra.stock_restante == null || extra.stock_restante === "") return null;
   const n = Math.floor(Number(extra.stock_restante));
@@ -466,6 +520,76 @@ app.get("/api/agenda-disponibilidad", async (req, res) => {
   } catch (e) {
     console.warn("Agenda AutoNexus error", e.message || e);
     return res.status(502).json({ ok: false, error: "No se pudo consultar la agenda." });
+  }
+});
+
+app.post("/api/flota-registrar-solicitante", async (req, res) => {
+  const body = req.body || {};
+  const flotaId = String(body.flota_id || "").trim();
+  const nombre = String(body.nombre || "").trim();
+  if (!flotaId || !nombre) {
+    return res.status(400).json({ ok: false, error: "Faltan flota o nombre." });
+  }
+  const cfg = supabaseServiceConfig();
+  if (!cfg) {
+    return res.status(501).json({ ok: false, error: "Catálogo no configurado en el servidor." });
+  }
+  try {
+    const mapa = await descargarCatalogoCanales();
+    if (!mapa || !Array.isArray(mapa._flotas)) {
+      return res.status(502).json({ ok: false, error: "No se pudo leer el catálogo." });
+    }
+    const idx = mapa._flotas.findIndex((f) => String(f.id) === flotaId);
+    if (idx < 0) return res.status(404).json({ ok: false, error: "Flota no encontrada." });
+    const flota = mapa._flotas[idx];
+    const link = String(flota.link_acceso || "").trim();
+    const acceso = String(body.acceso || "").trim();
+    if (link && acceso !== link) {
+      return res.status(403).json({ ok: false, error: "Acceso no válido para esta flota." });
+    }
+    asegurarSemillaSolicitantesSalfaServidor(flota);
+    const sol = fusionarSolicitanteEnFlotaServidor(flota, {
+      nombre,
+      telefono: body.telefono,
+      correo: body.correo,
+      patente: body.patente,
+    });
+    mapa._flotas[idx] = flota;
+    const ok = await subirCatalogoCanales(mapa);
+    if (!ok) return res.status(502).json({ ok: false, error: "No se pudo guardar en el catálogo." });
+    return res.json({ ok: true, solicitante: sol, flota_id: flotaId });
+  } catch (e) {
+    console.warn("flota-registrar-solicitante", e.message || e);
+    return res.status(502).json({ ok: false, error: "No se pudo registrar el solicitante." });
+  }
+});
+
+app.post("/api/flota-sembrar-solicitantes-salfa", async (req, res) => {
+  const cfg = supabaseServiceConfig();
+  if (!cfg) {
+    return res.status(501).json({ ok: false, error: "Catálogo no configurado en el servidor." });
+  }
+  try {
+    const mapa = await descargarCatalogoCanales();
+    if (!mapa || !Array.isArray(mapa._flotas)) {
+      return res.status(502).json({ ok: false, error: "No se pudo leer el catálogo." });
+    }
+    const idx = mapa._flotas.findIndex((f) => String(f.nombre || "").toLowerCase() === "salfa");
+    if (idx < 0) return res.status(404).json({ ok: false, error: "Flota SALFA no encontrada." });
+    const flota = mapa._flotas[idx];
+    const antes = (flota.solicitantes || []).length;
+    asegurarSemillaSolicitantesSalfaServidor(flota);
+    mapa._flotas[idx] = flota;
+    const ok = await subirCatalogoCanales(mapa);
+    if (!ok) return res.status(502).json({ ok: false, error: "No se pudo guardar en el catálogo." });
+    return res.json({
+      ok: true,
+      agregados: Math.max(0, (flota.solicitantes || []).length - antes),
+      total: (flota.solicitantes || []).length,
+    });
+  } catch (e) {
+    console.warn("flota-sembrar-solicitantes-salfa", e.message || e);
+    return res.status(502).json({ ok: false, error: "No se pudo sembrar solicitantes." });
   }
 });
 

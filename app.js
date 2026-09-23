@@ -413,6 +413,90 @@ function aplicarSolicitanteFlotaAlFormulario(sol) {
   if (tel) tel.value = state.cliente.telefono;
   if (cor) cor.value = state.cliente.correo;
   if (pat) pat.value = state.cliente.patente;
+  if (typeof pintarFlotaNombreSlot === "function") pintarFlotaNombreSlot(flotaActivaDelCarrito());
+}
+
+function solicitanteFlotaEsManual() {
+  return state.cliente.solicitanteId === "__manual__";
+}
+
+function htmlFlotaNombreSlot(flota) {
+  if (solicitanteFlotaEsManual()) {
+    return `<label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" placeholder="Tu nombre completo" autocomplete="name" /><p class="muted flota-manual-hint">Si no estás en la lista, escríbelo aquí; quedará guardado para la próxima vez.</p></label>`;
+  }
+  const hayLista = ((flota && flota.solicitantes) || []).length > 0;
+  if (!hayLista) {
+    return `<label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" /></label>`;
+  }
+  return `<input type="hidden" id="c-nombre" value="${escapeAttr(state.cliente.nombre)}" />`;
+}
+
+function pintarFlotaNombreSlot(flota) {
+  const slot = $("flota-nombre-slot");
+  if (!slot) return;
+  slot.innerHTML = htmlFlotaNombreSlot(flota);
+  const nom = $("c-nombre");
+  if (nom) {
+    nom.addEventListener("input", guardarClienteDesdeForma);
+    nom.addEventListener("change", guardarClienteDesdeForma);
+    if (nom.type === "text") {
+      nom.addEventListener("blur", () => {
+        guardarClienteDesdeForma();
+        void registrarSolicitanteManualFlota({ silencioso: true });
+      });
+    }
+  }
+}
+
+async function registrarSolicitanteManualFlota(opts = {}) {
+  if (!carritoSoloFlota() || !solicitanteFlotaEsManual()) return { ok: true };
+  guardarClienteDesdeForma();
+  const nombre = state.cliente.nombre.trim();
+  if (!nombre) return { ok: !opts.requerir, error: "Falta el nombre." };
+  const flotaId = typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+  if (!flotaId) return { ok: false, error: "Sin flota activa." };
+  const acceso =
+    (typeof tokenLinkFlotaSesion === "function" ? tokenLinkFlotaSesion(flotaId) : "") ||
+    tokenFlotaAccesoDesdeQuery();
+  try {
+    const res = await fetch("/api/flota-registrar-solicitante", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        flota_id: flotaId,
+        acceso: acceso || undefined,
+        nombre,
+        telefono: state.cliente.telefono.trim(),
+        correo: state.cliente.correo.trim(),
+        patente: state.cliente.patente.trim(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: (data && data.error) || "No se pudo guardar el nombre en la flota." };
+    }
+    const flota = typeof flotaPorId === "function" ? flotaPorId(flotaId) : null;
+    if (flota && data.solicitante && typeof fusionarSolicitanteEnFlota === "function") {
+      fusionarSolicitanteEnFlota(flota, data.solicitante);
+      if (typeof persistirFlotas === "function") persistirFlotas();
+    }
+    if (data.solicitante && data.solicitante.id) {
+      state.cliente.solicitanteId = data.solicitante.id;
+      state.cliente.nombre = data.solicitante.nombre || nombre;
+      persistir();
+      const sel = $("c-solicitante");
+      if (sel && flota && (flota.solicitantes || []).some((s) => s.id === data.solicitante.id)) {
+        const opt = document.createElement("option");
+        opt.value = data.solicitante.id;
+        opt.textContent = data.solicitante.nombre;
+        sel.insertBefore(opt, sel.querySelector('option[value="__manual__"]'));
+        sel.value = data.solicitante.id;
+      }
+    }
+    return { ok: true, solicitante: data.solicitante };
+  } catch (_e) {
+    return { ok: false, error: "No hubo conexión para guardar el nombre." };
+  }
 }
 
 async function elegirAtencionInmediataFlota() {
@@ -1597,12 +1681,20 @@ function enlazarFormularioDatosAgenda() {
         typeof solicitanteFlotaPorId === "function"
           ? solicitanteFlotaPorId(flotaId, sel.value)
           : null;
+      if (sel.value === "__manual__") {
+        state.cliente.solicitanteId = "__manual__";
+        persistir();
+        pintarFlotaNombreSlot(flotaActivaDelCarrito());
+        const nom = $("c-nombre");
+        if (nom && nom.type === "text") nom.focus();
+        return;
+      }
       if (sol) aplicarSolicitanteFlotaAlFormulario(sol);
       else {
         state.cliente.solicitanteId = sel.value || "";
         state.cliente.nombre = "";
-        if ($("c-nombre")) $("c-nombre").value = "";
         persistir();
+        pintarFlotaNombreSlot(flotaActivaDelCarrito());
       }
     });
   }
@@ -1610,15 +1702,22 @@ function enlazarFormularioDatosAgenda() {
   if (selIni && selIni.value && typeof solicitanteFlotaPorId === "function") {
     const flotaId =
       typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
-    const sol = solicitanteFlotaPorId(flotaId, selIni.value);
-    if (sol && !state.cliente.nombre.trim()) aplicarSolicitanteFlotaAlFormulario(sol);
-    else if ($("c-nombre") && state.cliente.nombre) $("c-nombre").value = state.cliente.nombre;
+    if (selIni.value === "__manual__") {
+      pintarFlotaNombreSlot(flotaActivaDelCarrito());
+    } else {
+      const sol = solicitanteFlotaPorId(flotaId, selIni.value);
+      if (sol && !state.cliente.nombre.trim()) aplicarSolicitanteFlotaAlFormulario(sol);
+      else pintarFlotaNombreSlot(flotaActivaDelCarrito());
+    }
+  } else {
+    pintarFlotaNombreSlot(flotaActivaDelCarrito());
   }
 }
 
 function htmlCamposClienteAgendaFlota(flota) {
   const lista = (flota && flota.solicitantes) || [];
   const usaLista = lista.length > 0;
+  const manual = solicitanteFlotaEsManual();
   const nombreHtml = usaLista
     ? `<label class="field"><span>Solicitante</span><select id="c-solicitante">
         <option value="">Elige…</option>
@@ -1628,14 +1727,12 @@ function htmlCamposClienteAgendaFlota(flota) {
               `<option value="${escapeAttr(s.id)}"${state.cliente.solicitanteId === s.id ? " selected" : ""}>${escapeHtml(s.nombre)}</option>`
           )
           .join("")}
-      </select></label>`
-    : `<label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" /></label>`;
-  const nombreHidden = usaLista
-    ? `<input type="hidden" id="c-nombre" value="${escapeAttr(state.cliente.nombre)}" />`
-    : "";
+        <option value="__manual__"${manual ? " selected" : ""}>Otro (escribir mi nombre)</option>
+      </select></label>
+      <div id="flota-nombre-slot">${htmlFlotaNombreSlot(flota)}</div>`
+    : `<div id="flota-nombre-slot">${htmlFlotaNombreSlot(flota)}</div>`;
   return `
     ${nombreHtml}
-    ${nombreHidden}
     <label class="field"><span>Teléfono</span><input id="c-telefono" type="tel" value="${escapeAttr(state.cliente.telefono)}" /></label>
     <label class="field"><span>Patente</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" required /></label>
     <label class="field"><span>Notas del servicio (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Detalle adicional para el taller">${escapeHtml(state.cliente.sintoma)}</textarea></label>
@@ -1724,7 +1821,12 @@ function faltantesTicket() {
   const falta = [];
   if (!state.carrito.length) falta.push("al menos un servicio");
   if (!carritoSoloFlota() && !vehiculoOk()) falta.push("marca, modelo, año y combustible del vehículo");
-  if (!state.cliente.nombre.trim()) falta.push("nombre o solicitante");
+  if (carritoSoloFlota()) {
+    const flota = flotaActivaDelCarrito();
+    const hayLista = ((flota && flota.solicitantes) || []).length > 0;
+    if (hayLista && !state.cliente.solicitanteId) falta.push("solicitante de la lista");
+  }
+  if (!state.cliente.nombre.trim()) falta.push(solicitanteFlotaEsManual() ? "nombre" : "nombre o solicitante");
   if (!state.cliente.telefono.trim()) falta.push("teléfono");
   if (carritoSoloFlota()) {
     if (!state.cliente.patente.trim()) falta.push("patente");
@@ -2133,6 +2235,14 @@ async function generarTicket() {
   if (falta.length) {
     alert(`Falta completar: ${falta.join(", ")}.`);
     return;
+  }
+  if (solicitanteFlotaEsManual()) {
+    const reg = await registrarSolicitanteManualFlota({ requerir: true, silencioso: true });
+    if (!reg.ok) {
+      alert(reg.error || "No se pudo guardar tu nombre. Revisa la conexión e inténtalo de nuevo.");
+      return;
+    }
+    guardarClienteDesdeForma();
   }
 
   const btn = $("btn-ticket");

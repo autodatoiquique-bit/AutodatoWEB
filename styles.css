@@ -896,6 +896,7 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 .field-row .field { flex: 1 1 140px; margin-top: 0; }
 .flota-entrega-hint { margin: 4px 0 0; font-size: 0.92rem; }
 .btn-atencion-inmediata { margin: 12px 0 4px; }
+.flota-manual-hint { margin: 6px 0 0; font-size: 0.88rem; }
 .field span { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; }
 .field input, .field select, .field textarea {
   width: 100%;
