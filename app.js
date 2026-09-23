@@ -578,10 +578,14 @@ function tokensBusquedaSolicitanteFlota(q) {
   return raw.split(/\s+/).filter(Boolean);
 }
 
+const SOLICITANTE_FLOTA_MIN_BUSQUEDA = 3;
+
 function filtrarSolicitantesFlota(lista, query) {
   const base = Array.isArray(lista) ? lista : [];
-  const tokens = tokensBusquedaSolicitanteFlota(query);
-  if (!tokens.length) return base.slice();
+  const q = String(query || "").trim();
+  if (q.length < SOLICITANTE_FLOTA_MIN_BUSQUEDA) return [];
+  const tokens = tokensBusquedaSolicitanteFlota(q);
+  if (!tokens.length) return [];
   return base.filter((s) => {
     const hay = textoBusquedaSolicitanteFlota(s);
     return tokens.every((t) => hay.includes(t));
@@ -633,11 +637,16 @@ function pintarSugerenciasSolicitanteFlota() {
     return;
   }
   const q = inp.value.trim();
+  if (q.length < SOLICITANTE_FLOTA_MIN_BUSQUEDA) {
+    box.hidden = true;
+    inp.setAttribute("aria-expanded", "false");
+    return;
+  }
   const filtrados = filtrarSolicitantesFlota(lista, q);
   if (!filtrados.length) {
     box.innerHTML = `<li class="flota-sol-vacio"><span class="muted">Sin coincidencias — se guardará al generar el ticket</span></li>`;
-    box.hidden = !q;
-    inp.setAttribute("aria-expanded", q ? "true" : "false");
+    box.hidden = false;
+    inp.setAttribute("aria-expanded", "true");
     return;
   }
   box.innerHTML = filtrados
@@ -2068,7 +2077,7 @@ function enlazarFormularioDatosAgenda() {
 function htmlCamposClienteAgendaFlota(flota) {
   const lista = (flota && flota.solicitantes) || [];
   const placeholder = lista.length
-    ? "Escribe para filtrar solicitantes…"
+    ? "Mín. 3 letras para buscar solicitante…"
     : "Nombre completo del solicitante";
   return `
     <label class="field flota-sol-combobox">
@@ -2086,7 +2095,7 @@ function htmlCamposClienteAgendaFlota(flota) {
         />
         <ul id="c-solicitante-lista" class="flota-sol-sugerencias" role="listbox" hidden></ul>
       </div>
-      <p class="muted flota-manual-hint">Filtra con las primeras letras. Si no estás en la lista, completa tus datos: se guardará al generar el ticket.</p>
+      <p class="muted flota-manual-hint">Escribe al menos 3 letras para ver coincidencias. Si no estás en la lista, completa tus datos: se guardará al generar el ticket.</p>
     </label>
     <label class="field"><span>Teléfono</span><input id="c-telefono" type="tel" value="${escapeAttr(state.cliente.telefono)}" /></label>
     <label class="field"><span>Patente</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" required /></label>
