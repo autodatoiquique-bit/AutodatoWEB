@@ -345,9 +345,8 @@ function aplicarVehiculoDesdeUrl() {
   return true;
 }
 
-function aplicarServicioDesdeUrl() {
-  if (typeof idServicioDesdeQuery !== "function") return false;
-  const id = idServicioDesdeQuery();
+function aplicarServicioDesdeUrl(idExplicito) {
+  const id = idExplicito || (typeof idServicioDesdeQuery === "function" ? idServicioDesdeQuery() : "");
   if (!id) return false;
   const s = oferta(id);
   if (!s) return false;
@@ -356,14 +355,51 @@ function aplicarServicioDesdeUrl() {
   return true;
 }
 
-function aplicarEntradaDesdeUrl() {
+function aplicarVehiculoDesdeUrlAlInicio() {
   const teniaV = aplicarVehiculoDesdeUrl();
-  const teniaS = aplicarServicioDesdeUrl();
   if (teniaV) persistir();
-  if (teniaV || teniaS) {
+  const servicioId = typeof idServicioDesdeQuery === "function" ? idServicioDesdeQuery() : "";
+  if (teniaV || servicioId) {
     if (typeof limpiarQueryEntradaEnHistorial === "function") limpiarQueryEntradaEnHistorial();
   }
-  return teniaV || teniaS;
+  return { teniaV, servicioId };
+}
+
+function sanitizarCarritoTrasCatalogo() {
+  state.carrito = state.carrito.filter((x) =>
+    x.tipo === "oferta" ? Boolean(oferta(x.id)) : Boolean(servicioAgenda(x.id))
+  );
+  persistir();
+}
+
+async function ensureCatalogoCliente() {
+  const lista = await ensureCatalogoCargado();
+  sanitizarCarritoTrasCatalogo();
+  renderTotales(false);
+  return lista;
+}
+
+async function abrirVistaCatalogo(vista) {
+  const dest = vista || state.vista;
+  $("stage").innerHTML = `<section class="panel claro"><p class="lead">Cargando catálogo…</p></section>`;
+  try {
+    await ensureCatalogoCliente();
+  } catch (e) {
+    $("stage").innerHTML = `<section class="panel claro"><p class="muted">No pudimos cargar el catálogo. Revisa la conexión e inténtalo de nuevo.</p></section>`;
+    return;
+  }
+  state.vista = dest;
+  renderVista();
+}
+
+async function abrirPromocionDesdeUrl(servicioId) {
+  if (!servicioId) return;
+  try {
+    await ensureCatalogoCliente();
+  } catch (e) {
+    return;
+  }
+  aplicarServicioDesdeUrl(servicioId);
 }
 
 function hidratar() {
@@ -371,9 +407,7 @@ function hidratar() {
     const raw = JSON.parse(localStorage.getItem("autodato_sesion") || "null");
     if (!raw) return;
     if (Array.isArray(raw.carrito)) {
-      state.carrito = raw.carrito.filter((x) =>
-        x.tipo === "oferta" ? Boolean(oferta(x.id)) : Boolean(servicioAgenda(x.id))
-      );
+      state.carrito = raw.carrito.slice();
     }
     if (raw.vehiculo) {
       state.vehiculo = raw.vehiculo;
@@ -390,11 +424,32 @@ function estiloFotoPortadaAttr(s) {
   return estiloFotoPortada(s).replace(/"/g, "");
 }
 
-function htmlSlidePortada(s) {
-  const ofertaOk = slideMuestraBoton(s) && oferta(s.servicio_id);
+function activarImagenPortada(img) {
+  if (!img || img.dataset.loaded === "1") return;
+  const pendiente = img.getAttribute("data-src");
+  if (pendiente && !img.getAttribute("src")) img.src = pendiente;
+  img.dataset.loaded = "1";
+}
+
+function precargarImagenesPortada(indices) {
+  const pista = $("home-slides");
+  if (!pista) return;
+  const imgs = [...pista.querySelectorAll(".home-foto")];
+  indices.forEach((i) => {
+    if (imgs[i]) activarImagenPortada(imgs[i]);
+  });
+}
+
+function htmlSlidePortada(s, idx, indicePrincipal) {
+  const ofertaOk = slideMuestraBoton(s) && catalogoEstaListo() && oferta(s.servicio_id);
+  const eager = idx === indicePrincipal;
+  const alt = ofertaOk ? oferta(s.servicio_id).nombre : "Portada AutoDato";
+  const imgAttrs = eager
+    ? `src="${s.foto}" fetchpriority="high" decoding="async" data-loaded="1"`
+    : `data-src="${s.foto}" src="" loading="lazy" decoding="async"`;
   return `
     <article class="home-slide">
-      <img class="home-foto" src="${s.foto}" alt="${ofertaOk ? oferta(s.servicio_id).nombre : "Portada AutoDato"}" style="${estiloFotoPortadaAttr(s)}" />
+      <img class="home-foto home-foto-flyer" ${imgAttrs} alt="${alt}" />
       ${
         ofertaOk
           ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al ticket"}</button>`
@@ -403,9 +458,10 @@ function htmlSlidePortada(s) {
     </article>`;
 }
 
-function armarCarruselPortada(nReal) {
+function armarCarruselPortada(nReal, indicePrincipal) {
   const pista = $("home-slides");
   if (!pista || nReal < 1) return;
+  const principal = indicePrincipal != null ? indicePrincipal : nReal > 1 ? 1 : 0;
   const slides = [...pista.querySelectorAll(".home-slide")];
   const dots = document.querySelectorAll(".home-dots i");
   const loop = nReal > 1;
@@ -468,7 +524,9 @@ function armarCarruselPortada(nReal) {
   }
   let tope;
   pista.addEventListener("scroll", () => {
-    pintarDots(realDe(crudo()));
+    const i = crudo();
+    pintarDots(realDe(i));
+    precargarImagenesPortada([i, i + 1, i - 1]);
     clearTimeout(tope);
     tope = setTimeout(acomodar, 80);
   }, { passive: true });
@@ -592,18 +650,22 @@ function renderPortada() {
   const lista = slidesPortadaPara(state.vehiculo);
   const loop = lista.length > 1;
   const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
+  const indicePrincipal = loop ? 1 : 0;
   $("stage").innerHTML = `
     <section class="home-screen">
       <header class="home-logo" style="height:${bannerAltoPortada(portadaUi)}px">
         <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
       </header>
-      <div class="home-slides" id="home-slides">${pista.map(htmlSlidePortada).join("")}</div>
+      <div class="home-slides" id="home-slides">${pista.map((s, i) => htmlSlidePortada(s, i, indicePrincipal)).join("")}</div>
       ${htmlCapaPortada(portadaUi, lista.length, 0, false)}
     </section>
   `;
-  armarCarruselPortada(lista.length);
+  armarCarruselPortada(lista.length, indicePrincipal);
   armarHoldContacto();
   pintarChipAuto();
+  if (lista.length > 1) {
+    setTimeout(() => precargarImagenesPortada([indicePrincipal + 1, indicePrincipal - 1]), 400);
+  }
 }
 
 function idsComboPara(id) {
@@ -1395,11 +1457,21 @@ function faltantesTicket() {
   return falta;
 }
 
+const VISTAS_CATALOGO = ["ofertas", "mantencion", "diagnostico", "oferta-detalle", "filtro-oferta"];
+
 function renderVista(opts = {}) {
   syncCromo();
   marcarMenu();
   syncSeguirKpi();
   pintarChipAuto();
+  if (
+    VISTAS_CATALOGO.includes(state.vista) &&
+    typeof catalogoEstaListo === "function" &&
+    !catalogoEstaListo()
+  ) {
+    void abrirVistaCatalogo(state.vista);
+    return;
+  }
   if (state.vista === "portada") renderPortada();
   else if (state.vista === "ofertas") renderOfertas();
   else if (state.vista === "mantencion") renderMantencion();
@@ -1412,7 +1484,7 @@ function renderVista(opts = {}) {
   if (!opts.quedarse) irAContenido();
 }
 
-function aplicarFiltro(contexto) {
+async function aplicarFiltro(contexto) {
   const marca = $("f-marca").value;
   const modelo = $("f-modelo").value;
   const ano = $("f-ano").value;
@@ -1439,6 +1511,12 @@ function aplicarFiltro(contexto) {
     const dest = state.vistaPendiente || "ofertas";
     state.vistaPendiente = "";
     if (dest === "agendamiento") {
+      try {
+        await ensureCatalogoCliente();
+      } catch (e) {
+        alert("No pudimos cargar el catálogo. Reintenta.");
+        return;
+      }
       state.vista = "agendamiento";
       if (state.carrito.length) {
         state.origenAgenda = state.carrito.some((x) => x.tipo === "oferta") ? "ofertas" : "menu";
@@ -1447,15 +1525,24 @@ function aplicarFiltro(contexto) {
         state.origenAgenda = "menu";
         state.pasoAgenda = state.servicioAgenda ? "datos" : "servicio";
       }
+      renderVista();
+    } else if (dest === "ofertas" || dest === "mantencion" || dest === "diagnostico") {
+      state.origenLista = dest;
+      void abrirVistaCatalogo(dest);
     } else {
-      if (dest === "ofertas" || dest === "mantencion" || dest === "diagnostico") state.origenLista = dest;
       state.vista = dest;
+      renderVista();
     }
-    renderVista();
     return;
   }
 
   if (contexto === "oferta") {
+    try {
+      await ensureCatalogoCliente();
+    } catch (e) {
+      alert("No pudimos cargar el catálogo. Reintenta.");
+      return;
+    }
     state.vista = "oferta-detalle";
     state.ofertaAbierta = state.ofertaPendiente;
     if (state.agregarTrasFiltro && state.ofertaPendiente) {
@@ -1504,7 +1591,13 @@ function intentarAbrirOferta(id) {
   renderVista();
 }
 
-function iniciarOfertaDesdePortada(id) {
+async function iniciarOfertaDesdePortada(id) {
+  try {
+    await ensureCatalogoCliente();
+  } catch (e) {
+    alert("No pudimos cargar el catálogo. Reintenta en un momento.");
+    return;
+  }
   if (!oferta(id)) return;
   state.ofertaPendiente = id;
   state.agregarTrasFiltro = true;
@@ -1815,9 +1908,9 @@ async function generarTicket() {
     }
   }
 
-  if (typeof cargarCatalogo === "function") await cargarCatalogo();
+  if (typeof ensureCatalogoCliente === "function") await ensureCatalogoCliente();
   vaciarCarritoTrasTicket();
-  abrirTicket(payload);
+  await abrirTicket(payload);
   } finally {
     mostrarCargaTicket(false);
     if (btn) {
@@ -1842,7 +1935,7 @@ function vaciarCarritoTrasTicket() {
   renderVista({ quedarse: true });
 }
 
-function abrirTicket(payload) {
+async function abrirTicket(payload) {
   const items = payload.servicios || [];
   $("ticket-contenido").innerHTML = `
     <div id="ticket-sheet" class="ticket-sheet">
@@ -1891,6 +1984,7 @@ function abrirTicket(payload) {
   `;
   abrir("ticket");
   syncSeguirKpi();
+  await asegurarLibsTicket();
   const nodo = $("ticket-qr");
   nodo.innerHTML = "";
   new QRCode(nodo, {
@@ -1901,9 +1995,32 @@ function abrirTicket(payload) {
   });
 }
 
+function cargarScriptTicket(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("script"));
+    document.body.appendChild(s);
+  });
+}
+
+async function asegurarLibsTicket() {
+  await Promise.all([
+    cargarScriptTicket("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"),
+    cargarScriptTicket("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+  ]);
+}
+
 async function fotoDelTicket() {
   const hoja = $("ticket-sheet");
   if (!hoja) throw new Error("sin ticket");
+  await asegurarLibsTicket();
   if (!window.html2canvas) throw new Error("sin html2canvas");
   const canvas = await html2canvas(hoja, {
     scale: esMovil() ? 1.5 : 2,
@@ -2062,10 +2179,13 @@ document.addEventListener("click", (e) => {
       state.vistaAnterior = state.vista;
       state.vista = "carrito-agenda";
       state.origenAgenda = "ofertas";
+      renderVista();
+    } else if (["ofertas", "mantencion", "diagnostico"].includes(t.dataset.vista)) {
+      void abrirVistaCatalogo(t.dataset.vista);
     } else {
       state.vista = t.dataset.vista;
+      renderVista();
     }
-    renderVista();
     if (t.dataset.vista !== "portada") cerrarModalHoras();
   }
 
@@ -2081,17 +2201,25 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-close")) cerrar();
   if (t.hasAttribute("data-guardar-ticket")) descargarTicket();
   if (t.hasAttribute("data-compartir-ticket")) compartirTicket();
-  if (t.dataset.portadaOferta) iniciarOfertaDesdePortada(t.dataset.portadaOferta);
+  if (t.dataset.portadaOferta) void iniciarOfertaDesdePortada(t.dataset.portadaOferta);
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
   if (t.dataset.pedirQuitar) pedirQuitar(t.dataset.pedirQuitar);
   if (t.hasAttribute("data-volver-catalogo")) volverAlCatalogoDesdeDetalle();
-  if (t.dataset.abrirOferta) intentarAbrirOferta(t.dataset.abrirOferta);
-  if (t.dataset.addOferta) agregarOferta(t.dataset.addOferta);
+  if (t.dataset.abrirOferta) {
+    void ensureCatalogoCliente()
+      .then(() => intentarAbrirOferta(t.dataset.abrirOferta))
+      .catch(() => alert("No pudimos cargar el catálogo. Reintenta."));
+  }
+  if (t.dataset.addOferta) {
+    void ensureCatalogoCliente()
+      .then(() => agregarOferta(t.dataset.addOferta))
+      .catch(() => alert("No pudimos cargar el catálogo. Reintenta."));
+  }
   if (t.dataset.addDiag) agregarDiagnostico(t.dataset.addDiag);
   if (t.dataset.quitarOferta) quitarOferta(t.dataset.quitarOferta);
-  if (t.dataset.filtrar) aplicarFiltro(t.dataset.filtrar);
+  if (t.dataset.filtrar) void aplicarFiltro(t.dataset.filtrar);
 
   if (t.dataset.dia) {
     state.cita.fecha = t.dataset.dia;
@@ -2185,13 +2313,25 @@ $("btn-abrir-informe").addEventListener("click", async () => {
   }
 });
 
-window.addEventListener("focus", async () => {
-  await cargarCatalogo();
-  if (typeof sincronizarTableroRemoto === "function") await sincronizarTableroRemoto();
-  await cargarPortada();
-  aplicarLogos();
-  renderVista({ quedarse: true });
-  renderTotales(false);
+window.addEventListener("focus", () => {
+  void (async () => {
+    if (typeof refrescarDatosInicioEnFondo === "function") {
+      await refrescarDatosInicioEnFondo();
+      if (state.vista === "portada") {
+        aplicarLogos();
+        renderPortada();
+      }
+    }
+    if (typeof catalogoEstaListo === "function" && catalogoEstaListo()) {
+      try {
+        await ensureCatalogoCliente();
+        renderVista({ quedarse: true });
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    renderTotales(false);
+  })();
 });
 
 if (window.visualViewport) {
@@ -2260,17 +2400,27 @@ if (stageEl) {
 }
 
 async function arrancar() {
-  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
-  await cargarCatalogo();
-  if (typeof sincronizarTableroRemoto === "function") await sincronizarTableroRemoto();
-  await cargarPortada();
-  aplicarLogos();
+  if (typeof hidratarModelosExtra === "function") hidratarModelosExtra();
+  if (typeof hidratarFotosModelos === "function") hidratarFotosModelos();
+  if (typeof hidratarTablero === "function") hidratarTablero();
+  if (typeof hidratarPortadaLocal === "function") hidratarPortadaLocal();
   hidratar();
-  aplicarEntradaDesdeUrl();
+  const entrada = aplicarVehiculoDesdeUrlAlInicio();
   pintarDatosFicha();
   renderVista({ quedarse: true });
+  aplicarLogos();
   renderTotales(false);
   pistaMenuDesplazable();
+  if (entrada.servicioId) void abrirPromocionDesdeUrl(entrada.servicioId);
+  void (async () => {
+    if (typeof refrescarDatosInicioEnFondo === "function") {
+      await refrescarDatosInicioEnFondo();
+      if (state.vista === "portada") {
+        aplicarLogos();
+        renderPortada();
+      }
+    }
+  })();
 }
 
 arrancar();

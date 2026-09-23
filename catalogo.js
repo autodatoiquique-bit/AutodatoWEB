@@ -623,6 +623,20 @@ const CATALOGO_SEMILLA = [
 ];
 
 let catalogo = [];
+let catalogoListo = false;
+let catalogoPromesa = null;
+
+function catalogoEstaListo() {
+  return catalogoListo && Array.isArray(catalogo) && catalogo.length > 0;
+}
+
+function persistirCatalogoLocal(lista) {
+  try {
+    localStorage.setItem(CATALOGO_KEY, JSON.stringify(lista || catalogo));
+  } catch (e) {
+    /* ignore */
+  }
+}
 
 function clonarCatalogo(lista) {
   return JSON.parse(JSON.stringify(lista));
@@ -798,6 +812,20 @@ function etiquetaCanales(s) {
   return partes.join(" · ") || "Sin menú";
 }
 
+async function ensureCatalogoCargado() {
+  if (catalogoEstaListo()) return catalogo;
+  if (catalogoPromesa) return catalogoPromesa;
+  catalogoPromesa = cargarCatalogo()
+    .then((lista) => {
+      catalogoListo = true;
+      return lista;
+    })
+    .finally(() => {
+      catalogoPromesa = null;
+    });
+  return catalogoPromesa;
+}
+
 async function cargarCatalogo() {
   hidratarModelosExtra();
   hidratarFotosModelos();
@@ -815,6 +843,8 @@ async function cargarCatalogo() {
         recolectarModelosExtra(catalogo);
         persistirModelosExtra();
         persistirFotosModelos();
+        persistirCatalogoLocal(catalogo);
+        catalogoListo = true;
         sembrarMembresiaColumnas();
         return catalogo;
       }
@@ -826,6 +856,8 @@ async function cargarCatalogo() {
   recolectarModelosExtra(catalogo);
   persistirModelosExtra();
   persistirFotosModelos();
+  persistirCatalogoLocal(catalogo);
+  catalogoListo = true;
   sembrarMembresiaColumnas();
   return catalogo;
 }
@@ -1333,15 +1365,56 @@ function htmlCapaPortada(ui, dotsN, dotsOn, arrastrable) {
     ${dots}`;
 }
 
+function hidratarPortadaLocal() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PORTADA_KEY) || "null");
+    if (Array.isArray(raw) && raw.length) {
+      portadaSlides = raw.map(normalizarSlide).sort((a, b) => a.orden - b.orden);
+      if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
+      return portadaSlides;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  portadaSlides = PORTADA_DEFECTO.map(normalizarSlide);
+  if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
+  return portadaSlides;
+}
+
+function aplicarPortadaLista(lista, opts = {}) {
+  portadaSlides = (lista || []).map(normalizarSlide).sort((a, b) => a.orden - b.orden);
+  if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
+  try {
+    localStorage.setItem(PORTADA_KEY, JSON.stringify(portadaSlides));
+  } catch (e) {
+    /* ignore */
+  }
+  if (opts.sembrar !== false && catalogoEstaListo()) sembrarMembresiaColumnas();
+  return portadaSlides;
+}
+
+async function refrescarPortadaRemota() {
+  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
+  if (typeof nubeActiva !== "function" || !nubeActiva()) return null;
+  try {
+    const remoto = await nubeLeerPortada();
+    if (remoto.length) return aplicarPortadaLista(remoto, { sembrar: catalogoEstaListo() });
+  } catch (e) {
+    console.warn("No se pudo refrescar la portada.", e);
+  }
+  return null;
+}
+
+async function refrescarDatosInicioEnFondo() {
+  const tareas = [];
+  if (typeof sincronizarTableroRemoto === "function") tareas.push(sincronizarTableroRemoto());
+  tareas.push(refrescarPortadaRemota());
+  await Promise.all(tareas);
+}
+
 async function cargarPortada() {
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
-  const aplicarSlides = (lista) => {
-    portadaSlides = lista.map(normalizarSlide).sort((a, b) => a.orden - b.orden);
-    if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
-    localStorage.setItem(PORTADA_KEY, JSON.stringify(portadaSlides));
-    sembrarMembresiaColumnas();
-    return portadaSlides;
-  };
+  const aplicarSlides = (lista) => aplicarPortadaLista(lista, { sembrar: true });
   if (typeof nubeActiva === "function" && nubeActiva()) {
     try {
       const remoto = await nubeLeerPortada();
@@ -1366,17 +1439,12 @@ async function cargarPortada() {
           /* fallback local */
         }
       }
-      portadaSlides = local;
-      if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
-      sembrarMembresiaColumnas();
-      return portadaSlides;
+      return aplicarPortadaLista(local, { sembrar: catalogoEstaListo() });
     }
   } catch (e) {
     /* ignore */
   }
-  portadaSlides = PORTADA_DEFECTO.map(normalizarSlide);
-  if (portadaSlides[0]) portadaUi = normalizarUi(portadaSlides[0]);
-  return portadaSlides;
+  return hidratarPortadaLocal();
 }
 
 async function guardarPortada(lista) {

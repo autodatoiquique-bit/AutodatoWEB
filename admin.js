@@ -1859,7 +1859,10 @@ function imagenEsTransparente(file) {
   return tipo === "image/png" || tipo === "image/webp" || nombre.endsWith(".png") || nombre.endsWith(".webp");
 }
 
-function leerImagen(file, max = 1400) {
+function leerImagen(file, max = 1400, opts) {
+  const op = opts && typeof opts === "object" ? opts : {};
+  const quality = Number(op.quality) > 0 ? Number(op.quality) : 0.82;
+  const forceJpeg = Boolean(op.forceJpeg);
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -1869,14 +1872,14 @@ function leerImagen(file, max = 1400) {
       c.width = Math.max(1, Math.round(img.width * scale));
       c.height = Math.max(1, Math.round(img.height * scale));
       const ctx = c.getContext("2d");
-      const conservar = imagenEsTransparente(file);
+      const conservar = !forceJpeg && imagenEsTransparente(file);
       if (!conservar) {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, c.width, c.height);
       }
       ctx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      resolve(conservar ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.82));
+      resolve(conservar ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", quality));
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -2947,7 +2950,7 @@ $("stage").addEventListener("change", async (e) => {
   }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
   if (e.target.id === "p-foto" && e.target.files[0]) {
-    let src = await leerImagen(e.target.files[0], 1800);
+    let src = await leerImagen(e.target.files[0], 1200, { forceJpeg: true, quality: 0.78 });
     if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
     const actual = slideActual();
     actual.foto = src;

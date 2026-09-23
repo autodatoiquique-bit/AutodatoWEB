@@ -350,6 +350,15 @@ body.hay-perfil .panel { padding-top: 88px; }
   pointer-events: none;
 }
 
+.home-foto-flyer {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center;
+  transform: none;
+}
+
 .home-add,
 .home-pill,
 .home-ico,
