@@ -355,10 +355,10 @@ function syncSeguirKpi() {
 
 function renderTotales(animar) {
   const { total, ahorro, netoTotal } = calcular();
-  const soloFlota = carritoSoloFlota();
+  const modoFlota = uiCarritoModoFlota();
   const bar = $("totales-bar");
   const ahorroKpi = bar && bar.querySelector(".kpi-ahorro");
-  if (soloFlota) {
+  if (modoFlota) {
     $("total-valor").textContent = textoTotalNetoFlota(netoTotal);
     if (ahorroKpi) ahorroKpi.hidden = true;
     if (bar) bar.classList.add("totales-bar-flota");
@@ -584,6 +584,10 @@ function carritoSoloFlota() {
   return state.carrito.length > 0 && state.carrito.every((x) => x.tipo === "flota");
 }
 
+function uiCarritoModoFlota() {
+  return Boolean(state.areaFlotas || carritoSoloFlota());
+}
+
 function carritoTieneFlota() {
   return state.carrito.some((x) => x.tipo === "flota");
 }
@@ -600,6 +604,7 @@ function syncAreaFlotasUi() {
   const on = Boolean(state.areaFlotas);
   document.body.classList.toggle("en-area-flotas", on);
   document.body.classList.toggle("en-flotas-pin", on && state.vista === "flotas-pin");
+  renderTotales(false);
 }
 
 function vaciarCarritoSilencioso() {
