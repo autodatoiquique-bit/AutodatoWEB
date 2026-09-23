@@ -355,18 +355,21 @@ function syncSeguirKpi() {
 
 function renderTotales(animar) {
   const { total, ahorro, netoTotal } = calcular();
-  const modoFlota = uiCarritoModoFlota();
+  const totalNetoEnBarra = state.areaFlotas && carritoSoloFlota();
   const bar = $("totales-bar");
   const ahorroKpi = bar && bar.querySelector(".kpi-ahorro");
-  if (modoFlota) {
+  if (totalNetoEnBarra) {
     $("total-valor").textContent = textoTotalNetoFlota(netoTotal);
-    if (ahorroKpi) ahorroKpi.hidden = true;
     if (bar) bar.classList.add("totales-bar-flota");
   } else {
     $("total-valor").textContent = clp(total);
+    if (bar) bar.classList.remove("totales-bar-flota");
+  }
+  if (state.areaFlotas) {
+    if (ahorroKpi) ahorroKpi.hidden = true;
+  } else {
     $("saldo-valor").textContent = clp(ahorro);
     if (ahorroKpi) ahorroKpi.hidden = false;
-    if (bar) bar.classList.remove("totales-bar-flota");
   }
   pintarChipAuto();
   if (animar && bar) {
@@ -584,8 +587,71 @@ function carritoSoloFlota() {
   return state.carrito.length > 0 && state.carrito.every((x) => x.tipo === "flota");
 }
 
-function uiCarritoModoFlota() {
-  return Boolean(state.areaFlotas || carritoSoloFlota());
+const VISTAS_CATALOGO_PARTICULAR = [
+  "portada",
+  "ofertas",
+  "mantencion",
+  "diagnostico",
+  "oferta-detalle",
+  "filtro-oferta",
+  "filtro-menu",
+];
+
+function vistaCatalogoParticular(v) {
+  return VISTAS_CATALOGO_PARTICULAR.includes(v);
+}
+
+function reconciliarAreaTrasCarrito() {
+  if (carritoMixto()) {
+    alert("El carrito mezclaba flota y particulares; se vació por seguridad.");
+    state.carrito = [];
+    state.servicioAgenda = null;
+    persistir();
+    return;
+  }
+  if (carritoTieneFlota()) {
+    state.areaFlotas = true;
+    const fid =
+      typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+    if (fid) state.flotaActivaId = fid;
+  } else if (carritoTieneParticular()) {
+    state.areaFlotas = false;
+  }
+}
+
+function redirigirSiCarritoFlotaEnVistaParticular() {
+  if (!carritoTieneFlota()) return false;
+  if (state.vista.startsWith("flotas") || state.vista === "carrito-agenda") return false;
+  if (state.vista === "agendamiento" && carritoSoloFlota()) return false;
+  if (!vistaCatalogoParticular(state.vista)) return false;
+  state.areaFlotas = true;
+  const fid =
+    typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+  if (fid) state.flotaActivaId = fid;
+  state.vista =
+    fid && typeof sesionFlotaOk === "function" && sesionFlotaOk(fid)
+      ? "flotas-categorias"
+      : "flotas-pin";
+  syncAreaFlotasUi();
+  return true;
+}
+
+function bloquearNavegacionParticularConCarritoFlota() {
+  if (!carritoTieneFlota()) return false;
+  alert(
+    "Tienes servicios de flota en el ticket. Vacía el ticket o sal del área Flotas antes de ver el catálogo de particulares."
+  );
+  state.areaFlotas = true;
+  const fid =
+    typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+  if (fid) state.flotaActivaId = fid;
+  state.vista =
+    fid && typeof sesionFlotaOk === "function" && sesionFlotaOk(fid)
+      ? "flotas-categorias"
+      : "flotas-pin";
+  syncAreaFlotasUi();
+  renderVista();
+  return true;
 }
 
 function carritoTieneFlota() {
@@ -659,6 +725,10 @@ async function ensureCatalogoCliente() {
 }
 
 async function abrirVistaCatalogo(vista) {
+  if (carritoTieneFlota()) {
+    bloquearNavegacionParticularConCarritoFlota();
+    return;
+  }
   const dest = vista || state.vista;
   $("stage").innerHTML = `<section class="panel claro"><p class="lead">Cargando catálogo…</p></section>`;
   try {
@@ -695,6 +765,7 @@ function hidratar() {
     if (raw.cliente) state.cliente = { ...state.cliente, ...raw.cliente };
     if (raw.entrega) state.entrega = { ...state.entrega, ...raw.entrega };
     if (raw.cita) state.cita = { ...state.cita, ...raw.cita };
+    reconciliarAreaTrasCarrito();
   } catch (e) {
     /* ignore */
   }
@@ -1514,7 +1585,10 @@ function irAAgendaDesdeKpi() {
 
 function seguirExplorandoOfertas() {
   cerrarModalKpi();
-  if (state.origenAgenda === "flotas" || (state.vistaAnterior && String(state.vistaAnterior).startsWith("flotas"))) {
+  if (carritoTieneFlota() || state.origenAgenda === "flotas") {
+    state.areaFlotas = true;
+  }
+  if (state.origenAgenda === "flotas" || carritoTieneFlota() || (state.vistaAnterior && String(state.vistaAnterior).startsWith("flotas"))) {
     state.vista =
       state.vistaAnterior === "flotas-servicio-detalle" && state.flotaServicioDetalleId
         ? "flotas-servicio-detalle"
@@ -1879,6 +1953,8 @@ function faltantesTicket() {
 const VISTAS_CATALOGO = ["ofertas", "mantencion", "diagnostico", "oferta-detalle", "filtro-oferta"];
 
 function renderVista(opts = {}) {
+  reconciliarAreaTrasCarrito();
+  redirigirSiCarritoFlotaEnVistaParticular();
   syncCromo();
   marcarMenu();
   syncSeguirKpi();
@@ -2000,6 +2076,10 @@ async function aplicarFiltro(contexto) {
 }
 
 function intentarAbrirOferta(id) {
+  if (carritoTieneFlota()) {
+    bloquearNavegacionParticularConCarritoFlota();
+    return;
+  }
   state.ofertaPendiente = id;
   state.agregarTrasFiltro = false;
   if (!vehiculoOk()) {
@@ -2647,6 +2727,18 @@ document.addEventListener("click", (e) => {
   if (t.dataset.vista || t.dataset.open) cerrar();
 
   if (t.dataset.vista) {
+    if (
+      VISTAS_CATALOGO_PARTICULAR.includes(t.dataset.vista) &&
+      t.dataset.vista !== "portada" &&
+      carritoTieneFlota()
+    ) {
+      bloquearNavegacionParticularConCarritoFlota();
+      return;
+    }
+    if (t.dataset.vista === "portada" && carritoTieneFlota()) {
+      bloquearNavegacionParticularConCarritoFlota();
+      return;
+    }
     const pideAuto = ["ofertas", "mantencion", "diagnostico", "agendamiento"].includes(t.dataset.vista);
     if (pideAuto && !vehiculoOk()) {
       state.vistaPendiente = t.dataset.vista;
