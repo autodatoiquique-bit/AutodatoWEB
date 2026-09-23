@@ -278,6 +278,10 @@ body.hay-perfil .panel { padding-top: 88px; }
 .totales-bar .kpi-ahorro { color: #e23b3b; }
 .totales-bar .kpi-ahorro span { color: #ffb4b4; }
 
+.totales-bar.totales-bar-flota .kpi-total strong {
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
 .totales-bar.pop { animation: ahorro-pop 0.65s cubic-bezier(0.2, 1.4, 0.3, 1); }
 
 @keyframes ahorro-pop {

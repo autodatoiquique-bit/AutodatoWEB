@@ -51,11 +51,18 @@ function clp(n) {
   }).format(n);
 }
 
+function textoTotalNetoFlota(n) {
+  if (n == null || !Number.isFinite(n)) return "A confirmar";
+  if (n <= 0) return `${clp(0)} + iva`;
+  return `${clp(n)} + iva`;
+}
+
 function calcular(carrito = state.carrito) {
   const items = [];
   let subtotal = 0;
   let total = 0;
   let ahorro = 0;
+  let netoTotal = 0;
 
   carrito.forEach((linea) => {
     if (linea.tipo === "oferta") {
@@ -89,6 +96,7 @@ function calcular(carrito = state.carrito) {
       });
       subtotal += pagado;
       total += pagado;
+      netoTotal += neto;
     } else {
       const s = servicioAgenda(linea.id);
       if (!s) return;
@@ -100,7 +108,7 @@ function calcular(carrito = state.carrito) {
     }
   });
 
-  return { items, subtotal, total, ahorro };
+  return { items, subtotal, total, ahorro, netoTotal };
 }
 
 function vehiculoOk() {
@@ -346,12 +354,22 @@ function syncSeguirKpi() {
 }
 
 function renderTotales(animar) {
-  const { total, ahorro } = calcular();
-  $("total-valor").textContent = clp(total);
-  $("saldo-valor").textContent = clp(ahorro);
+  const { total, ahorro, netoTotal } = calcular();
+  const soloFlota = carritoSoloFlota();
+  const bar = $("totales-bar");
+  const ahorroKpi = bar && bar.querySelector(".kpi-ahorro");
+  if (soloFlota) {
+    $("total-valor").textContent = textoTotalNetoFlota(netoTotal);
+    if (ahorroKpi) ahorroKpi.hidden = true;
+    if (bar) bar.classList.add("totales-bar-flota");
+  } else {
+    $("total-valor").textContent = clp(total);
+    $("saldo-valor").textContent = clp(ahorro);
+    if (ahorroKpi) ahorroKpi.hidden = false;
+    if (bar) bar.classList.remove("totales-bar-flota");
+  }
   pintarChipAuto();
-  if (animar) {
-    const bar = $("totales-bar");
+  if (animar && bar) {
     bar.classList.remove("pop");
     void bar.offsetWidth;
     bar.classList.add("pop");
@@ -1747,7 +1765,7 @@ function htmlCamposClienteAgendaFlota(flota) {
 }
 
 function htmlPanelDatosAgenda() {
-  const { items, subtotal, total, ahorro } = calcular();
+  const { items, subtotal, total, ahorro, netoTotal } = calcular();
   const soloFlota = carritoSoloFlota();
   const flota = soloFlota ? flotaActivaDelCarrito() : null;
   const agendaLibre = soloFlota && flotaAgendaLibreActiva();
@@ -1757,21 +1775,34 @@ function htmlPanelDatosAgenda() {
       ${htmlAvisoTicketCorto()}
       <p class="lead">${
         soloFlota
-          ? "Servicios de flota con IVA incluido en el total. Sin pago aquí: generas ticket de entrada."
+          ? "Precios netos (+ IVA). Sin pago aquí: generas ticket de entrada."
           : `${textoVehiculo()}. Sin pago aquí: generas un ticket de entrada y queda agendada tu visita.`
       }</p>
       ${agendaLibre ? `<p class="muted">Esta flota tiene <strong>agenda libre</strong>: puedes elegir cualquier horario hábil aunque el cupo web esté lleno.</p>` : ""}
       <ul class="resumen">
         ${items
           .map((s) => {
-            const precio = s.pagado == null ? "A confirmar" : clp(s.pagado);
-            const desc = s.ahorro > 0 ? `<span class="ahorro-tag">− ${clp(s.ahorro)}</span> <s>${clp(s.lista)}</s> ` : "";
+            const precio = soloFlota
+              ? s.neto != null && s.neto > 0
+                ? textoTotalNetoFlota(s.neto)
+                : "A confirmar"
+              : s.pagado == null
+                ? "A confirmar"
+                : clp(s.pagado);
+            const desc =
+              !soloFlota && s.ahorro > 0
+                ? `<span class="ahorro-tag">− ${clp(s.ahorro)}</span> <s>${clp(s.lista)}</s> `
+                : "";
             return `<li class="resumen-item"><span class="resumen-nom">${s.nombre}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>`;
           })
           .join("")}
-        <li><span>Lista</span><strong>${clp(subtotal)}</strong></li>
+        ${
+          soloFlota
+            ? `<li><span>Total ticket</span><strong style="color:var(--green)">${textoTotalNetoFlota(netoTotal)}</strong></li>`
+            : `<li><span>Lista</span><strong>${clp(subtotal)}</strong></li>
         <li><span>Ahorro</span><strong style="color:var(--red)">${clp(ahorro)}</strong></li>
-        <li><span>Total</span><strong style="color:var(--green)">${clp(total)}</strong></li>
+        <li><span>Total</span><strong style="color:var(--green)">${clp(total)}</strong></li>`
+        }
       </ul>
       ${soloFlota ? htmlCamposClienteAgendaFlota(flota) : `
       <label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" /></label>
@@ -2133,6 +2164,10 @@ function overlayLibre() {
 
 function pedirQuitar(id) {
   guardarClienteDesdeForma();
+  if (carritoSoloFlota()) {
+    quitarItem(id);
+    return;
+  }
   const impacto = impactoQuitar(id);
   if (!impacto.item) return;
   quitarPendiente = id;
@@ -2368,6 +2403,11 @@ function vaciarCarritoTrasTicket() {
 
 async function abrirTicket(payload) {
   const items = payload.servicios || [];
+  const ticketFlota = Boolean(payload.flota_id || payload.neto != null);
+  const netoTicket = ticketFlota
+    ? Number(payload.neto) ||
+      items.reduce((n, s) => n + (Number(s.neto) || 0), 0)
+    : 0;
   $("ticket-contenido").innerHTML = `
     <div id="ticket-sheet" class="ticket-sheet">
       <div class="ticket-head">
@@ -2395,14 +2435,27 @@ async function abrirTicket(payload) {
         <table class="ticket-table">
           ${items
             .map((s) => {
-              const precio = s.precio == null ? "A confirmar" : clp(s.precio);
-              const extra = s.ahorro > 0 ? ` <span class="muted">(${clp(s.precio_lista)} − ${clp(s.ahorro)})</span>` : "";
+              const precio = ticketFlota
+                ? s.neto != null && Number(s.neto) > 0
+                  ? textoTotalNetoFlota(Number(s.neto))
+                  : "A confirmar"
+                : s.precio == null
+                  ? "A confirmar"
+                  : clp(s.precio);
+              const extra =
+                !ticketFlota && s.ahorro > 0
+                  ? ` <span class="muted">(${clp(s.precio_lista)} − ${clp(s.ahorro)})</span>`
+                  : "";
               return `<tr><td>${s.nombre}${extra}</td><td>${precio}</td></tr>`;
             })
             .join("")}
-          <tr><td>Subtotal lista</td><td>${clp(payload.subtotal)}</td></tr>
+          ${
+            ticketFlota
+              ? `<tr><td>Total ticket</td><td>${textoTotalNetoFlota(netoTicket)}</td></tr>`
+              : `<tr><td>Subtotal lista</td><td>${clp(payload.subtotal)}</td></tr>
           <tr><td>Ahorro</td><td>${clp(payload.ahorro)}</td></tr>
-          <tr><td>Total</td><td>${clp(payload.total)}</td></tr>
+          <tr><td>Total</td><td>${clp(payload.total)}</td></tr>`
+          }
         </table>
       </div>
     </div>
