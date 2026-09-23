@@ -1442,11 +1442,44 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 
 .ticket-head img { width: 180px; display: block; }
 .ticket-body { padding: 18px; }
+.ticket-qr-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
 .ticket-code {
-  font-size: 1.7rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 10px 16px;
+  width: 100%;
+  max-width: 280px;
+  box-sizing: border-box;
+  background: #f4f6f8;
+  border: 2px solid var(--yellow);
+  border-radius: 12px;
+}
+.ticket-code-etq {
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  margin: 0 0 6px;
+  letter-spacing: 0.2em;
+  color: #555;
+}
+.ticket-code-num {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.15;
+  color: #111;
+  word-break: break-all;
+}
+.ticket-qr-hint {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 0.82rem;
 }
 
 .ticket-grid { display: grid; grid-template-columns: 1fr 260px; gap: 16px; align-items: start; }

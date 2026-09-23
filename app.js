@@ -2500,7 +2500,6 @@ async function abrirTicket(payload) {
       </div>
       <div class="ticket-body">
         <p class="muted">Ticket de visita</p>
-        <div class="ticket-code">CODE ${payload.code}</div>
         <div class="ticket-grid">
           <div>
             <p><strong>Cliente</strong><br />${payload.nombre_cliente}<br />${payload.telefono}${payload.correo ? "<br />" + payload.correo : ""}${payload.patente ? "<br />Patente " + payload.patente : ""}</p>
@@ -2512,9 +2511,13 @@ async function abrirTicket(payload) {
             }
             <p><strong>Cita</strong><br />${fechaBonita(payload.fecha_cita)} · ${payload.hora}</p>
           </div>
-          <div>
+          <div class="ticket-qr-col">
             <div id="ticket-qr" class="ticket-qr"></div>
-            <p class="muted" style="text-align:center;margin-top:8px">QR de ingreso</p>
+            <div class="ticket-code" data-ticket-code="${escapeAttr(String(payload.code || "").trim())}">
+              <span class="ticket-code-etq">CODE</span>
+              <span class="ticket-code-num">${escapeHtml(String(payload.code || "").trim())}</span>
+            </div>
+            <p class="muted ticket-qr-hint">QR de ingreso</p>
           </div>
         </div>
         <table class="ticket-table">
@@ -2600,7 +2603,13 @@ async function fotoDelTicket() {
   const blob = await new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("sin imagen"))), "image/png");
   });
-  const code = String((hoja.querySelector(".ticket-code") || {}).textContent || "")
+  const codeEl = hoja.querySelector(".ticket-code");
+  const code = String(
+    (codeEl && codeEl.getAttribute("data-ticket-code")) ||
+      (codeEl && codeEl.querySelector(".ticket-code-num") && codeEl.querySelector(".ticket-code-num").textContent) ||
+      (codeEl && codeEl.textContent) ||
+      ""
+  )
     .replace(/\D/g, "")
     .slice(-14);
   const nombre = `ticket-autodato-${code || Date.now()}.png`;
