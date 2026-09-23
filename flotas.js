@@ -371,6 +371,39 @@ function moverColumnaFlota(flotaId, colId, targetColId, insertBefore) {
   flota.columnas = list;
 }
 
+function normalizarTextoBusquedaFlota(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
+function todosServiciosFlotaConCategoria(flotaId) {
+  const f = flotaPorId(flotaId);
+  if (!f) return [];
+  const out = [];
+  for (const col of f.columnas || []) {
+    const lista = serviciosFlotaEnOrdenCol(flotaId, col.id);
+    lista.forEach((servicio) => {
+      out.push({ servicio, colId: col.id, categoria: col.titulo });
+    });
+  }
+  return out;
+}
+
+function buscarServiciosFlota(flotaId, query) {
+  const raw = String(query || "").trim();
+  if (!raw) return [];
+  const tokens = normalizarTextoBusquedaFlota(raw).split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+  return todosServiciosFlotaConCategoria(flotaId).filter(({ servicio, categoria }) => {
+    const hay = normalizarTextoBusquedaFlota(
+      [servicio.nombre, servicio.descripcion, categoria].filter(Boolean).join(" ")
+    );
+    return tokens.every((t) => hay.includes(t));
+  });
+}
+
 function serviciosFlotaEnOrdenCol(flotaId, colId) {
   const col = columnaFlotaPorId(flotaId, colId);
   if (!col) return [];

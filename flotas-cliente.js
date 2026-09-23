@@ -25,6 +25,60 @@ function serviciosFlotaColumnaOrdenados(flotaId, colId) {
   return (col && col.servicios) || [];
 }
 
+function htmlFilaBusquedaFlota(hit, flotaId) {
+  const srv = hit.servicio;
+  const lid = lineaFlotaCarritoId(flotaId, srv.id);
+  const enCarro = state.carrito.some((x) => x.tipo === "flota" && x.id === lid);
+  const precioTxt = typeof clpNetoMasIva === "function" ? clpNetoMasIva(srv.precio) : clp(srv.precio);
+  return `
+    <article class="flota-busq-item ${enCarro ? "is-en-carro" : ""}">
+      <button type="button" class="flota-busq-main" data-flota-servicio="${escFlota(srv.id)}">
+        <strong class="flota-busq-nombre">${escFlota(srv.nombre)}</strong>
+        ${hit.categoria ? `<span class="flota-busq-cat">${escFlota(hit.categoria)}</span>` : ""}
+        ${srv.descripcion ? `<span class="flota-busq-desc">${escFlota(srv.descripcion)}</span>` : ""}
+        <span class="precio flota-precio-iva flota-busq-precio">${escFlota(precioTxt)}</span>
+      </button>
+      ${
+        enCarro
+          ? `<span class="tag tag-carrito flota-busq-tag">En ticket</span>`
+          : `<button type="button" class="btn-primary btn-sm flota-busq-add" data-add-flota="${escFlota(flotaId)}|${escFlota(srv.id)}">Añadir al ticket</button>`
+      }
+    </article>
+  `;
+}
+
+function pintarResultadosBusquedaFlota() {
+  const inp = $("flota-busqueda-input");
+  const grid = $("flota-categorias-grid");
+  const box = $("flota-busqueda-resultados");
+  const hint = $("flota-categorias-hint");
+  if (!inp || !box || !grid) return;
+  const q = inp.value.trim();
+  const f = flotaPorId(state.flotaActivaId);
+  if (!q || !f) {
+    box.hidden = true;
+    box.innerHTML = "";
+    grid.hidden = false;
+    if (hint) hint.hidden = false;
+    return;
+  }
+  const hits = typeof buscarServiciosFlota === "function" ? buscarServiciosFlota(f.id, q) : [];
+  grid.hidden = true;
+  if (hint) hint.hidden = true;
+  box.hidden = false;
+  box.innerHTML = hits.length
+    ? hits.map((h) => htmlFilaBusquedaFlota(h, f.id)).join("")
+    : `<p class="muted flota-busq-vacio">Ningún servicio coincide con «${escFlota(q)}».</p>`;
+}
+
+function armarBusquedaFlotaCategorias() {
+  const inp = $("flota-busqueda-input");
+  if (!inp || inp.dataset.busqFlota) return;
+  inp.dataset.busqFlota = "1";
+  inp.addEventListener("input", () => pintarResultadosBusquedaFlota());
+  if (inp.value.trim()) pintarResultadosBusquedaFlota();
+}
+
 function htmlTarjetaCategoriaFlota(col) {
   const n = (col.servicios || []).length;
   return `
@@ -138,8 +192,13 @@ function renderFlotaCategorias() {
       <h2>${escFlota(f.nombre)}</h2>
       ${bienvenida}
       ${typeof htmlAvisoTicketCorto === "function" ? htmlAvisoTicketCorto() : ""}
-      <p class="lead">Elige una categoría de servicios.</p>
-      <div class="grid flota-cat-grid">
+      <label class="field flota-busqueda-field">
+        <span>Buscar servicio</span>
+        <input id="flota-busqueda-input" type="search" enterkeyhint="search" autocomplete="off" placeholder="Ej. lavado, pértiga, baliza…" />
+      </label>
+      <div id="flota-busqueda-resultados" class="flota-busqueda-resultados" hidden></div>
+      <p id="flota-categorias-hint" class="lead">Elige una categoría de servicios.</p>
+      <div id="flota-categorias-grid" class="grid flota-cat-grid">
         ${
           (f.columnas || []).length
             ? f.columnas.map(htmlTarjetaCategoriaFlota).join("")
@@ -149,6 +208,7 @@ function renderFlotaCategorias() {
     </section>
   `;
   state.flotaBienvenida = "";
+  armarBusquedaFlotaCategorias();
 }
 
 function renderFlotaServicios() {
@@ -290,6 +350,7 @@ function agregarServicioFlotaAlCarrito(flotaId, servicioId) {
   if (typeof persistir === "function") persistir();
   if (typeof renderTotales === "function") renderTotales(true);
   if (state.vista === "flotas-servicios") renderFlotaServicios();
+  if (state.vista === "flotas-categorias") pintarResultadosBusquedaFlota();
 }
 
 function refrescarVistaFlotaCliente() {
