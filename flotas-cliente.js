@@ -190,7 +190,7 @@ function htmlTarjetaCategoriaFlota(col) {
     <article class="card flota-cat-card">
       <button class="card-abrir" type="button" data-flota-categoria="${escFlota(col.id)}">
         <div class="card-photo">
-          ${col.foto ? `<img class="card-photo-img" src="${escFlota(col.foto)}" alt="" loading="lazy" />` : ""}
+          ${Object.prototype.hasOwnProperty.call(col, "foto") && col.foto ? `<img class="card-photo-img" src="${escFlota(col.foto)}" alt="" loading="lazy" />` : ""}
         </div>
         <div class="card-body">
           <h3>${escFlota(col.titulo)}</h3>

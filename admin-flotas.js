@@ -6,7 +6,9 @@ let flotaKanbanDrag = { kind: "", payload: "" };
 let flotaKanbanCardPointer = null;
 let flotaKanbanSuppressClick = false;
 let flotaColFotoDraft = null;
+let flotaColFotoDraftColId = "";
 let flotaSrvFotoDraft = null;
+let flotaSrvFotoDraftSrvId = "";
 
 function pintarLinkAccesoFlotaEnModal() {
   if (!flotaKanbanId || typeof asegurarLinkAccesoFlota !== "function") return;
@@ -18,13 +20,28 @@ function pintarLinkAccesoFlotaEnModal() {
   }
 }
 
+function fotoGuardadaColumnaFlota(col) {
+  if (!col || typeof col !== "object") return "";
+  if (!Object.prototype.hasOwnProperty.call(col, "foto")) return "";
+  return String(col.foto || "").trim();
+}
+
+function fotoGuardadaServicioFlota(srv) {
+  if (!srv || typeof srv !== "object") return "";
+  if (!Object.prototype.hasOwnProperty.call(srv, "foto")) return "";
+  return String(srv.foto || "").trim();
+}
+
 function pintarPreviewFlotaCol(foto) {
   const img = $("flota-col-carnet-img");
   const vacio = $("flota-col-carnet-vacio");
-  const src = foto || "";
+  const src = String(foto || "").trim();
   if (img) {
     img.hidden = !src;
     if (src) img.src = src;
+    else {
+      img.removeAttribute("src");
+    }
   }
   if (vacio) vacio.hidden = Boolean(src);
 }
@@ -32,10 +49,13 @@ function pintarPreviewFlotaCol(foto) {
 function pintarPreviewFlotaServicio(foto) {
   const img = $("flota-s-carnet-img");
   const vacio = $("flota-s-carnet-vacio");
-  const src = foto || "";
+  const src = String(foto || "").trim();
   if (img) {
     img.hidden = !src;
     if (src) img.src = src;
+    else {
+      img.removeAttribute("src");
+    }
   }
   if (vacio) vacio.hidden = Boolean(src);
 }
@@ -130,8 +150,9 @@ async function guardarFlotasNube() {
 
 function htmlTarjetaFlotaKanban(srv, colId, token) {
   const tok = token || tokenFlotaServicio(srv.id);
+  const fotoSrv = fotoGuardadaServicioFlota(srv);
   const inner = `<button class="kanban-card kanban-card-flota" type="button" data-flota-servicio="${escapeAttr(srv.id)}">
-    <div class="kanban-cover kanban-cover-flota">${srv.foto ? `<img src="${escapeAttr(srv.foto)}" alt="" draggable="false" />` : ""}</div>
+    <div class="kanban-cover kanban-cover-flota">${fotoSrv ? `<img src="${escapeAttr(fotoSrv)}" alt="" draggable="false" />` : ""}</div>
     <div class="kanban-body">
       <strong>${escapeText(srv.nombre)}</strong>
       ${srv.descripcion ? `<p class="kanban-desc">${escapeText(srv.descripcion)}</p>` : ""}
@@ -150,12 +171,13 @@ function htmlTarjetaFlotaKanban(srv, colId, token) {
 
 function htmlColumnaFlotaKanban(col) {
   const tarjetas = tarjetasFlotaDe(col);
-  const hasFoto = Boolean(col.foto);
+  const fotoCol = fotoGuardadaColumnaFlota(col);
+  const hasFoto = Boolean(fotoCol);
   return `
     <section class="kanban-col" data-flota-col-id="${escapeAttr(col.id)}">
       <div class="kanban-apex kanban-apex-flota${hasFoto ? " has-foto" : ""}">
         <button type="button" class="kanban-col-drag" draggable="true" data-flota-col-drag="${escapeAttr(col.id)}" title="Arrastrar columna" aria-label="Arrastrar columna">⋮⋮</button>
-        ${hasFoto ? `<div class="kanban-apex-foto"><img src="${escapeAttr(col.foto)}" alt="" /></div>` : ""}
+        ${hasFoto ? `<div class="kanban-apex-foto"><img src="${escapeAttr(fotoCol)}" alt="" /></div>` : ""}
         <div class="kanban-apex-meta kanban-apex-meta-flota">
           <strong>${escapeText(col.titulo)}</strong>
         </div>
@@ -448,8 +470,9 @@ function abrirModalFlotaCol(colId) {
   const flota = flotaPorId(flotaKanbanId);
   const col = flota && flota.columnas.find((c) => c.id === flotaColEditId);
   flotaColFotoDraft = null;
+  flotaColFotoDraftColId = "";
   $("flota-col-titulo").value = (col && col.titulo) || "";
-  pintarPreviewFlotaCol((col && col.foto) || "");
+  pintarPreviewFlotaCol(col ? fotoGuardadaColumnaFlota(col) : "");
   $("modal-flota-col").hidden = false;
 }
 
@@ -779,8 +802,11 @@ function initFlotasAdmin() {
     const col = flota && flota.columnas.find((c) => c.id === flotaColEditId);
     if (!col) return;
     col.titulo = titulo;
-    if (flotaColFotoDraft !== null) col.foto = flotaColFotoDraft;
+    if (flotaColFotoDraft !== null && String(flotaColFotoDraftColId || "") === String(flotaColEditId || "")) {
+      col.foto = String(flotaColFotoDraft || "").trim();
+    }
     flotaColFotoDraft = null;
+    flotaColFotoDraftColId = "";
     $("modal-flota-col").hidden = true;
     await guardarOrdenFlotaKanban();
     renderFlotaKanban(flotaKanbanId);
@@ -788,6 +814,7 @@ function initFlotasAdmin() {
 
   $("cerrar-flota-col").addEventListener("click", () => {
     flotaColFotoDraft = null;
+    flotaColFotoDraftColId = "";
     $("modal-flota-col").hidden = true;
   });
 
@@ -796,6 +823,7 @@ function initFlotasAdmin() {
   });
   $("btn-flota-col-quitar-foto").addEventListener("click", () => {
     flotaColFotoDraft = "";
+    flotaColFotoDraftColId = flotaColEditId || "";
     pintarPreviewFlotaCol("");
   });
   $("flota-col-foto-file").addEventListener("change", async (e) => {
@@ -807,6 +835,7 @@ function initFlotasAdmin() {
       pintarPreviewFlotaCol,
       (src) => {
         flotaColFotoDraft = src;
+        flotaColFotoDraftColId = flotaColEditId || "";
       }
     );
   });
@@ -814,6 +843,7 @@ function initFlotasAdmin() {
   armarZonaImagenFlotaAdmin($("flota-col-carnet"), $("modal-flota-col"), (file) =>
     aplicarArchivoImagenFlotaAdmin(file, pintarPreviewFlotaCol, (src) => {
       flotaColFotoDraft = src;
+      flotaColFotoDraftColId = flotaColEditId || "";
     })
   );
 

@@ -89,10 +89,12 @@ function normalizarColumnaFlota(c) {
   const col = {
     id: String(c.id || uidFlota("col")),
     titulo: String(c.titulo).trim(),
-    foto: String(c.foto || "").trim(),
     servicios,
     orden_tarjetas: Array.isArray(c.orden_tarjetas) ? c.orden_tarjetas.map(String) : [],
   };
+  if (Object.prototype.hasOwnProperty.call(c, "foto")) {
+    col.foto = String(c.foto || "").trim();
+  }
   sincronizarOrdenTarjetasFlota(col);
   return col;
 }
