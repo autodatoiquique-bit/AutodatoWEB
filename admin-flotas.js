@@ -61,8 +61,10 @@ function pintarPreviewFlotaServicio(foto) {
 }
 
 async function subirImagenFlotaAdmin(file) {
-  let src = await leerImagen(file, 1200);
-  if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+  const src = await leerImagen(file, 480, { quality: 0.7, forceJpeg: true });
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    return await nubeSubirImagen(src);
+  }
   return src;
 }
 
