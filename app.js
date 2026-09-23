@@ -692,9 +692,15 @@ async function guardarSolicitanteFlotaEnNube(opts = {}) {
   if (!nombre) return { ok: !opts.requerir, error: "Falta el nombre." };
   const flotaId = typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
   if (!flotaId) return { ok: false, error: "Sin flota activa." };
-  const acceso =
+  let acceso =
     (typeof tokenLinkFlotaSesion === "function" ? tokenLinkFlotaSesion(flotaId) : "") ||
     tokenFlotaAccesoDesdeQuery();
+  const flotaLocal = typeof flotaPorId === "function" ? flotaPorId(flotaId) : null;
+  const linkVigente = flotaLocal && String(flotaLocal.link_acceso || "").trim();
+  if (acceso && linkVigente && acceso !== linkVigente) {
+    acceso = "";
+    if (typeof limpiarTokenLinkFlotaSesion === "function") limpiarTokenLinkFlotaSesion(flotaId);
+  }
   try {
     const res = await fetch("/api/flota-registrar-solicitante", {
       method: "POST",
@@ -1226,6 +1232,7 @@ function armarHoldContacto() {
 }
 
 function renderPortada() {
+  if (typeof hidratarCatalogoClienteLocal === "function") hidratarCatalogoClienteLocal();
   const lista = slidesPortadaPara(state.vehiculo);
   const loop = lista.length > 1;
   const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
@@ -3404,6 +3411,7 @@ async function arrancar() {
   if (typeof hidratarFotosModelos === "function") hidratarFotosModelos();
   if (typeof hidratarTablero === "function") hidratarTablero();
   if (typeof hidratarPortadaLocal === "function") hidratarPortadaLocal();
+  if (typeof hidratarCatalogoClienteLocal === "function") hidratarCatalogoClienteLocal();
   hidratar();
   const flotaAcceso = tokenFlotaAccesoDesdeQuery();
   const entrada = aplicarVehiculoDesdeUrlAlInicio();
@@ -3421,10 +3429,17 @@ async function arrancar() {
   void (async () => {
     if (typeof refrescarDatosInicioEnFondo === "function") {
       await refrescarDatosInicioEnFondo();
-      if (state.vista === "portada") {
-        aplicarLogos();
-        renderPortada();
+    }
+    if (typeof asegurarCatalogoParaPortada === "function") {
+      try {
+        await asegurarCatalogoParaPortada();
+      } catch (e) {
+        /* local */
       }
+    }
+    if (state.vista === "portada") {
+      aplicarLogos();
+      renderPortada();
     }
   })();
 }

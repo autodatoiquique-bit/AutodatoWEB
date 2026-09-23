@@ -594,7 +594,9 @@ app.post("/api/flota-registrar-solicitante", async (req, res) => {
     const flota = flotas[idx];
     const link = String(flota.link_acceso || "").trim();
     const acceso = String(body.acceso || "").trim();
-    if (link && acceso !== link) {
+    // Solo validar enlace directo cuando el cliente envía token (URL compartida).
+    // Entrada por PIN en la app no incluye link_acceso.
+    if (link && acceso && acceso !== link) {
       return res.status(403).json({ ok: false, error: "Acceso no válido para esta flota." });
     }
     asegurarSemillaSolicitantesSalfaServidor(flota);

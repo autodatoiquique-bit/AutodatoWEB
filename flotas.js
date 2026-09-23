@@ -233,6 +233,16 @@ function tokenLinkFlotaSesion(flotaId) {
   }
 }
 
+function limpiarTokenLinkFlotaSesion(flotaId) {
+  const id = String(flotaId || "").trim();
+  if (!id) return;
+  try {
+    sessionStorage.removeItem(`${FLOTA_LINK_SESION_PREFIX}${id}`);
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
 function tokenLinkAccesoFlota() {
   const a = new Uint8Array(16);
   crypto.getRandomValues(a);

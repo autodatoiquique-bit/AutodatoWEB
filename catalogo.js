@@ -921,6 +921,29 @@ function etiquetaCanales(s) {
   return partes.join(" · ") || "Sin menú";
 }
 
+function hidratarCatalogoClienteLocal() {
+  if (catalogoEstaListo()) return catalogo;
+  hidratarModelosExtra();
+  hidratarFotosModelos();
+  hidratarTablero();
+  const raw = hidratarCatalogo();
+  if (!Array.isArray(raw) || !raw.length) return catalogo;
+  catalogo = raw.map((s) => normalizarServicioLista(s));
+  catalogoListo = true;
+  return catalogo;
+}
+
+function portadaRequiereCatalogo() {
+  return (typeof portadaSlides !== "undefined" ? portadaSlides : []).some((s) => slideMuestraBoton(s));
+}
+
+async function asegurarCatalogoParaPortada() {
+  if (!portadaRequiereCatalogo()) return catalogo;
+  hidratarCatalogoClienteLocal();
+  if (catalogoEstaListo()) return catalogo;
+  return ensureCatalogoCargado();
+}
+
 async function ensureCatalogoCargado(opts) {
   if (catalogoEstaListo() && !(opts && opts.completo)) return catalogo;
   if (opts && opts.completo) catalogoListo = false;
