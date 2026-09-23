@@ -344,6 +344,55 @@ async function subirCatalogoCanales(mapa) {
   return r.ok;
 }
 
+async function descargarCatalogoFlotas() {
+  const cfg = supabaseServiceConfig();
+  if (!cfg) return null;
+  const r = await fetch(`${cfg.url}/storage/v1/object/servicios/catalogo-flotas.json`, {
+    headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` },
+  });
+  if (!r.ok) return null;
+  try {
+    return await r.json();
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function subirCatalogoFlotas(payload) {
+  const cfg = supabaseServiceConfig();
+  if (!cfg) return false;
+  const r = await fetch(`${cfg.url}/storage/v1/object/servicios/catalogo-flotas.json`, {
+    method: "POST",
+    headers: {
+      apikey: cfg.key,
+      Authorization: `Bearer ${cfg.key}`,
+      "Content-Type": "application/json",
+      "x-upsert": "true",
+    },
+    body: JSON.stringify(payload),
+  });
+  return r.ok;
+}
+
+async function leerFlotasServidor() {
+  const remoto = await descargarCatalogoFlotas();
+  if (remoto && Array.isArray(remoto._flotas)) return remoto._flotas;
+  const mapa = await descargarCatalogoCanales();
+  if (mapa && Array.isArray(mapa._flotas)) return mapa._flotas;
+  return null;
+}
+
+async function guardarFlotasServidor(flotas) {
+  const ok = await subirCatalogoFlotas({ _flotas: flotas });
+  if (!ok) return false;
+  const mapa = await descargarCatalogoCanales();
+  if (mapa && Object.prototype.hasOwnProperty.call(mapa, "_flotas")) {
+    delete mapa._flotas;
+    await subirCatalogoCanales(mapa);
+  }
+  return true;
+}
+
 const SOLICITANTES_SALFA_SEED = require("./solicitantes-salfa-seed.json");
 
 function claveUnicaSolicitanteServidor(s) {
@@ -535,13 +584,13 @@ app.post("/api/flota-registrar-solicitante", async (req, res) => {
     return res.status(501).json({ ok: false, error: "Catálogo no configurado en el servidor." });
   }
   try {
-    const mapa = await descargarCatalogoCanales();
-    if (!mapa || !Array.isArray(mapa._flotas)) {
+    const flotas = await leerFlotasServidor();
+    if (!flotas) {
       return res.status(502).json({ ok: false, error: "No se pudo leer el catálogo." });
     }
-    const idx = mapa._flotas.findIndex((f) => String(f.id) === flotaId);
+    const idx = flotas.findIndex((f) => String(f.id) === flotaId);
     if (idx < 0) return res.status(404).json({ ok: false, error: "Flota no encontrada." });
-    const flota = mapa._flotas[idx];
+    const flota = flotas[idx];
     const link = String(flota.link_acceso || "").trim();
     const acceso = String(body.acceso || "").trim();
     if (link && acceso !== link) {
@@ -554,8 +603,8 @@ app.post("/api/flota-registrar-solicitante", async (req, res) => {
       correo: body.correo,
       patente: body.patente,
     });
-    mapa._flotas[idx] = flota;
-    const ok = await subirCatalogoCanales(mapa);
+    flotas[idx] = flota;
+    const ok = await guardarFlotasServidor(flotas);
     if (!ok) return res.status(502).json({ ok: false, error: "No se pudo guardar en el catálogo." });
     return res.json({ ok: true, solicitante: sol, flota_id: flotaId });
   } catch (e) {
@@ -570,17 +619,17 @@ app.post("/api/flota-sembrar-solicitantes-salfa", async (req, res) => {
     return res.status(501).json({ ok: false, error: "Catálogo no configurado en el servidor." });
   }
   try {
-    const mapa = await descargarCatalogoCanales();
-    if (!mapa || !Array.isArray(mapa._flotas)) {
+    const flotas = await leerFlotasServidor();
+    if (!flotas) {
       return res.status(502).json({ ok: false, error: "No se pudo leer el catálogo." });
     }
-    const idx = mapa._flotas.findIndex((f) => String(f.nombre || "").toLowerCase() === "salfa");
+    const idx = flotas.findIndex((f) => String(f.nombre || "").toLowerCase() === "salfa");
     if (idx < 0) return res.status(404).json({ ok: false, error: "Flota SALFA no encontrada." });
-    const flota = mapa._flotas[idx];
+    const flota = flotas[idx];
     const antes = (flota.solicitantes || []).length;
     asegurarSemillaSolicitantesSalfaServidor(flota);
-    mapa._flotas[idx] = flota;
-    const ok = await subirCatalogoCanales(mapa);
+    flotas[idx] = flota;
+    const ok = await guardarFlotasServidor(flotas);
     if (!ok) return res.status(502).json({ ok: false, error: "No se pudo guardar en el catálogo." });
     return res.json({
       ok: true,

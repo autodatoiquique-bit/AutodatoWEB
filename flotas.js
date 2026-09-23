@@ -1,5 +1,8 @@
 const FLOTAS_KEY = "autodato_flotas";
 let FLOTAS = [];
+let flotasTarifarioRemotoListo = false;
+let flotasAccesoPromesa = null;
+let flotasTarifarioPromesa = null;
 
 function hidratarFlotas() {
   try {
@@ -348,19 +351,84 @@ function precioFlotaConIva(neto) {
   return Math.round(n * 1.19);
 }
 
-async function cargarFlotasPublico() {
-  hidratarFlotas();
-  if (typeof nubeLeerCatalogoCanales !== "function") return FLOTAS;
-  try {
-    const extra = await nubeLeerCatalogoCanales();
-    if (extra && Array.isArray(extra._flotas)) {
-      FLOTAS = extra._flotas.map(normalizarFlota).filter(Boolean);
-      persistirFlotas();
-    }
-  } catch (e) {
-    /* local */
+function flotaTieneTarifarioCompleto(f) {
+  if (!f || !Array.isArray(f.columnas)) return false;
+  return f.columnas.some((c) => Array.isArray(c.servicios) && c.servicios.length > 0);
+}
+
+function flotasTarifarioCompletoEnMemoria() {
+  return (FLOTAS || []).length > 0 && (FLOTAS || []).every(flotaTieneTarifarioCompleto);
+}
+
+function fusionarFlotaAccesoEnMemoria(nueva) {
+  const n = normalizarFlota(nueva);
+  if (!n) return;
+  const idx = (FLOTAS || []).findIndex((f) => f.id === n.id);
+  if (idx < 0) {
+    FLOTAS.push(n);
+    return;
   }
-  return FLOTAS;
+  const prev = FLOTAS[idx];
+  if (flotaTieneTarifarioCompleto(prev)) {
+    FLOTAS[idx] = {
+      ...prev,
+      nombre: n.nombre,
+      pin_hash: n.pin_hash,
+      link_acceso: n.link_acceso,
+      canal_webhook: n.canal_webhook,
+      agenda_modo: n.agenda_modo,
+    };
+  } else {
+    FLOTAS[idx] = n;
+  }
+}
+
+async function cargarFlotasAccesoPublico() {
+  hidratarFlotas();
+  if (typeof nubeActiva !== "function" || !nubeActiva()) return FLOTAS;
+  if (typeof nubeLeerFlotasAccesoRemoto !== "function") return FLOTAS;
+  if (flotasAccesoPromesa) return flotasAccesoPromesa;
+  flotasAccesoPromesa = (async () => {
+    try {
+      if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
+      const acceso = await nubeLeerFlotasAccesoRemoto();
+      if (acceso && acceso.length) {
+        acceso.forEach(fusionarFlotaAccesoEnMemoria);
+        persistirFlotas();
+      }
+    } catch (e) {
+      /* local */
+    }
+    return FLOTAS;
+  })().finally(() => {
+    flotasAccesoPromesa = null;
+  });
+  return flotasAccesoPromesa;
+}
+
+async function cargarFlotasPublico() {
+  if (flotasTarifarioRemotoListo && flotasTarifarioCompletoEnMemoria()) return FLOTAS;
+  hidratarFlotas();
+  if (typeof nubeActiva !== "function" || !nubeActiva()) return FLOTAS;
+  if (typeof nubeLeerFlotasTarifarioRemoto !== "function") return FLOTAS;
+  if (flotasTarifarioPromesa) return flotasTarifarioPromesa;
+  flotasTarifarioPromesa = (async () => {
+    try {
+      if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
+      const remoto = await nubeLeerFlotasTarifarioRemoto();
+      if (remoto && remoto.length) {
+        FLOTAS = remoto.map(normalizarFlota).filter(Boolean);
+        persistirFlotas();
+        flotasTarifarioRemotoListo = true;
+      }
+    } catch (e) {
+      /* local */
+    }
+    return FLOTAS;
+  })().finally(() => {
+    flotasTarifarioPromesa = null;
+  });
+  return flotasTarifarioPromesa;
 }
 
 const FLOTA_SESION_PREFIX = "autodato_flota_ok_";

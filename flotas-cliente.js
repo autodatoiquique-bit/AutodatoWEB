@@ -5,6 +5,12 @@ function escFlota(v) {
     .replace(/"/g, "&quot;");
 }
 
+async function ensureFlotasAccesoPublico() {
+  if (typeof cargarFlotasAccesoPublico === "function") await cargarFlotasAccesoPublico();
+  else if (typeof hidratarFlotas === "function") hidratarFlotas();
+  return FLOTAS || [];
+}
+
 async function ensureFlotasPublico() {
   if (typeof cargarFlotasPublico === "function") await cargarFlotasPublico();
   else if (typeof hidratarFlotas === "function") hidratarFlotas();
@@ -264,7 +270,7 @@ function renderFlotaPin() {
     </section>
   `;
   armarTecladoPinFlota();
-  void ensureFlotasPublico().catch(() => {});
+  void ensureFlotasAccesoPublico().catch(() => {});
   const inp = $("flota-pin-input");
   if (inp) {
     inp.focus({ preventScroll: true });
@@ -385,10 +391,10 @@ async function intentarPinFlota() {
     btn.textContent = "Verificando…";
   }
   try {
-    await ensureFlotasPublico();
+    await ensureFlotasAccesoPublico();
   } catch (_e) {
     if (err) {
-      err.textContent = "No pudimos cargar el tarifario. Reintenta.";
+      err.textContent = "No pudimos verificar la clave. Reintenta.";
       err.hidden = false;
     }
     return;
@@ -414,6 +420,24 @@ async function intentarPinFlota() {
     if (err) err.hidden = false;
     return;
   }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Cargando tarifario…";
+  }
+  try {
+    await ensureFlotasPublico();
+  } catch (_e) {
+    if (err) {
+      err.textContent = "No pudimos cargar el tarifario. Reintenta.";
+      err.hidden = false;
+    }
+    return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Entrar";
+    }
+  }
   marcarSesionFlota(flotaId);
   entrarFlota(flotaId, { bienvenida: true });
 }
@@ -431,13 +455,19 @@ function entrarFlota(id, opts = {}) {
 async function abrirVistaFlotas() {
   if (typeof entrarAreaFlotas === "function" && !entrarAreaFlotas()) return;
   try {
-    await ensureFlotasPublico();
+    await ensureFlotasAccesoPublico();
   } catch (e) {
-    alert("No pudimos cargar las flotas. Reintenta.");
+    alert("No pudimos abrir flotas. Reintenta.");
     return;
   }
   const sesionId = (FLOTAS || []).find((f) => sesionFlotaOk(f.id));
   if (sesionId) {
+    try {
+      await ensureFlotasPublico();
+    } catch (e) {
+      alert("No pudimos cargar el tarifario. Reintenta.");
+      return;
+    }
     entrarFlota(sesionId.id, { bienvenida: false });
     return;
   }
@@ -450,12 +480,17 @@ async function abrirVistaFlotas() {
 
 async function entrarFlotaPorLinkAcceso(token) {
   try {
-    await ensureFlotasPublico();
+    await ensureFlotasAccesoPublico();
   } catch (e) {
     return false;
   }
   const f = typeof flotaPorLinkAcceso === "function" ? flotaPorLinkAcceso(token) : null;
   if (!f) return false;
+  try {
+    await ensureFlotasPublico();
+  } catch (e) {
+    return false;
+  }
   if (typeof entrarAreaFlotas === "function" && !entrarAreaFlotas()) return false;
   marcarSesionFlota(f.id);
   if (typeof guardarTokenLinkFlotaSesion === "function") guardarTokenLinkFlotaSesion(f.id, token);

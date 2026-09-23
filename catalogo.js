@@ -1257,7 +1257,7 @@ async function sincronizarTableroRemoto() {
   if (typeof nubeActiva !== "function" || !nubeActiva()) return false;
   if (typeof nubeLeerCatalogoCanales !== "function") return false;
   try {
-    const extra = await nubeLeerCatalogoCanales();
+    const extra = await nubeLeerCatalogoCanales({ omitFlotas: true });
     if (extra && Array.isArray(extra._tablero_columnas) && extra._tablero_columnas.length) {
       TABLERO_COLUMNAS = extra._tablero_columnas.map(normalizarColumnaTablero).filter(Boolean);
       persistirTablero();

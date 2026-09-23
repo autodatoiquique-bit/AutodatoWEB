@@ -60,8 +60,70 @@ function filaAServicio(row, comps) {
   };
 }
 
-async function nubeGuardarCatalogoCanales(lista) {
+const NUBE_JSON_CANALES = "catalogo-canales.json";
+const NUBE_JSON_FLOTAS = "catalogo-flotas.json";
+const NUBE_JSON_FLOTAS_ACCESO = "catalogo-flotas-acceso.json";
+
+async function nubeSubirJsonStorage(nombre, obj) {
   const sb = clienteNube();
+  const { error } = await sb.storage.from("servicios").upload(
+    nombre,
+    new Blob([JSON.stringify(obj)], { type: "application/json" }),
+    { contentType: "application/json", upsert: true, cacheControl: "0" }
+  );
+  if (error) throw error;
+}
+
+async function nubeLeerJsonStorage(nombre) {
+  const sb = clienteNube();
+  if (!sb) return null;
+  const publico = sb.storage.from("servicios").getPublicUrl(nombre).data.publicUrl;
+  try {
+    const res = await fetch(`${publico}?t=${Date.now()}`, { cache: "no-store" });
+    if (res.ok) return await res.json();
+  } catch (e) {
+    /* fallback */
+  }
+  const { data, error } = await sb.storage.from("servicios").download(nombre);
+  if (error || !data) return null;
+  return JSON.parse(await data.text());
+}
+
+function flotaSnapshotAccesoNube(f) {
+  if (!f) return null;
+  return {
+    id: f.id,
+    nombre: f.nombre,
+    pin_hash: f.pin_hash || "",
+    link_acceso: f.link_acceso || "",
+    canal_webhook: f.canal_webhook || "",
+    agenda_modo: f.agenda_modo || "limitada",
+    columnas: [],
+    solicitantes: [],
+  };
+}
+
+async function nubeQuitarFlotasDeCatalogoCanales() {
+  const raw = await nubeLeerJsonStorage(NUBE_JSON_CANALES);
+  if (!raw || !Object.prototype.hasOwnProperty.call(raw, "_flotas")) return;
+  delete raw._flotas;
+  await nubeSubirJsonStorage(NUBE_JSON_CANALES, raw);
+}
+
+async function nubeGuardarFlotasTarifario() {
+  const flotas = typeof FLOTAS !== "undefined" ? FLOTAS : [];
+  await nubeSubirJsonStorage(NUBE_JSON_FLOTAS, { _flotas: flotas });
+  await nubeSubirJsonStorage(NUBE_JSON_FLOTAS_ACCESO, {
+    _flotas: flotas.map(flotaSnapshotAccesoNube).filter(Boolean),
+  });
+  try {
+    await nubeQuitarFlotasDeCatalogoCanales();
+  } catch (e) {
+    console.warn("No se pudo aligerar catalogo-canales.json.", e);
+  }
+}
+
+async function nubeGuardarCatalogoCanales(lista) {
   const mapa = {};
   (lista || []).forEach((s) => {
     const canales = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
@@ -85,30 +147,43 @@ async function nubeGuardarCatalogoCanales(lista) {
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
   mapa._fotos_modelos = typeof FOTOS_MODELOS !== "undefined" ? FOTOS_MODELOS : {};
   mapa._tablero_columnas = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
-  mapa._flotas = typeof FLOTAS !== "undefined" ? FLOTAS : [];
-  const { error } = await sb.storage.from("servicios").upload(
-    "catalogo-canales.json",
-    new Blob([JSON.stringify(mapa)], { type: "application/json" }),
-    { contentType: "application/json", upsert: true, cacheControl: "0" }
-  );
-  if (error) throw error;
+  await nubeSubirJsonStorage(NUBE_JSON_CANALES, mapa);
 }
 
-async function nubeLeerCatalogoCanales() {
-  const sb = clienteNube();
-  const publico = sb.storage.from("servicios").getPublicUrl("catalogo-canales.json").data.publicUrl;
-  try {
-    const res = await fetch(`${publico}?t=${Date.now()}`, { cache: "no-store" });
-    if (res.ok) return await res.json();
-  } catch (e) {
-    /* fallback */
+async function nubeLeerCatalogoCanales(opts) {
+  const raw = await nubeLeerJsonStorage(NUBE_JSON_CANALES);
+  if (!raw) return null;
+  if (opts && opts.omitFlotas && Object.prototype.hasOwnProperty.call(raw, "_flotas")) {
+    const copia = { ...raw };
+    delete copia._flotas;
+    return copia;
   }
-  const { data, error } = await sb.storage.from("servicios").download("catalogo-canales.json");
-  if (error || !data) return null;
-  return JSON.parse(await data.text());
+  return raw;
 }
 
-function aplicarMetaCatalogoExtra(extra) {
+async function nubeLeerFlotasTarifarioRemoto() {
+  const data = await nubeLeerJsonStorage(NUBE_JSON_FLOTAS);
+  if (data && Array.isArray(data._flotas)) return data._flotas;
+  const legacy = await nubeLeerJsonStorage(NUBE_JSON_CANALES);
+  if (legacy && Array.isArray(legacy._flotas)) return legacy._flotas;
+  return null;
+}
+
+async function nubeLeerFlotasAccesoRemoto() {
+  const data = await nubeLeerJsonStorage(NUBE_JSON_FLOTAS_ACCESO);
+  if (data && Array.isArray(data._flotas)) return data._flotas;
+  const legacy = await nubeLeerJsonStorage(NUBE_JSON_CANALES);
+  if (legacy && Array.isArray(legacy._flotas)) {
+    return legacy._flotas.map(flotaSnapshotAccesoNube).filter(Boolean);
+  }
+  const full = await nubeLeerJsonStorage(NUBE_JSON_FLOTAS);
+  if (full && Array.isArray(full._flotas)) {
+    return full._flotas.map(flotaSnapshotAccesoNube).filter(Boolean);
+  }
+  return null;
+}
+
+function aplicarMetaCatalogoExtra(extra, opts) {
   if (!extra || typeof extra !== "object") return;
   if (extra._modelos && typeof extra._modelos === "object") {
     MODELOS_EXTRA = extra._modelos;
@@ -121,7 +196,8 @@ function aplicarMetaCatalogoExtra(extra) {
     TABLERO_COLUMNAS = extra._tablero_columnas.map(normalizarColumnaTablero).filter(Boolean);
     if (typeof persistirTablero === "function") persistirTablero();
   }
-  if (Array.isArray(extra._flotas)) {
+  const aplicarFlotas = !(opts && opts.omitFlotas);
+  if (aplicarFlotas && Array.isArray(extra._flotas)) {
     FLOTAS = extra._flotas.map(normalizarFlota).filter(Boolean);
     if (typeof persistirFlotas === "function") persistirFlotas();
   }
@@ -168,11 +244,11 @@ async function nubeLeerCatalogo(opts) {
   if (errorC) throw errorC;
   let extra = null;
   try {
-    extra = await nubeLeerCatalogoCanales();
+    extra = await nubeLeerCatalogoCanales({ omitFlotas: true });
   } catch (e) {
     extra = null;
   }
-  aplicarMetaCatalogoExtra(extra);
+  aplicarMetaCatalogoExtra(extra, { omitFlotas: true });
   return (rows || []).map((row) => {
     const s = filaAServicio(row, comps || []);
     if (lite) {
@@ -195,7 +271,7 @@ async function nubeLeerServicioDetalle(id) {
   if (errorC) throw errorC;
   let extra = null;
   try {
-    extra = await nubeLeerCatalogoCanales();
+    extra = await nubeLeerCatalogoCanales({ omitFlotas: true });
   } catch (e) {
     extra = null;
   }

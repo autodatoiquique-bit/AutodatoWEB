@@ -193,7 +193,11 @@ function armarZonaImagenFlotaAdmin(zone, modal, onImagen) {
 async function guardarFlotasNube() {
   persistirFlotas();
   if (typeof nubeActiva === "function" && nubeActiva()) {
-    await nubeGuardarCatalogoCanales(typeof catalogo !== "undefined" ? catalogo : []);
+    if (typeof nubeGuardarFlotasTarifario === "function") {
+      await nubeGuardarFlotasTarifario();
+    } else {
+      await nubeGuardarCatalogoCanales(typeof catalogo !== "undefined" ? catalogo : []);
+    }
   }
 }
 
