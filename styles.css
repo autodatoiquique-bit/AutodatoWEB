@@ -905,6 +905,53 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 .flota-entrega-hint { margin: 4px 0 0; font-size: 0.92rem; }
 .btn-atencion-inmediata { margin: 12px 0 4px; }
 .flota-manual-hint { margin: 6px 0 0; font-size: 0.88rem; }
+.flota-sol-wrap { position: relative; }
+.flota-sol-sugerencias {
+  position: absolute;
+  z-index: 12;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  max-height: min(240px, 42vh);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+}
+.flota-sol-sugerencias[hidden] { display: none !important; }
+.flota-sol-opc {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+.flota-sol-opc:hover,
+.flota-sol-opc:focus {
+  background: #f3f6fa;
+}
+.flota-sol-opc strong {
+  display: block;
+  font-weight: 700;
+  color: #111;
+}
+.flota-sol-meta {
+  display: block;
+  font-size: 0.82rem;
+  color: #666;
+  margin-top: 2px;
+}
+.flota-sol-vacio {
+  padding: 10px 12px;
+  font-size: 0.88rem;
+}
 .field span { display: block; margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; }
 .field input, .field select, .field textarea {
   width: 100%;

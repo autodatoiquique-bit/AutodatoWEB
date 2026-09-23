@@ -416,6 +416,44 @@ function instanteDesdeIsoHora(iso, hora) {
   return new Date(p[0], p[1] - 1, p[2], Number(t[0]) || 0, Number(t[1]) || 0, 0, 0);
 }
 
+function textoBusquedaSolicitanteFlota(s) {
+  return typeof normalizarTextoBusquedaFlota === "function"
+    ? normalizarTextoBusquedaFlota(`${(s && s.nombre) || ""} ${(s && s.correo) || ""} ${(s && s.patente) || ""}`)
+    : String(`${(s && s.nombre) || ""} ${(s && s.correo) || ""}`)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{M}/gu, "");
+}
+
+function tokensBusquedaSolicitanteFlota(q) {
+  const raw =
+    typeof normalizarTextoBusquedaFlota === "function"
+      ? normalizarTextoBusquedaFlota(q)
+      : String(q || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/\p{M}/gu, "");
+  return raw.split(/\s+/).filter(Boolean);
+}
+
+function filtrarSolicitantesFlota(lista, query) {
+  const base = Array.isArray(lista) ? lista : [];
+  const tokens = tokensBusquedaSolicitanteFlota(query);
+  if (!tokens.length) return base.slice();
+  return base.filter((s) => {
+    const hay = textoBusquedaSolicitanteFlota(s);
+    return tokens.every((t) => hay.includes(t));
+  });
+}
+
+function solicitanteFlotaPorNombreEnFlota(flota, nombre) {
+  const n = String(nombre || "")
+    .trim()
+    .toLowerCase();
+  if (!n || !flota) return null;
+  return (flota.solicitantes || []).find((s) => String(s.nombre || "").trim().toLowerCase() === n) || null;
+}
+
 function aplicarSolicitanteFlotaAlFormulario(sol) {
   if (!sol) return;
   state.cliente.solicitanteId = sol.id;
@@ -424,53 +462,89 @@ function aplicarSolicitanteFlotaAlFormulario(sol) {
   state.cliente.correo = sol.correo || "";
   if (sol.patente) state.cliente.patente = sol.patente;
   persistir();
-  const sel = $("c-solicitante");
   const nom = $("c-nombre");
   const tel = $("c-telefono");
   const cor = $("c-correo");
   const pat = $("c-patente");
-  if (sel) sel.value = sol.id;
   if (nom) nom.value = state.cliente.nombre;
   if (tel) tel.value = state.cliente.telefono;
   if (cor) cor.value = state.cliente.correo;
   if (pat) pat.value = state.cliente.patente;
-  if (typeof pintarFlotaNombreSlot === "function") pintarFlotaNombreSlot(flotaActivaDelCarrito());
+  ocultarSugerenciasSolicitanteFlota();
 }
 
-function solicitanteFlotaEsManual() {
-  return state.cliente.solicitanteId === "__manual__";
+function ocultarSugerenciasSolicitanteFlota() {
+  const box = $("c-solicitante-lista");
+  const inp = $("c-nombre");
+  if (box) box.hidden = true;
+  if (inp) inp.setAttribute("aria-expanded", "false");
 }
 
-function htmlFlotaNombreSlot(flota) {
-  if (solicitanteFlotaEsManual()) {
-    return `<label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" placeholder="Tu nombre completo" autocomplete="name" /><p class="muted flota-manual-hint">Si no estás en la lista, escríbelo aquí; quedará guardado para la próxima vez.</p></label>`;
+function pintarSugerenciasSolicitanteFlota() {
+  const flota = flotaActivaDelCarrito();
+  const lista = (flota && flota.solicitantes) || [];
+  const inp = $("c-nombre");
+  const box = $("c-solicitante-lista");
+  if (!inp || !box) return;
+  if (!lista.length) {
+    box.hidden = true;
+    return;
   }
-  const hayLista = ((flota && flota.solicitantes) || []).length > 0;
-  if (!hayLista) {
-    return `<label class="field"><span>Nombre</span><input id="c-nombre" type="text" value="${escapeAttr(state.cliente.nombre)}" /></label>`;
+  const q = inp.value.trim();
+  const filtrados = filtrarSolicitantesFlota(lista, q);
+  if (!filtrados.length) {
+    box.innerHTML = `<li class="flota-sol-vacio"><span class="muted">Sin coincidencias — se guardará al generar el ticket</span></li>`;
+    box.hidden = !q;
+    inp.setAttribute("aria-expanded", q ? "true" : "false");
+    return;
   }
-  return `<input type="hidden" id="c-nombre" value="${escapeAttr(state.cliente.nombre)}" />`;
+  box.innerHTML = filtrados
+    .slice(0, 14)
+    .map(
+      (s) =>
+        `<li><button type="button" class="flota-sol-opc" data-sol-pick="${escapeAttr(s.id)}"><strong>${escapeHtml(s.nombre)}</strong>${
+          s.correo ? `<span class="flota-sol-meta">${escapeHtml(s.correo)}</span>` : ""
+        }</button></li>`
+    )
+    .join("");
+  box.hidden = false;
+  inp.setAttribute("aria-expanded", "true");
 }
 
-function pintarFlotaNombreSlot(flota) {
-  const slot = $("flota-nombre-slot");
-  if (!slot) return;
-  slot.innerHTML = htmlFlotaNombreSlot(flota);
-  const nom = $("c-nombre");
-  if (nom) {
-    nom.addEventListener("input", guardarClienteDesdeForma);
-    nom.addEventListener("change", guardarClienteDesdeForma);
-    if (nom.type === "text") {
-      nom.addEventListener("blur", () => {
-        guardarClienteDesdeForma();
-        void registrarSolicitanteManualFlota({ silencioso: true });
-      });
-    }
+function sincronizarSolicitanteIdDesdeNombreFlota() {
+  if (!carritoSoloFlota()) return;
+  const flota = flotaActivaDelCarrito();
+  const nombre = state.cliente.nombre.trim();
+  if (!nombre) {
+    state.cliente.solicitanteId = "";
+    return;
   }
+  const porId =
+    state.cliente.solicitanteId && typeof solicitanteFlotaPorId === "function"
+      ? solicitanteFlotaPorId(flota && flota.id, state.cliente.solicitanteId)
+      : null;
+  if (porId && String(porId.nombre || "").trim().toLowerCase() === nombre.toLowerCase()) return;
+  const porNombre = solicitanteFlotaPorNombreEnFlota(flota, nombre);
+  state.cliente.solicitanteId = porNombre ? porNombre.id : "";
 }
 
-async function registrarSolicitanteManualFlota(opts = {}) {
-  if (!carritoSoloFlota() || !solicitanteFlotaEsManual()) return { ok: true };
+function enlazarComboboxSolicitanteFlota() {
+  const inp = $("c-nombre");
+  if (!inp || inp.dataset.solCombo === "1") return;
+  inp.dataset.solCombo = "1";
+  inp.addEventListener("input", () => {
+    guardarClienteDesdeForma();
+    sincronizarSolicitanteIdDesdeNombreFlota();
+    persistir();
+    pintarSugerenciasSolicitanteFlota();
+  });
+  inp.addEventListener("focus", () => pintarSugerenciasSolicitanteFlota());
+  inp.addEventListener("blur", () => {
+    setTimeout(() => ocultarSugerenciasSolicitanteFlota(), 160);
+  });
+}
+
+async function guardarSolicitanteFlotaEnNube(opts = {}) {
   guardarClienteDesdeForma();
   const nombre = state.cliente.nombre.trim();
   if (!nombre) return { ok: !opts.requerir, error: "Falta el nombre." };
@@ -494,7 +568,7 @@ async function registrarSolicitanteManualFlota(opts = {}) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      return { ok: false, error: (data && data.error) || "No se pudo guardar el nombre en la flota." };
+      return { ok: false, error: (data && data.error) || "No se pudo guardar el solicitante en la flota." };
     }
     const flota = typeof flotaPorId === "function" ? flotaPorId(flotaId) : null;
     if (flota && data.solicitante && typeof fusionarSolicitanteEnFlota === "function") {
@@ -505,19 +579,18 @@ async function registrarSolicitanteManualFlota(opts = {}) {
       state.cliente.solicitanteId = data.solicitante.id;
       state.cliente.nombre = data.solicitante.nombre || nombre;
       persistir();
-      const sel = $("c-solicitante");
-      if (sel && flota && (flota.solicitantes || []).some((s) => s.id === data.solicitante.id)) {
-        const opt = document.createElement("option");
-        opt.value = data.solicitante.id;
-        opt.textContent = data.solicitante.nombre;
-        sel.insertBefore(opt, sel.querySelector('option[value="__manual__"]'));
-        sel.value = data.solicitante.id;
-      }
     }
     return { ok: true, solicitante: data.solicitante };
   } catch (_e) {
-    return { ok: false, error: "No hubo conexión para guardar el nombre." };
+    return { ok: false, error: "No hubo conexión para guardar el solicitante." };
   }
+}
+
+async function asegurarSolicitanteFlotaParaTicket(opts = {}) {
+  if (!carritoSoloFlota()) return { ok: true };
+  guardarClienteDesdeForma();
+  sincronizarSolicitanteIdDesdeNombreFlota();
+  return guardarSolicitanteFlotaEnNube(opts);
 }
 
 async function elegirAtencionInmediataFlota() {
@@ -1769,67 +1842,32 @@ function enlazarFormularioDatosAgenda() {
     el.addEventListener("input", guardarClienteDesdeForma);
     el.addEventListener("change", guardarClienteDesdeForma);
   });
-  const sel = $("c-solicitante");
-  if (sel) {
-    sel.addEventListener("change", () => {
-      const flotaId =
-        typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
-      const sol =
-        typeof solicitanteFlotaPorId === "function"
-          ? solicitanteFlotaPorId(flotaId, sel.value)
-          : null;
-      if (sel.value === "__manual__") {
-        state.cliente.solicitanteId = "__manual__";
-        persistir();
-        pintarFlotaNombreSlot(flotaActivaDelCarrito());
-        const nom = $("c-nombre");
-        if (nom && nom.type === "text") nom.focus();
-        return;
-      }
-      if (sol) aplicarSolicitanteFlotaAlFormulario(sol);
-      else {
-        state.cliente.solicitanteId = sel.value || "";
-        state.cliente.nombre = "";
-        persistir();
-        pintarFlotaNombreSlot(flotaActivaDelCarrito());
-      }
-    });
-  }
-  const selIni = $("c-solicitante");
-  if (selIni && selIni.value && typeof solicitanteFlotaPorId === "function") {
-    const flotaId =
-      typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
-    if (selIni.value === "__manual__") {
-      pintarFlotaNombreSlot(flotaActivaDelCarrito());
-    } else {
-      const sol = solicitanteFlotaPorId(flotaId, selIni.value);
-      if (sol && !state.cliente.nombre.trim()) aplicarSolicitanteFlotaAlFormulario(sol);
-      else pintarFlotaNombreSlot(flotaActivaDelCarrito());
-    }
-  } else {
-    pintarFlotaNombreSlot(flotaActivaDelCarrito());
-  }
+  if (carritoSoloFlota()) enlazarComboboxSolicitanteFlota();
 }
 
 function htmlCamposClienteAgendaFlota(flota) {
   const lista = (flota && flota.solicitantes) || [];
-  const usaLista = lista.length > 0;
-  const manual = solicitanteFlotaEsManual();
-  const nombreHtml = usaLista
-    ? `<label class="field"><span>Solicitante</span><select id="c-solicitante">
-        <option value="">Elige…</option>
-        ${lista
-          .map(
-            (s) =>
-              `<option value="${escapeAttr(s.id)}"${state.cliente.solicitanteId === s.id ? " selected" : ""}>${escapeHtml(s.nombre)}</option>`
-          )
-          .join("")}
-        <option value="__manual__"${manual ? " selected" : ""}>Otro (escribir mi nombre)</option>
-      </select></label>
-      <div id="flota-nombre-slot">${htmlFlotaNombreSlot(flota)}</div>`
-    : `<div id="flota-nombre-slot">${htmlFlotaNombreSlot(flota)}</div>`;
+  const placeholder = lista.length
+    ? "Escribe para filtrar solicitantes…"
+    : "Nombre completo del solicitante";
   return `
-    ${nombreHtml}
+    <label class="field flota-sol-combobox">
+      <span>Nombre</span>
+      <div class="flota-sol-wrap">
+        <input
+          id="c-nombre"
+          type="text"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="c-solicitante-lista"
+          autocomplete="off"
+          value="${escapeAttr(state.cliente.nombre)}"
+          placeholder="${escapeAttr(placeholder)}"
+        />
+        <ul id="c-solicitante-lista" class="flota-sol-sugerencias" role="listbox" hidden></ul>
+      </div>
+      <p class="muted flota-manual-hint">Filtra con las primeras letras. Si no estás en la lista, completa tus datos: se guardará al generar el ticket.</p>
+    </label>
     <label class="field"><span>Teléfono</span><input id="c-telefono" type="tel" value="${escapeAttr(state.cliente.telefono)}" /></label>
     <label class="field"><span>Patente</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" required /></label>
     <label class="field"><span>Notas del servicio (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Detalle adicional para el taller">${escapeHtml(state.cliente.sintoma)}</textarea></label>
@@ -1931,12 +1969,7 @@ function faltantesTicket() {
   const falta = [];
   if (!state.carrito.length) falta.push("al menos un servicio");
   if (!carritoSoloFlota() && !vehiculoOk()) falta.push("marca, modelo, año y combustible del vehículo");
-  if (carritoSoloFlota()) {
-    const flota = flotaActivaDelCarrito();
-    const hayLista = ((flota && flota.solicitantes) || []).length > 0;
-    if (hayLista && !state.cliente.solicitanteId) falta.push("solicitante de la lista");
-  }
-  if (!state.cliente.nombre.trim()) falta.push(solicitanteFlotaEsManual() ? "nombre" : "nombre o solicitante");
+  if (!state.cliente.nombre.trim()) falta.push("nombre");
   if (!state.cliente.telefono.trim()) falta.push("teléfono");
   if (carritoSoloFlota()) {
     if (!state.cliente.patente.trim()) falta.push("patente");
@@ -2356,10 +2389,10 @@ async function generarTicket() {
     alert(`Falta completar: ${falta.join(", ")}.`);
     return;
   }
-  if (solicitanteFlotaEsManual()) {
-    const reg = await registrarSolicitanteManualFlota({ requerir: true, silencioso: true });
+  if (carritoSoloFlota()) {
+    const reg = await asegurarSolicitanteFlotaParaTicket({ requerir: true });
     if (!reg.ok) {
-      alert(reg.error || "No se pudo guardar tu nombre. Revisa la conexión e inténtalo de nuevo.");
+      alert(reg.error || "No se pudo guardar el solicitante. Revisa la conexión e inténtalo de nuevo.");
       return;
     }
     guardarClienteDesdeForma();
@@ -2706,7 +2739,7 @@ function guardarClienteDesdeForma() {
   if ($("c-patente")) state.cliente.patente = $("c-patente").value.toUpperCase();
   if ($("c-sintoma")) state.cliente.sintoma = $("c-sintoma").value;
   if ($("c-correo")) state.cliente.correo = $("c-correo").value;
-  if ($("c-solicitante")) state.cliente.solicitanteId = $("c-solicitante").value;
+  if (carritoSoloFlota()) sincronizarSolicitanteIdDesdeNombreFlota();
   if ($("c-entrega-fecha")) state.entrega.fecha = $("c-entrega-fecha").value;
   if ($("c-entrega-hora")) state.entrega.hora = $("c-entrega-hora").value;
   persistir();
@@ -2715,7 +2748,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-sol-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -2730,6 +2763,14 @@ document.addEventListener("click", (e) => {
   }
   if (t.dataset.ddPick) {
     elegirDrop(t.dataset.ddPick, t.dataset.value);
+    return;
+  }
+  if (t.dataset.solPick) {
+    const flotaId =
+      typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+    const sol =
+      typeof solicitanteFlotaPorId === "function" ? solicitanteFlotaPorId(flotaId, t.dataset.solPick) : null;
+    if (sol) aplicarSolicitanteFlotaAlFormulario(sol);
     return;
   }
 

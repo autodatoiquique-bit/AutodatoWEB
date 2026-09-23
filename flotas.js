@@ -163,9 +163,9 @@ function fusionarSolicitanteEnFlota(flota, raw) {
   const clave = claveUnicaSolicitanteFlota(norm);
   const exist = flota.solicitantes.find((s) => claveUnicaSolicitanteFlota(s) === clave);
   if (exist) {
-    if (!exist.telefono && norm.telefono) exist.telefono = norm.telefono;
-    if (!exist.correo && norm.correo) exist.correo = norm.correo;
-    if (!exist.patente && norm.patente) exist.patente = norm.patente;
+    if (norm.telefono) exist.telefono = norm.telefono;
+    if (norm.correo) exist.correo = norm.correo;
+    if (norm.patente) exist.patente = norm.patente;
     return exist;
   }
   flota.solicitantes.push(norm);
