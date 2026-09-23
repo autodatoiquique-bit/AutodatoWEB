@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=flotas-foto1" />
+  <link rel="stylesheet" href="admin.css?v=flotas-drop1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -155,9 +155,9 @@
       <button class="x" type="button" id="cerrar-flota-col">×</button>
       <h3>Categoría</h3>
       <p class="muted">Imagen de portada de la columna (opcional).</p>
-      <div class="col-carnet flota-foto-preview" id="flota-col-carnet">
+      <div class="col-carnet flota-foto-preview flota-imagen-drop" id="flota-col-carnet" tabindex="0">
         <img id="flota-col-carnet-img" alt="" hidden />
-        <span id="flota-col-carnet-vacio">Sin imagen</span>
+        <span id="flota-col-carnet-vacio" class="flota-imagen-hint">Arrastra una imagen aquí o pega un pantallazo (Ctrl+V)</span>
       </div>
       <div class="btn-row">
         <button class="btn-line" type="button" id="btn-flota-col-foto">Subir imagen</button>
@@ -175,9 +175,9 @@
       <button class="x" type="button" id="cerrar-flota-servicio">×</button>
       <h3>Servicio de flota</h3>
       <p class="muted">Precio neto. En el tablero se muestra con «+ IVA».</p>
-      <div class="col-carnet flota-foto-preview" id="flota-s-carnet">
+      <div class="col-carnet flota-foto-preview flota-imagen-drop" id="flota-s-carnet" tabindex="0">
         <img id="flota-s-carnet-img" alt="" hidden />
-        <span id="flota-s-carnet-vacio">Sin imagen</span>
+        <span id="flota-s-carnet-vacio" class="flota-imagen-hint">Arrastra una imagen aquí o pega un pantallazo (Ctrl+V)</span>
       </div>
       <div class="btn-row">
         <button class="btn-line" type="button" id="btn-flota-s-foto">Subir imagen</button>
@@ -215,6 +215,6 @@
   <script src="catalogo.js?v=rapido2"></script>
   <script src="flotas.js?v=flotas-foto1"></script>
   <script src="admin.js?v=menu-admin2"></script>
-  <script src="admin-flotas.js?v=flotas-foto1"></script>
+  <script src="admin-flotas.js?v=flotas-drop1"></script>
 </body>
 </html>

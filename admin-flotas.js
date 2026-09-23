@@ -46,6 +46,81 @@ async function subirImagenFlotaAdmin(file) {
   return src;
 }
 
+function esArchivoImagenFlota(file) {
+  return Boolean(file && String(file.type || "").startsWith("image/"));
+}
+
+function archivoImagenDesdePaste(e) {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return null;
+  for (const item of items) {
+    if (String(item.type || "").startsWith("image/")) {
+      const f = item.getAsFile();
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+async function aplicarArchivoImagenFlotaAdmin(file, pintarFn, asignarDraft) {
+  if (!esArchivoImagenFlota(file)) {
+    alert("Solo puedes usar archivos de imagen (JPG, PNG, WebP…).");
+    return;
+  }
+  try {
+    const src = await subirImagenFlotaAdmin(file);
+    asignarDraft(src);
+    pintarFn(src);
+  } catch (err) {
+    alert((err && err.message) || "No se pudo subir la imagen.");
+  }
+}
+
+function armarZonaImagenFlotaAdmin(zone, modal, onImagen) {
+  if (!zone || zone.dataset.dropFlota) return;
+  zone.dataset.dropFlota = "1";
+  zone.setAttribute("role", "button");
+  zone.setAttribute("aria-label", "Arrastra una imagen o pega un pantallazo");
+
+  const marcarHover = (on) => zone.classList.toggle("is-drop-hover", on);
+
+  zone.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    marcarHover(true);
+  });
+  zone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    marcarHover(true);
+  });
+  zone.addEventListener("dragleave", (e) => {
+    if (!zone.contains(e.relatedTarget)) marcarHover(false);
+  });
+  zone.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    marcarHover(false);
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) await onImagen(file);
+  });
+  zone.addEventListener("paste", async (e) => {
+    const file = archivoImagenDesdePaste(e);
+    if (!file) return;
+    e.preventDefault();
+    await onImagen(file);
+  });
+  zone.addEventListener("click", () => zone.focus());
+
+  if (modal && !modal.dataset.pasteFlota) {
+    modal.dataset.pasteFlota = "1";
+    modal.addEventListener("paste", async (e) => {
+      if (modal.hidden) return;
+      const file = archivoImagenDesdePaste(e);
+      if (!file) return;
+      e.preventDefault();
+      await onImagen(file);
+    });
+  }
+}
+
 async function guardarFlotasNube() {
   persistirFlotas();
   if (typeof nubeActiva === "function" && nubeActiva()) {
@@ -727,13 +802,20 @@ function initFlotasAdmin() {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    try {
-      flotaColFotoDraft = await subirImagenFlotaAdmin(file);
-      pintarPreviewFlotaCol(flotaColFotoDraft);
-    } catch (err) {
-      alert((err && err.message) || "No se pudo subir la imagen.");
-    }
+    await aplicarArchivoImagenFlotaAdmin(
+      file,
+      pintarPreviewFlotaCol,
+      (src) => {
+        flotaColFotoDraft = src;
+      }
+    );
   });
+
+  armarZonaImagenFlotaAdmin($("flota-col-carnet"), $("modal-flota-col"), (file) =>
+    aplicarArchivoImagenFlotaAdmin(file, pintarPreviewFlotaCol, (src) => {
+      flotaColFotoDraft = src;
+    })
+  );
 
   $("btn-flota-s-foto").addEventListener("click", () => {
     $("flota-s-foto-file").click();
@@ -746,13 +828,20 @@ function initFlotasAdmin() {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    try {
-      flotaSrvFotoDraft = await subirImagenFlotaAdmin(file);
-      pintarPreviewFlotaServicio(flotaSrvFotoDraft);
-    } catch (err) {
-      alert((err && err.message) || "No se pudo subir la imagen.");
-    }
+    await aplicarArchivoImagenFlotaAdmin(
+      file,
+      pintarPreviewFlotaServicio,
+      (src) => {
+        flotaSrvFotoDraft = src;
+      }
+    );
   });
+
+  armarZonaImagenFlotaAdmin($("flota-s-carnet"), $("modal-flota-servicio"), (file) =>
+    aplicarArchivoImagenFlotaAdmin(file, pintarPreviewFlotaServicio, (src) => {
+      flotaSrvFotoDraft = src;
+    })
+  );
 
   $("btn-flota-s-guardar").addEventListener("click", async () => {
     if (!flotaSrvEdit || !flotaSrvEdit.flotaId || !flotaSrvEdit.colId) return;
