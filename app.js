@@ -2310,7 +2310,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-volver-flotas-categorias], [data-volver-flota-detalle], #btn-ticket, #btn-flota-pin-ingresar, #btn-salir-flotas, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -2411,25 +2411,18 @@ document.addEventListener("click", (e) => {
   if (t.dataset.flotaServicio && typeof abrirDetalleServicioFlota === "function") {
     abrirDetalleServicioFlota(t.dataset.flotaServicio);
   }
-  if (t.hasAttribute("data-volver-flota-detalle")) {
-    state.flotaServicioDetalleId = "";
-    state.vista = "flotas-servicios";
-    renderVista();
-  }
   if (t.dataset.addFlota) {
     const [fid, sid] = String(t.dataset.addFlota || "").split("|");
-    if (fid && sid) {
-      agregarServicioFlotaAlCarrito(fid, sid);
-      if (state.vista === "flotas-servicio-detalle") renderFlotaServicioDetalle();
+    if (fid && sid) agregarServicioFlotaAlCarrito(fid, sid);
+  }
+  if (t.dataset.quitarFlota) {
+    const [fid, sid] = String(t.dataset.quitarFlota || "").split("|");
+    if (fid && sid && typeof quitarServicioFlotaDelCarrito === "function") {
+      quitarServicioFlotaDelCarrito(fid, sid);
     }
   }
-  if (t.hasAttribute("data-volver-flotas-categorias")) {
-    state.flotaCategoriaId = "";
-    state.vista = "flotas-categorias";
-    renderVista();
-  }
   if (t.id === "btn-flota-pin-ingresar") void intentarPinFlota();
-  if (t.id === "btn-salir-flotas") salirAreaFlotas();
+  if (t.id === "btn-flota-atras" && typeof atrasNavegacionFlota === "function") atrasNavegacionFlota();
   if (t.dataset.quitarOferta) quitarOferta(t.dataset.quitarOferta);
   if (t.dataset.filtrar) void aplicarFiltro(t.dataset.filtrar);
 

@@ -15,8 +15,81 @@ function htmlIconoCarroFlota() {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2l1 2h14l-1.6 8H8L6 7"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>`;
 }
 
-function htmlBarraSalirFlotas() {
-  return `<div class="flota-modulo-top"><button type="button" class="btn-soft btn-salir-flota-modulo" id="btn-salir-flotas">← Salir</button></div>`;
+function textoBotonNavFlota() {
+  return state.vista === "flotas-categorias" ? "← Salir" : "← Atrás";
+}
+
+function htmlBarraNavFlotas() {
+  return `<div class="flota-modulo-top"><button type="button" class="btn-soft btn-flota-nav" id="btn-flota-atras">${textoBotonNavFlota()}</button></div>`;
+}
+
+function atrasNavegacionFlota() {
+  if (state.vista === "flotas-categorias") {
+    if (typeof salirAreaFlotas === "function") salirAreaFlotas();
+    return;
+  }
+  if (state.vista === "flotas-servicio-detalle") {
+    state.flotaServicioDetalleId = "";
+    state.vista = "flotas-servicios";
+    if (typeof renderVista === "function") renderVista();
+    return;
+  }
+  if (state.vista === "flotas-servicios") {
+    state.flotaCategoriaId = "";
+    state.vista = "flotas-categorias";
+    if (typeof renderVista === "function") renderVista();
+    return;
+  }
+  if (state.vista === "flotas-pin") {
+    if (typeof salirAreaFlotas === "function") salirAreaFlotas();
+    return;
+  }
+  if (typeof salirAreaFlotas === "function") salirAreaFlotas();
+}
+
+function servicioFlotaEnCarrito(flotaId, servicioId) {
+  const id = lineaFlotaCarritoId(flotaId, servicioId);
+  return state.carrito.some((x) => x.tipo === "flota" && x.id === id);
+}
+
+function htmlBotonCarritoFlotaTarjeta(flotaId, srv) {
+  const fid = escFlota(flotaId);
+  const sid = escFlota(srv.id);
+  if (servicioFlotaEnCarrito(flotaId, srv.id)) {
+    return `<button class="card-add card-quitar-flota" type="button" data-quitar-flota="${fid}|${sid}" title="Quitar del ticket">Quitar del ticket</button>`;
+  }
+  return `<button class="card-add" type="button" data-add-flota="${fid}|${sid}" title="Agregar al ticket" aria-label="Agregar al ticket">
+    <span class="kpi-cart">${htmlIconoCarroFlota()}</span>
+  </button>`;
+}
+
+function htmlBotonCarritoFlotaBusqueda(flotaId, srv) {
+  const fid = escFlota(flotaId);
+  const sid = escFlota(srv.id);
+  if (servicioFlotaEnCarrito(flotaId, srv.id)) {
+    return `<div class="flota-busq-acciones">
+      <span class="tag tag-carrito">En ticket</span>
+      <button type="button" class="btn-soft flota-busq-quitar" data-quitar-flota="${fid}|${sid}">Quitar del ticket</button>
+    </div>`;
+  }
+  return `<button type="button" class="btn-primary btn-sm flota-busq-add" data-add-flota="${fid}|${sid}">Añadir al ticket</button>`;
+}
+
+function refrescarUiCarritoFlota() {
+  if (state.vista === "flotas-categorias") pintarResultadosBusquedaFlota();
+  else if (state.vista === "flotas-servicios") renderFlotaServicios();
+  else if (state.vista === "flotas-servicio-detalle") renderFlotaServicioDetalle();
+}
+
+function quitarServicioFlotaDelCarrito(flotaId, servicioId) {
+  const id = lineaFlotaCarritoId(flotaId, servicioId);
+  if (typeof quitarItem === "function") quitarItem(id);
+  else {
+    state.carrito = state.carrito.filter((x) => x.id !== id);
+    if (typeof persistir === "function") persistir();
+    if (typeof renderTotales === "function") renderTotales(true);
+    refrescarUiCarritoFlota();
+  }
 }
 
 function serviciosFlotaColumnaOrdenados(flotaId, colId) {
@@ -28,7 +101,7 @@ function serviciosFlotaColumnaOrdenados(flotaId, colId) {
 function htmlFilaBusquedaFlota(hit, flotaId) {
   const srv = hit.servicio;
   const lid = lineaFlotaCarritoId(flotaId, srv.id);
-  const enCarro = state.carrito.some((x) => x.tipo === "flota" && x.id === lid);
+  const enCarro = servicioFlotaEnCarrito(flotaId, srv.id);
   const precioTxt = typeof clpNetoMasIva === "function" ? clpNetoMasIva(srv.precio) : clp(srv.precio);
   return `
     <article class="flota-busq-item ${enCarro ? "is-en-carro" : ""}">
@@ -38,11 +111,7 @@ function htmlFilaBusquedaFlota(hit, flotaId) {
         ${srv.descripcion ? `<span class="flota-busq-desc">${escFlota(srv.descripcion)}</span>` : ""}
         <span class="precio flota-precio-iva flota-busq-precio">${escFlota(precioTxt)}</span>
       </button>
-      ${
-        enCarro
-          ? `<span class="tag tag-carrito flota-busq-tag">En ticket</span>`
-          : `<button type="button" class="btn-primary btn-sm flota-busq-add" data-add-flota="${escFlota(flotaId)}|${escFlota(srv.id)}">Añadir al ticket</button>`
-      }
+      ${htmlBotonCarritoFlotaBusqueda(flotaId, srv)}
     </article>
   `;
 }
@@ -133,11 +202,10 @@ function htmlTarjetaCategoriaFlota(col) {
 }
 
 function htmlTarjetaServicioFlota(srv, flotaId) {
-  const lid = lineaFlotaCarritoId(flotaId, srv.id);
-  const enCarro = state.carrito.some((x) => x.tipo === "flota" && x.id === lid);
+  const enCarro = servicioFlotaEnCarrito(flotaId, srv.id);
   const precioTxt = typeof clpNetoMasIva === "function" ? clpNetoMasIva(srv.precio) : clp(srv.precio);
   return `
-    <article class="card card-flota-serv ${enCarro ? "card-en-carro" : "card-con-add"}">
+    <article class="card card-flota-serv card-con-add ${enCarro ? "card-en-carro" : ""}">
       <button class="card-abrir" type="button" data-flota-servicio="${escFlota(srv.id)}" aria-label="Ver ${escFlota(srv.nombre)}">
         <div class="card-photo card-photo-flota">
           ${srv.foto ? `<img class="card-photo-img" src="${escFlota(srv.foto)}" alt="" loading="lazy" />` : ""}
@@ -151,13 +219,7 @@ function htmlTarjetaServicioFlota(srv, flotaId) {
           <div class="precio flota-precio-iva">${escFlota(precioTxt)}</div>
         </div>
       </button>
-      ${
-        enCarro
-          ? ""
-          : `<button class="card-add" type="button" data-add-flota="${escFlota(flotaId)}|${escFlota(srv.id)}" title="Agregar al ticket" aria-label="Agregar al ticket">
-              <span class="kpi-cart">${htmlIconoCarroFlota()}</span>
-            </button>`
-      }
+      ${htmlBotonCarritoFlotaTarjeta(flotaId, srv)}
     </article>
   `;
 }
@@ -189,7 +251,7 @@ function armarTecladoPinFlota() {
 
 function renderFlotaPin() {
   $("stage").innerHTML = `
-    ${htmlBarraSalirFlotas()}
+    ${htmlBarraNavFlotas()}
     <section class="panel claro flota-pin-panel">
       <h2>Tarifario flotas</h2>
       <p class="lead">Ingresa la clave de 4 dígitos que te entregó el taller.</p>
@@ -224,7 +286,7 @@ function renderFlotaCategorias() {
       : "";
   $("stage").innerHTML = `
     <div class="flota-cat-head">
-      ${htmlBarraSalirFlotas()}
+      ${htmlBarraNavFlotas()}
       <label class="field flota-busqueda-field">
         <span class="flota-busq-label">Buscar servicio</span>
         <input id="flota-busqueda-input" type="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar servicio…" />
@@ -261,9 +323,8 @@ function renderFlotaServicios() {
   }
   const servicios = serviciosFlotaColumnaOrdenados(f.id, col.id);
   $("stage").innerHTML = `
-    ${htmlBarraSalirFlotas()}
-    <section class="panel claro">
-      <button type="button" class="btn-soft btn-volver-flota" data-volver-flotas-categorias>← Categorías</button>
+    ${htmlBarraNavFlotas()}
+    <section class="panel claro flota-servicios-panel">
       <h2>${escFlota(col.titulo)}</h2>
       <p class="lead">${escFlota(f.nombre)} · precios netos + IVA</p>
       <div class="grid flota-servicios-grid">
@@ -290,16 +351,18 @@ function renderFlotaServicioDetalle() {
   const enCarro = state.carrito.some((x) => x.tipo === "flota" && x.id === lid);
   const precioTxt = typeof clpNetoMasIva === "function" ? clpNetoMasIva(srv.precio) : clp(srv.precio);
   $("stage").innerHTML = `
-    ${htmlBarraSalirFlotas()}
+    ${htmlBarraNavFlotas()}
     <section class="panel claro flota-srv-detalle">
-      <button type="button" class="btn-soft btn-volver-flota" data-volver-flota-detalle>← Servicios</button>
       <div class="flota-det-cover">${srv.foto ? `<img src="${escFlota(srv.foto)}" alt="" />` : ""}</div>
       <h2>${escFlota(srv.nombre)}</h2>
       ${srv.descripcion ? `<p class="lead flota-det-desc">${escFlota(srv.descripcion)}</p>` : `<p class="muted">Sin descripción adicional.</p>`}
       <div class="precio flota-precio-iva flota-det-precio">${escFlota(precioTxt)}</div>
       ${
         enCarro
-          ? `<p class="tag tag-carrito flota-det-en-ticket">Ya está en tu ticket</p>`
+          ? `<div class="flota-det-acciones">
+              <span class="tag tag-carrito">En ticket</span>
+              <button class="btn-soft btn-block" type="button" data-quitar-flota="${escFlota(f.id)}|${escFlota(srv.id)}">Quitar del ticket</button>
+            </div>`
           : `<button class="btn-primary btn-block" type="button" data-add-flota="${escFlota(f.id)}|${escFlota(srv.id)}">Agregar al ticket</button>`
       }
     </section>
@@ -389,13 +452,14 @@ function agregarServicioFlotaAlCarrito(flotaId, servicioId) {
   state.carrito.push({ tipo: "flota", id, flotaId, servicioId });
   if (typeof persistir === "function") persistir();
   if (typeof renderTotales === "function") renderTotales(true);
-  if (state.vista === "flotas-servicios") renderFlotaServicios();
-  if (state.vista === "flotas-categorias") pintarResultadosBusquedaFlota();
+  refrescarUiCarritoFlota();
 }
 
 function refrescarVistaFlotaCliente() {
   if (state.vista === "flotas-pin") renderFlotaPin();
-  else if (state.vista === "flotas-categorias") renderFlotaCategorias();
-  else if (state.vista === "flotas-servicios") renderFlotaServicios();
+  else if (state.vista === "flotas-categorias") {
+    if ($("flota-busqueda-input")) pintarResultadosBusquedaFlota();
+    else renderFlotaCategorias();
+  } else if (state.vista === "flotas-servicios") renderFlotaServicios();
   else if (state.vista === "flotas-servicio-detalle") renderFlotaServicioDetalle();
 }

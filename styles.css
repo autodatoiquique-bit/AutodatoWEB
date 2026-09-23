@@ -687,8 +687,38 @@ body.en-area-flotas .sidebar-note {
   display: inline-block;
   margin-top: 8px;
 }
-.btn-salir-flota-modulo {
+.btn-flota-nav {
   font-weight: 700;
+}
+.card-quitar-flota {
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--yellow);
+  white-space: normal;
+  text-align: center;
+  max-width: min(112px, 46vw);
+}
+.flota-busq-acciones {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.flota-busq-quitar {
+  font-size: 0.72rem;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+.flota-det-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
 }
 .flota-bienvenida {
   font-size: 1.05rem;
