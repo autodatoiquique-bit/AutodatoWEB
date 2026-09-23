@@ -1073,6 +1073,7 @@ const TALLER_DEFECTO = {
   whatsapp: "56961346945",
   direccion: "Cerro Hermoso 4042, Iquique",
   maps: "https://maps.app.goo.gl/3YEmuLBW2yQpt1N36?g_st=aw",
+  horarios: "Lunes a viernes 9:00–18:00\nSábados 9:00–13:00",
 };
 
 function leerTaller() {
@@ -1580,6 +1581,7 @@ function guardarTaller(data) {
     whatsapp: String(data.whatsapp || "").replace(/\D/g, "") || TALLER_DEFECTO.whatsapp,
     direccion: String(data.direccion || "").trim() || TALLER_DEFECTO.direccion,
     maps: String(data.maps || prev.maps || "").trim() || TALLER_DEFECTO.maps,
+    horarios: String(data.horarios != null ? data.horarios : prev.horarios || "").trim() || TALLER_DEFECTO.horarios,
   };
   localStorage.setItem(TALLER_KEY, JSON.stringify(actual));
   return actual;

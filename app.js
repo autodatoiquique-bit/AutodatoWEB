@@ -29,6 +29,10 @@ const state = {
   origenLista: "ofertas",
   agregarTrasFiltro: false,
   vistaPendiente: "",
+  flotaActivaId: "",
+  flotaPendienteId: "",
+  flotaCategoriaId: "",
+  areaFlotas: false,
 };
 
 let quitarPendiente = null;
@@ -60,6 +64,28 @@ function calcular(carrito = state.carrito) {
       subtotal += p.lista;
       total += p.pagado;
       ahorro += p.ahorro;
+    } else if (linea.tipo === "flota") {
+      const srv =
+        typeof buscarServicioFlota === "function"
+          ? buscarServicioFlota(linea.flotaId, linea.servicioId)
+          : null;
+      if (!srv) return;
+      const pagado = typeof precioFlotaConIva === "function" ? precioFlotaConIva(srv.precio) : Number(srv.precio);
+      if (pagado == null) return;
+      const neto = Number(srv.precio) || 0;
+      items.push({
+        id: linea.id,
+        nombre: srv.nombre,
+        tipo: "flota",
+        lista: pagado,
+        pagado,
+        neto,
+        ahorro: 0,
+        flotaId: linea.flotaId,
+        servicioId: linea.servicioId,
+      });
+      subtotal += pagado;
+      total += pagado;
     } else {
       const s = servicioAgenda(linea.id);
       if (!s) return;
@@ -278,8 +304,10 @@ function syncCromo() {
   const datosAgenda =
     esMovil() &&
     (state.vista === "carrito-agenda" ||
-      (state.vista === "agendamiento" && state.carrito.length && vehiculoOk()));
+      (state.vista === "agendamiento" && state.carrito.length && (vehiculoOk() || carritoSoloFlota())));
   document.body.classList.toggle("en-agenda-datos", datosAgenda);
+  if (state.areaFlotas && carritoSoloFlota()) state.areaFlotas = true;
+  syncAreaFlotasUi();
 }
 
 function marcarMenu() {
@@ -288,6 +316,7 @@ function marcarMenu() {
     const on =
       !fichaAbierta &&
       (btn.dataset.vista === state.vista ||
+        (state.vista.startsWith("flotas") && btn.dataset.vista === "flotas") ||
         ((state.vista === "oferta-detalle" || state.vista === "filtro-oferta") && btn.dataset.vista === state.origenLista) ||
         (state.vista === "carrito-agenda" && btn.dataset.vista === "agendamiento"));
     btn.classList.toggle("is-on", on);
@@ -366,10 +395,78 @@ function aplicarVehiculoDesdeUrlAlInicio() {
 }
 
 function sanitizarCarritoTrasCatalogo() {
-  state.carrito = state.carrito.filter((x) =>
-    x.tipo === "oferta" ? Boolean(oferta(x.id)) : Boolean(servicioAgenda(x.id))
-  );
+  state.carrito = state.carrito.filter((x) => {
+    if (x.tipo === "oferta") return Boolean(oferta(x.id));
+    if (x.tipo === "flota") {
+      return typeof buscarServicioFlota === "function" && Boolean(buscarServicioFlota(x.flotaId, x.servicioId));
+    }
+    return Boolean(servicioAgenda(x.id));
+  });
   persistir();
+}
+
+function carritoSoloFlota() {
+  return state.carrito.length > 0 && state.carrito.every((x) => x.tipo === "flota");
+}
+
+function carritoTieneFlota() {
+  return state.carrito.some((x) => x.tipo === "flota");
+}
+
+function carritoTieneParticular() {
+  return state.carrito.some((x) => x.tipo === "oferta" || x.tipo === "agenda");
+}
+
+function carritoMixto() {
+  return carritoTieneFlota() && carritoTieneParticular();
+}
+
+function syncAreaFlotasUi() {
+  const on = Boolean(state.areaFlotas);
+  document.body.classList.toggle("en-area-flotas", on);
+  const salir = $("btn-salir-flotas");
+  if (salir) salir.hidden = !on;
+}
+
+function vaciarCarritoSilencioso() {
+  state.carrito = [];
+  state.servicioAgenda = null;
+  persistir();
+  renderTotales(false);
+}
+
+function salirAreaFlotas() {
+  if (state.carrito.length) {
+    const ok = confirm("¿Seguro que quieres salir del área Flotas? Se vaciará el carrito.");
+    if (!ok) return;
+    vaciarCarritoSilencioso();
+  }
+  state.areaFlotas = false;
+  state.flotaActivaId = "";
+  state.flotaCategoriaId = "";
+  state.flotaPendienteId = "";
+  state.vista = "portada";
+  syncAreaFlotasUi();
+  renderVista();
+}
+
+function entrarAreaFlotas() {
+  if (carritoTieneParticular()) {
+    const ok = confirm(
+      "Tienes servicios particulares en el carrito. Para entrar a Flotas se vaciará el carrito. ¿Continuar?"
+    );
+    if (!ok) return false;
+    vaciarCarritoSilencioso();
+  }
+  state.areaFlotas = true;
+  syncAreaFlotasUi();
+  return true;
+}
+
+function origenAgendaDesdeCarrito() {
+  if (state.carrito.some((x) => x.tipo === "oferta")) return "ofertas";
+  if (state.carrito.some((x) => x.tipo === "flota")) return "flotas";
+  return "menu";
 }
 
 async function ensureCatalogoCliente() {
@@ -1227,7 +1324,7 @@ function irAAgendaDesdeKpi() {
   if (state.vista !== "agendamiento" && state.vista !== "carrito-agenda") {
     state.vistaAnterior = state.vista;
   }
-  state.origenAgenda = state.carrito.some((x) => x.tipo === "oferta") ? "ofertas" : "menu";
+  state.origenAgenda = origenAgendaDesdeCarrito();
   state.vista = "carrito-agenda";
   cerrarModalKpi();
   renderVista();
@@ -1236,7 +1333,9 @@ function irAAgendaDesdeKpi() {
 
 function seguirExplorandoOfertas() {
   cerrarModalKpi();
-  if (state.vistaAnterior === "oferta-detalle" && state.ofertaAbierta) {
+  if (state.origenAgenda === "flotas" || (state.vistaAnterior && String(state.vistaAnterior).startsWith("flotas"))) {
+    state.vista = state.flotaCategoriaId ? "flotas-servicios" : "flotas-categorias";
+  } else if (state.vistaAnterior === "oferta-detalle" && state.ofertaAbierta) {
     state.vista = "oferta-detalle";
   } else {
     state.vista = state.origenLista || "ofertas";
@@ -1405,7 +1504,11 @@ function htmlPanelDatosAgenda() {
     <section class="panel claro">
       <h2>Tus datos y la hora</h2>
       ${htmlAvisoTicketCorto()}
-      <p class="lead">${textoVehiculo()}. Sin pago aquí: generas un ticket de entrada y queda agendada tu visita.</p>
+      <p class="lead">${
+        carritoSoloFlota()
+          ? "Servicios de flota con IVA incluido en el total. Sin pago aquí: generas ticket de entrada."
+          : `${textoVehiculo()}. Sin pago aquí: generas un ticket de entrada y queda agendada tu visita.`
+      }</p>
       <ul class="resumen">
         ${items
           .map((s) => {
@@ -1463,9 +1566,10 @@ function escapeAttr(v) {
 function faltantesTicket() {
   const falta = [];
   if (!state.carrito.length) falta.push("al menos un servicio");
-  if (!vehiculoOk()) falta.push("marca, modelo, año y combustible del vehículo");
+  if (!carritoSoloFlota() && !vehiculoOk()) falta.push("marca, modelo, año y combustible del vehículo");
   if (!state.cliente.nombre.trim()) falta.push("nombre");
   if (!state.cliente.telefono.trim()) falta.push("teléfono");
+  if (carritoSoloFlota() && !state.cliente.patente.trim()) falta.push("patente");
   if (!state.cita.fecha) falta.push("día de visita");
   if (!state.cita.hora) falta.push("bloque horario");
   return falta;
@@ -1494,6 +1598,10 @@ function renderVista(opts = {}) {
   else if (state.vista === "oferta-detalle") renderDetalleOferta();
   else if (state.vista === "diagnostico") renderDiagnostico();
   else if (state.vista === "agendamiento" || state.vista === "carrito-agenda") renderAgendamiento();
+  else if (state.vista === "flotas") renderFlotasEmpresas();
+  else if (state.vista === "flotas-pin") renderFlotaPin();
+  else if (state.vista === "flotas-categorias") renderFlotaCategorias();
+  else if (state.vista === "flotas-servicios") renderFlotaServicios();
   else renderInfo(state.vista);
   if (!opts.quedarse) irAContenido();
 }
@@ -1533,7 +1641,7 @@ async function aplicarFiltro(contexto) {
       }
       state.vista = "agendamiento";
       if (state.carrito.length) {
-        state.origenAgenda = state.carrito.some((x) => x.tipo === "oferta") ? "ofertas" : "menu";
+        state.origenAgenda = origenAgendaDesdeCarrito();
         state.pasoAgenda = "datos";
       } else {
         state.origenAgenda = "menu";
@@ -1660,10 +1768,11 @@ function avisarServicioAgotado(id) {
 async function consumirStockParaTicket(items) {
   const cuenta = {};
   (items || []).forEach((s) => {
-    if (!s || !s.id) return;
+    if (!s || !s.id || s.tipo === "flota") return;
     cuenta[s.id] = (cuenta[s.id] || 0) + 1;
   });
   const lineas = Object.entries(cuenta).map(([id, qty]) => ({ id, qty }));
+  if (!lineas.length) return { ok: true };
   const hayLimite = lineas.some(({ id }) => {
     const s = typeof servicioPorId === "function" ? servicioPorId(id) : null;
     return s && typeof stockLimitado === "function" && stockLimitado(s);
@@ -1692,6 +1801,10 @@ async function consumirStockParaTicket(items) {
 }
 
 function agregarOferta(id) {
+  if (state.areaFlotas || carritoTieneFlota()) {
+    alert("No puedes mezclar servicios particulares con un ticket de flota. Sal del área Flotas primero.");
+    return;
+  }
   if (avisarServicioAgotado(id)) return;
   if (!state.carrito.some((x) => x.id === id)) {
     state.carrito.push({ tipo: "oferta", id });
@@ -1797,7 +1910,9 @@ function quitarItem(id) {
   renderTotales(true);
   if (!state.carrito.length && (state.vista === "carrito-agenda" || state.vista === "agendamiento")) {
     if (state.origenAgenda === "ofertas") state.vista = state.origenLista || "ofertas";
-    else {
+    else if (state.origenAgenda === "flotas") {
+      state.vista = state.flotaCategoriaId ? "flotas-servicios" : "flotas-categorias";
+    } else {
       state.pasoAgenda = vehiculoOk() ? "servicio" : "filtro";
       state.vista = "agendamiento";
     }
@@ -1805,6 +1920,7 @@ function quitarItem(id) {
     return;
   }
   refrescarListasCotizacion();
+  if (typeof refrescarVistaFlotaCliente === "function") refrescarVistaFlotaCliente();
   if (state.vista === "carrito-agenda" || state.vista === "agendamiento") renderVista();
 }
 
@@ -1863,24 +1979,36 @@ async function generarTicket() {
   let llegoAgenda = false;
   try {
   const { items, subtotal, total, ahorro } = calcular();
+  if (carritoMixto()) {
+    alert("El ticket mezcla flota y servicios particulares. Vacía el carrito e inténtalo de nuevo.");
+    return;
+  }
   const stockOk = await consumirStockParaTicket(items);
   if (!stockOk.ok) {
     alert(stockOk.error);
     return;
   }
+  const soloFlota = carritoSoloFlota();
+  const flotaId = soloFlota && typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+  const flota = flotaId && typeof flotaPorId === "function" ? flotaPorId(flotaId) : null;
+  const netoFlota = soloFlota ? items.reduce((n, s) => n + (Number(s.neto) || 0), 0) : 0;
   const borrador = {
     origen: "autodato_web",
-    accion: "crear_ingreso",
+    accion: soloFlota ? "crear_ticket" : "crear_ingreso",
     agendado: true,
-    marca: state.vehiculo.marca,
-    modelo: state.vehiculo.modelo,
-    ano: state.vehiculo.ano,
-    combustible: state.vehiculo.combustible,
+    ticket_flota: soloFlota && typeof esTicketWebhookSalfa === "function" && esTicketWebhookSalfa(flotaId) ? "salfa" : "",
+    canal_webhook: soloFlota && typeof flotaCanalWebhook === "function" ? flotaCanalWebhook(flota) : "",
+    flota_id: flotaId || null,
+    marca: state.vehiculo && state.vehiculo.marca,
+    modelo: state.vehiculo && state.vehiculo.modelo,
+    ano: state.vehiculo && state.vehiculo.ano,
+    combustible: state.vehiculo && state.vehiculo.combustible,
     nombre_cliente: state.cliente.nombre.trim(),
     telefono: state.cliente.telefono.trim(),
     patente: state.cliente.patente.trim().toUpperCase() || null,
     correo: state.cliente.correo.trim() || null,
     sintoma: (state.cliente.sintoma || "").trim() || null,
+    oc_pre: "",
     fecha_cita: state.cita.fecha,
     hora: state.cita.hora,
     servicios: items.map((s) => ({
@@ -1888,8 +2016,11 @@ async function generarTicket() {
       nombre: s.nombre,
       precio_lista: s.lista,
       precio: s.pagado,
+      neto: s.neto,
       ahorro: s.ahorro,
+      tipo: s.tipo,
     })),
+    neto: soloFlota ? netoFlota : null,
     subtotal,
     ahorro,
     total,
@@ -1935,6 +2066,7 @@ async function generarTicket() {
 }
 
 function vaciarCarritoTrasTicket() {
+  const eraFlota = state.areaFlotas || carritoSoloFlota();
   state.carrito = [];
   state.servicioAgenda = null;
   state.ofertaAbierta = null;
@@ -1943,9 +2075,14 @@ function vaciarCarritoTrasTicket() {
   state.pasoAgenda = "filtro";
   state.origenAgenda = "menu";
   state.cliente = { nombre: "", telefono: "", patente: "", correo: "", sintoma: "" };
-  state.vista = "ofertas";
+  state.flotaActivaId = "";
+  state.flotaCategoriaId = "";
+  state.flotaPendienteId = "";
+  state.areaFlotas = false;
+  state.vista = eraFlota ? "portada" : "ofertas";
   persistir();
   renderTotales(false);
+  syncAreaFlotasUi();
   renderVista({ quedarse: true });
 }
 
@@ -2183,7 +2320,7 @@ document.addEventListener("click", (e) => {
     if (t.dataset.vista === "agendamiento") {
       state.vista = "agendamiento";
       if (state.carrito.length) {
-        state.origenAgenda = state.carrito.some((x) => x.tipo === "oferta") ? "ofertas" : "menu";
+        state.origenAgenda = origenAgendaDesdeCarrito();
         state.pasoAgenda = "datos";
       } else {
         state.origenAgenda = "menu";
@@ -2194,6 +2331,11 @@ document.addEventListener("click", (e) => {
       state.vista = "carrito-agenda";
       state.origenAgenda = "ofertas";
       renderVista();
+    } else     if (state.areaFlotas && t.dataset.vista !== "flotas") {
+      return;
+    }
+    if (t.dataset.vista === "flotas") {
+      void abrirVistaFlotas();
     } else if (["ofertas", "mantencion", "diagnostico"].includes(t.dataset.vista)) {
       void abrirVistaCatalogo(t.dataset.vista);
     } else {
@@ -2208,7 +2350,10 @@ document.addEventListener("click", (e) => {
   if (t.dataset.kpi === "ticket") irAAgendaDesdeKpi();
   if (t.dataset.kpi === "explorar") seguirExplorandoOfertas();
   if (t.hasAttribute("data-seguir-explorando")) seguirExplorandoOfertas();
-  if (t.dataset.open === "informe") abrirModalInforme();
+  if (t.dataset.open === "informe") {
+    if (state.areaFlotas) return;
+    abrirModalInforme();
+  }
   if (t.hasAttribute("data-cerrar-informe")) cerrarModalInforme();
   if (t.id === "chip-auto" || t.hasAttribute("data-editar-auto")) abrirModalAuto();
   if (t.hasAttribute("data-cerrar-auto")) cerrarModalAuto();
@@ -2232,6 +2377,30 @@ document.addEventListener("click", (e) => {
       .catch(() => alert("No pudimos cargar el catálogo. Reintenta."));
   }
   if (t.dataset.addDiag) agregarDiagnostico(t.dataset.addDiag);
+  if (t.dataset.flotaEmpresa) elegirEmpresaFlota(t.dataset.flotaEmpresa);
+  if (t.dataset.flotaCategoria) {
+    state.flotaCategoriaId = t.dataset.flotaCategoria;
+    state.vista = "flotas-servicios";
+    renderVista();
+  }
+  if (t.dataset.addFlota) {
+    const [fid, sid] = String(t.dataset.addFlota || "").split("|");
+    if (fid && sid) agregarServicioFlotaAlCarrito(fid, sid);
+  }
+  if (t.hasAttribute("data-volver-flotas-empresas")) {
+    state.flotaActivaId = "";
+    state.flotaCategoriaId = "";
+    state.flotaPendienteId = "";
+    state.vista = "flotas";
+    renderVista();
+  }
+  if (t.hasAttribute("data-volver-flotas-categorias")) {
+    state.flotaCategoriaId = "";
+    state.vista = "flotas-categorias";
+    renderVista();
+  }
+  if (t.id === "btn-flota-pin-ingresar") void intentarPinFlota();
+  if (t.id === "btn-salir-flotas") salirAreaFlotas();
   if (t.dataset.quitarOferta) quitarOferta(t.dataset.quitarOferta);
   if (t.dataset.filtrar) void aplicarFiltro(t.dataset.filtrar);
 

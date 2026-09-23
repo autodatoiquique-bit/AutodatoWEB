@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=agot1" />
+  <link rel="stylesheet" href="admin.css?v=flotas-foto1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -39,31 +39,19 @@
         <button class="logo-lapiz" type="button" id="btn-logo-lapiz" title="Cambiar logotipo" aria-label="Cambiar logotipo">✎</button>
       </div>
       <input id="logo-file" type="file" accept="image/*" hidden />
-      <button class="btn-soft btn-block" type="button" id="btn-cambiar-logo">Cambiar logotipo</button>
-      <p class="sidebar-kicker">Solo taller</p>
-      <div class="taller-box">
-        <label class="field">
-          <span>Dirección</span>
-          <input id="taller-dir" type="text" />
-        </label>
-        <label class="field">
-          <span>WhatsApp</span>
-          <input id="taller-wa" type="tel" placeholder="56961346945" />
-        </label>
-        <label class="field">
-          <span>Link de Maps</span>
-          <input id="taller-maps" type="url" />
-        </label>
-        <button class="btn-soft btn-block" type="button" id="btn-taller">Guardar contacto</button>
-      </div>
-      <button class="btn-yellow" type="button" id="btn-tablero">Tablero</button>
-      <button class="btn-yellow" type="button" id="btn-portada">Configurar portada</button>
-      <button class="btn-yellow" type="button" id="btn-fotos-modelos">Fotos de modelos</button>
-      <button class="btn-yellow" type="button" id="btn-nuevo">Nuevo servicio</button>
+      <nav class="sidebar-nav">
+        <button class="btn-yellow" type="button" id="btn-tablero">Tablero</button>
+        <button class="btn-yellow" type="button" id="btn-flotas">Flotas</button>
+        <button class="btn-yellow" type="button" id="btn-portada">Configurar portada</button>
+        <button class="btn-yellow" type="button" id="btn-fotos-modelos">Fotos de modelos</button>
+        <button class="btn-yellow" type="button" id="btn-datos-taller">Datos taller</button>
+        <button class="btn-yellow" type="button" id="btn-servicios">Servicios</button>
+      </nav>
       <input id="foto-modelo-file" type="file" accept="image/*" hidden />
       <input id="col-foto-file" type="file" accept="image/*" hidden />
-      <div id="lista-servicios" class="lista"></div>
-      <button class="btn-soft" type="button" id="btn-salir">Cerrar sesión</button>
+      <input id="flota-col-foto-file" type="file" accept="image/*" hidden />
+      <input id="flota-s-foto-file" type="file" accept="image/*" hidden />
+      <button class="btn-soft btn-block btn-salir" type="button" id="btn-salir">Cerrar sesión</button>
     </aside>
     <main class="stage" id="stage">
       <p class="vacio">Elige un servicio o crea uno nuevo.</p>
@@ -128,6 +116,67 @@
     </div>
   </div>
 
+  <div id="modal-flota-clave" class="modal" hidden>
+    <div class="modal-card">
+      <button class="x" type="button" id="cerrar-flota-clave">×</button>
+      <h3>Clave de acceso (cliente)</h3>
+      <p class="muted">4 dígitos que el conductor usa en la app pública para ver el tarifario. Déjala vacía para acceso libre.</p>
+      <label class="field">
+        <span>Nueva clave</span>
+        <input id="flota-clave-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="Ej. 1234" />
+      </label>
+      <button class="btn-primary btn-block" type="button" id="btn-flota-clave-guardar">Guardar clave</button>
+    </div>
+  </div>
+
+  <div id="modal-flota-nueva" class="modal" hidden>
+    <div class="modal-card">
+      <button class="x" type="button" id="cerrar-flota-nueva">×</button>
+      <h3>Nueva flota</h3>
+      <p class="muted">Empresa o convenio con tarifario propio.</p>
+      <label class="field"><span>Nombre</span><input id="flota-n-nombre" type="text" placeholder="Ej. SALFA" /></label>
+      <button class="btn-primary btn-block" type="button" id="btn-flota-nueva-ok">Crear flota</button>
+    </div>
+  </div>
+
+  <div id="modal-flota-col" class="modal" hidden>
+    <div class="modal-card">
+      <button class="x" type="button" id="cerrar-flota-col">×</button>
+      <h3>Categoría</h3>
+      <p class="muted">Imagen de portada de la columna (opcional).</p>
+      <div class="col-carnet flota-foto-preview" id="flota-col-carnet">
+        <img id="flota-col-carnet-img" alt="" hidden />
+        <span id="flota-col-carnet-vacio">Sin imagen</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn-line" type="button" id="btn-flota-col-foto">Subir imagen</button>
+        <button class="btn-soft" type="button" id="btn-flota-col-quitar-foto">Quitar</button>
+      </div>
+      <label class="field"><span>Nombre de la columna</span><input id="flota-col-titulo" type="text" /></label>
+      <button class="btn-primary btn-block" type="button" id="btn-flota-col-guardar">Guardar</button>
+    </div>
+  </div>
+
+  <div id="modal-flota-servicio" class="modal" hidden>
+    <div class="modal-card modal-tarjeta">
+      <button class="x" type="button" id="cerrar-flota-servicio">×</button>
+      <h3>Servicio de flota</h3>
+      <p class="muted">Precio neto. En el tablero se muestra con «+ IVA».</p>
+      <div class="col-carnet flota-foto-preview" id="flota-s-carnet">
+        <img id="flota-s-carnet-img" alt="" hidden />
+        <span id="flota-s-carnet-vacio">Sin imagen</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn-line" type="button" id="btn-flota-s-foto">Subir imagen</button>
+        <button class="btn-soft" type="button" id="btn-flota-s-quitar-foto">Quitar</button>
+      </div>
+      <label class="field"><span>Nombre</span><input id="flota-s-nombre" type="text" /></label>
+      <label class="field"><span>Descripción</span><textarea id="flota-s-desc" rows="4"></textarea></label>
+      <label class="field"><span>Precio neto (CLP)</span><input id="flota-s-precio" type="number" min="0" step="1000" /></label>
+      <button class="btn-primary btn-block" type="button" id="btn-flota-s-guardar">Guardar</button>
+    </div>
+  </div>
+
   <div id="modal-combo" class="modal" hidden>
     <div class="modal-card">
       <button class="x" type="button" id="cerrar-combo">×</button>
@@ -151,6 +200,8 @@
   <script src="config.js"></script>
   <script src="nube.js?v=png4"></script>
   <script src="catalogo.js?v=rapido2"></script>
-  <script src="admin.js?v=rapido2"></script>
+  <script src="flotas.js?v=flotas-foto1"></script>
+  <script src="admin.js?v=menu-admin2"></script>
+  <script src="admin-flotas.js?v=flotas-foto1"></script>
 </body>
 </html>

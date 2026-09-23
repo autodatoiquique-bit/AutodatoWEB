@@ -70,6 +70,59 @@ function pintarTaller() {
   if ($("taller-dir")) $("taller-dir").value = t.direccion;
   if ($("taller-wa")) $("taller-wa").value = t.whatsapp;
   if ($("taller-maps")) $("taller-maps").value = t.maps || "";
+  if ($("taller-horarios")) $("taller-horarios").value = t.horarios || "";
+}
+
+function renderDatosTaller() {
+  editando = null;
+  $("stage").classList.remove("stage-board");
+  $("stage").innerHTML = `
+    <div class="admin-panel admin-panel-form">
+      <h2>Datos del taller</h2>
+      <p class="muted">Dirección, contacto y horarios de atención.</p>
+      <label class="field">
+        <span>Dirección</span>
+        <input id="taller-dir" type="text" autocomplete="street-address" />
+      </label>
+      <label class="field">
+        <span>WhatsApp</span>
+        <input id="taller-wa" type="tel" placeholder="56961346945" autocomplete="tel" />
+      </label>
+      <label class="field">
+        <span>Link de Maps</span>
+        <input id="taller-maps" type="url" autocomplete="url" />
+      </label>
+      <label class="field">
+        <span>Horarios</span>
+        <textarea id="taller-horarios" rows="4" placeholder="Ej. Lun–Vie 9:00–18:00"></textarea>
+      </label>
+      <button class="btn-primary" type="button" id="btn-taller">Guardar datos</button>
+    </div>
+  `;
+  pintarTaller();
+}
+
+function renderListadoServicios() {
+  editando = null;
+  $("stage").classList.remove("stage-board");
+  $("stage").innerHTML = `
+    <div class="admin-panel admin-panel-servicios">
+      <div class="admin-panel-top">
+        <div>
+          <h2>Servicios</h2>
+          <p class="muted">Misma vista que ve el cliente en el catálogo.</p>
+        </div>
+        <button class="btn-primary" type="button" id="btn-nuevo">+ Nuevo servicio</button>
+      </div>
+      <div id="lista-servicios-panel" class="lista-servicios-panel">
+        ${
+          catalogo.length
+            ? `<div class="admin-servicios-catalog"><div class="admin-servicios-grid">${htmlTarjetasServiciosGrid()}</div></div>`
+            : `<p class="muted">Aún no hay servicios. Pulsa «+ Nuevo servicio».</p>`
+        }
+      </div>
+    </div>
+  `;
 }
 
 async function mostrarPanel() {
@@ -77,9 +130,8 @@ async function mostrarPanel() {
   $("panel").hidden = false;
   await cargarCatalogo({ completo: true });
   await cargarPortada();
+  if (typeof arrancarFlotasAdmin === "function") await arrancarFlotasAdmin();
   aplicarLogos();
-  pintarTaller();
-  renderLista();
   if (editando) renderEditor();
   else renderTablero();
 }
@@ -1205,23 +1257,11 @@ async function abrirPortadaDesdeTablero(id) {
 }
 
 function renderLista() {
-  $("lista-servicios").innerHTML = catalogo
-    .map((s) => {
-      const on = editando && editando.id === s.id ? "is-on" : "";
-      const foto = s.foto
-        ? `<img src="${s.foto}" alt="" />`
-        : `<span class="ph"></span>`;
-      return `
-        <button class="item ${on}" type="button" data-abrir="${s.id}">
-          ${foto}
-          <div>
-            <strong>${s.nombre || "Sin nombre"}</strong>
-            <span>${etiquetaCanales(s)} · ${clp(s.precio)} · ${etiquetaVehiculos(s)}${s.ultima_unidad && !s.agotado ? " · Última unidad" : ""}${s.agotado ? " · Agotado" : ""}</span>
-          </div>
-        </button>
-      `;
-    })
-    .join("");
+  const panel = $("lista-servicios-panel");
+  if (!panel) return;
+  panel.innerHTML = catalogo.length
+    ? `<div class="admin-servicios-catalog"><div class="admin-servicios-grid">${htmlTarjetasServiciosGrid()}</div></div>`
+    : `<p class="muted">Aún no hay servicios. Pulsa «+ Nuevo servicio».</p>`;
 }
 
 function leerEditor() {
@@ -1763,6 +1803,56 @@ function escapeAttr(v) {
 
 function escapeText(v) {
   return String(v || "").replace(/</g, "&lt;");
+}
+
+function fotoPortadaServicioAdmin(s) {
+  if (s && s.foto) return s.foto;
+  const m = Array.isArray(s && s.media) ? s.media.find((x) => x && x.tipo === "foto" && x.src) : null;
+  return (m && m.src) || "";
+}
+
+function htmlTarjetaServicioAdmin(s) {
+  const on = editando && editando.id === s.id;
+  const agotado = Boolean(s.agotado);
+  const normal = typeof valorNormalDe === "function" ? valorNormalDe(s) : s.precio;
+  const oferta = s.tiene_oferta && Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null;
+  const hayDesc = oferta != null && Number(normal) > 0 && oferta < normal;
+  const ahorro = hayDesc ? normal - oferta : 0;
+  const avisoStock = !agotado && s.ultima_unidad ? "Última unidad" : "";
+  const foto = fotoPortadaServicioAdmin(s);
+  const resumen = (s.resumen || "").trim();
+  const veh = normalizarVehiculos(s.vehiculos).length ? etiquetaVehiculos(s) : "";
+  return `
+    <article class="card admin-serv-card ${on ? "is-on" : ""} ${agotado ? "card-agotado" : ""}">
+      <button class="card-abrir" type="button" data-abrir="${escapeAttr(s.id)}">
+        <div class="card-photo">
+          ${foto ? `<img class="card-photo-img" src="${escapeAttr(foto)}" alt="" loading="lazy" decoding="async" />` : ""}
+          <div class="card-tags">
+            <span class="tag tag-canal">${escapeText(etiquetaCanales(s))}</span>
+            ${agotado ? `<span class="tag tag-agotado">Agotado</span>` : ""}
+            ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
+            ${hayDesc ? `<span class="tag tag-dto">− ${clp(ahorro)}</span>` : ""}
+          </div>
+        </div>
+        <div class="card-body">
+          <h3>${escapeText(s.nombre || "Sin nombre")}</h3>
+          ${resumen ? `<p>${escapeText(resumen)}</p>` : ""}
+          ${veh ? `<p class="card-veh">${escapeText(veh)}</p>` : ""}
+          ${
+            hayDesc
+              ? `<div class="precio-lista tachado">${clp(normal)}</div>
+                 <div class="precio-card-oferta">${clp(oferta)}</div>
+                 <div class="ahorro-tag">Ahorras ${clp(ahorro)}</div>`
+              : `<div class="precio">${clp(normal)}</div>`
+          }
+        </div>
+      </button>
+    </article>
+  `;
+}
+
+function htmlTarjetasServiciosGrid() {
+  return catalogo.map((s) => htmlTarjetaServicioAdmin(s)).join("");
 }
 
 function abrirServicio(id) {
@@ -2454,7 +2544,6 @@ function abrirSelectorLogo() {
 }
 
 $("btn-logo-lapiz")?.addEventListener("click", abrirSelectorLogo);
-$("btn-cambiar-logo")?.addEventListener("click", abrirSelectorLogo);
 $("logo-file")?.addEventListener("change", async (e) => {
   if (e.target.files[0]) {
     await cambiarLogotipo(e.target.files[0]);
@@ -2465,7 +2554,8 @@ $("logo-file")?.addEventListener("change", async (e) => {
 $("btn-tablero").addEventListener("click", renderTablero);
 $("btn-portada").addEventListener("click", abrirEditorPortada);
 $("btn-fotos-modelos").addEventListener("click", renderEditorFotosModelos);
-$("btn-nuevo").addEventListener("click", nuevoServicio);
+$("btn-datos-taller").addEventListener("click", renderDatosTaller);
+$("btn-servicios").addEventListener("click", renderListadoServicios);
 $("foto-modelo-file")?.addEventListener("change", async (e) => {
   const file = e.target.files && e.target.files[0];
   const clave = fotoModeloPendiente;
@@ -2505,15 +2595,6 @@ $("col-foto-file")?.addEventListener("change", async (e) => {
     alert((err && err.message) || "No se pudo subir la foto de portada.");
   }
 });
-$("btn-taller").addEventListener("click", () => {
-  guardarTaller({
-    direccion: $("taller-dir").value,
-    whatsapp: $("taller-wa").value,
-    maps: $("taller-maps").value,
-  });
-  pintarTaller();
-  alert("Contacto guardado. Ya se ve en la portada.");
-});
 $("btn-salir").addEventListener("click", async () => {
   sessionStorage.removeItem(SESION_KEY);
   if (typeof nubeActiva === "function" && nubeActiva()) {
@@ -2527,12 +2608,27 @@ $("btn-salir").addEventListener("click", async () => {
   mostrarAcceso();
 });
 
-$("lista-servicios").addEventListener("click", (e) => {
-  const t = e.target.closest("[data-abrir]");
-  if (t) abrirServicio(t.dataset.abrir);
-});
-
 $("stage").addEventListener("click", (e) => {
+  if (e.target.id === "btn-taller") {
+    guardarTaller({
+      direccion: $("taller-dir").value,
+      whatsapp: $("taller-wa").value,
+      maps: $("taller-maps").value,
+      horarios: $("taller-horarios").value,
+    });
+    pintarTaller();
+    alert("Datos del taller guardados.");
+    return;
+  }
+  if (e.target.id === "btn-nuevo") {
+    nuevoServicio();
+    return;
+  }
+  const abrirSrv = e.target.closest("#lista-servicios-panel [data-abrir]");
+  if (abrirSrv) {
+    abrirServicio(abrirSrv.dataset.abrir);
+    return;
+  }
   if (kanbanSuppressClick) {
     kanbanSuppressClick = false;
     return;

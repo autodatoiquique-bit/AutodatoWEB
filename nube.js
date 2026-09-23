@@ -85,6 +85,7 @@ async function nubeGuardarCatalogoCanales(lista) {
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
   mapa._fotos_modelos = typeof FOTOS_MODELOS !== "undefined" ? FOTOS_MODELOS : {};
   mapa._tablero_columnas = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  mapa._flotas = typeof FLOTAS !== "undefined" ? FLOTAS : [];
   const { error } = await sb.storage.from("servicios").upload(
     "catalogo-canales.json",
     new Blob([JSON.stringify(mapa)], { type: "application/json" }),
@@ -119,6 +120,10 @@ function aplicarMetaCatalogoExtra(extra) {
   if (Array.isArray(extra._tablero_columnas)) {
     TABLERO_COLUMNAS = extra._tablero_columnas.map(normalizarColumnaTablero).filter(Boolean);
     if (typeof persistirTablero === "function") persistirTablero();
+  }
+  if (Array.isArray(extra._flotas)) {
+    FLOTAS = extra._flotas.map(normalizarFlota).filter(Boolean);
+    if (typeof persistirFlotas === "function") persistirFlotas();
   }
 }
 

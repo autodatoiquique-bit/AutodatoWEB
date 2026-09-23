@@ -62,6 +62,56 @@ async function postAutonexus(body) {
   return { ok: r.ok, status: r.status, parsed, texto };
 }
 
+const TOKEN_SALFA_DEFAULT = "PORTAL_WH_PILOTO_7K3M";
+
+function tokenSalfaAutonexus() {
+  return String(process.env.AUTONEXUS_SALFA_WEBHOOK_TOKEN || TOKEN_SALFA_DEFAULT).trim();
+}
+
+function fechaEntregaDmyHora(fechaIso, hora) {
+  const f = fechaDmy(fechaIso);
+  const h = String(hora || "").trim();
+  if (!f) return h;
+  return h ? `${f} ${h}` : f;
+}
+
+function cuerpoAutonexusSalfa(payload, token) {
+  const items = Array.isArray(payload.servicios) ? payload.servicios : [];
+  const neto = Number(payload.neto);
+  const total = Number(payload.total);
+  const patente = String(payload.patente || "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase();
+  const nombre = String(payload.nombre_cliente || "").trim();
+  const telefono = telefonoLimpio(payload.telefono);
+  const servicios = items
+    .map((s, i) => {
+      const precioNeto = s.neto != null ? Number(s.neto) : Number(s.precio);
+      const txt = Number.isFinite(precioNeto) ? String(Math.round(precioNeto)) : "A confirmar";
+      return `${i + 1}. ${s.nombre} $${txt}`;
+    })
+    .join("\n");
+  const vehiculoDetalle = [payload.marca, payload.modelo, payload.ano].filter(Boolean).join(" ").trim();
+  const vehiculo = vehiculoDetalle || (patente ? `SALFA ${patente}` : "SALFA");
+  const canal = String(payload.canal_webhook || "SALFA").trim() || "SALFA";
+  return {
+    accion: "crear_ticket",
+    token,
+    asistente: "salfa",
+    canal,
+    nombre_cliente: nombre.toUpperCase().startsWith("SALFA") ? nombre : `SALFA ${nombre}`,
+    servicios_solicitados: servicios,
+    neto: Number.isFinite(neto) ? String(Math.round(neto)) : "",
+    oc_pre: String(payload.oc_pre || "").trim(),
+    fecha_entrega: fechaEntregaDmyHora(payload.fecha_cita, payload.hora),
+    vehiculo,
+    antecedentes: String(payload.sintoma || payload.antecedentes || "").trim(),
+    patente,
+    telefono_canal: telefono,
+    total_pactado: Number.isFinite(total) ? String(Math.round(total)) : "",
+  };
+}
+
 function cuerpoAutonexus(payload, token, idTaller) {
   const items = Array.isArray(payload.servicios) ? payload.servicios : [];
   const total = Number(payload.total);
@@ -418,13 +468,26 @@ app.get("/api/agenda-disponibilidad", async (req, res) => {
 });
 
 app.post("/api/autonexus-ticket", async (req, res) => {
-  const token = tokenAutonexus();
-  const id_taller = idTallerAutonexus();
-  if (!token || !id_taller) {
-    return res.status(501).json({ ok: false, error: "Webhook no configurado" });
-  }
+  const payload = req.body || {};
+  const esSalfa =
+    payload.ticket_flota === "salfa" ||
+    String(payload.canal_webhook || "").toUpperCase() === "SALFA";
   try {
-    const body = cuerpoAutonexus(req.body || {}, token, id_taller);
+    let body;
+    if (esSalfa) {
+      const tokenS = tokenSalfaAutonexus();
+      if (!tokenS) {
+        return res.status(501).json({ ok: false, error: "Webhook SALFA no configurado" });
+      }
+      body = cuerpoAutonexusSalfa(payload, tokenS);
+    } else {
+      const token = tokenAutonexus();
+      const id_taller = idTallerAutonexus();
+      if (!token || !id_taller) {
+        return res.status(501).json({ ok: false, error: "Webhook no configurado" });
+      }
+      body = cuerpoAutonexus(payload, token, id_taller);
+    }
     const { ok, status, parsed } = await postAutonexus(body);
     if (!ok || !parsed || parsed.exito === false) {
       const codigo = (parsed && (parsed.codigo || parsed.error)) || "";

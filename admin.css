@@ -45,7 +45,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .split {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 248px 1fr;
   height: 100vh;
   overflow: hidden;
 }
@@ -53,12 +53,26 @@ button { font-family: inherit; cursor: pointer; }
 .sidebar {
   background: var(--sidebar);
   color: #f3f3f3;
-  padding: 16px 14px 24px;
+  padding: 14px 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-height: 0;
   overflow: hidden;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.btn-salir {
+  flex: 0 0 auto;
+  margin-top: auto;
 }
 
 .logo-btn {
@@ -87,16 +101,155 @@ button { font-family: inherit; cursor: pointer; }
 .logo-lapiz:hover { background: #333; }
 .sidebar-kicker { margin: 0; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #cfcfcf; }
 
-.taller-box {
-  background: #3a3a3a;
-  border-radius: 14px;
-  padding: 10px 10px 12px;
+.admin-panel {
+  max-width: 720px;
+  padding: 4px 0 24px;
 }
-.taller-box .field { margin-top: 8px; }
-.taller-box .field span { color: #f3f3f3; }
-.taller-box input {
+.admin-panel h2 { margin: 0 0 6px; font-size: 1.2rem; }
+.admin-panel-form .field { margin-top: 14px; }
+.admin-panel-form textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.92rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.admin-panel-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.admin-panel-servicios {
+  max-width: none;
+  padding-right: 8px;
+}
+.lista-servicios-panel {
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  padding: 4px 8px 24px 0;
+}
+.admin-servicios-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+.admin-servicios-catalog .card {
+  position: relative;
+  border: 0;
+  padding: 0;
   background: #fff;
-  color: #111;
+  text-align: left;
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.admin-servicios-catalog .card:hover {
+  transform: translateY(-2px);
+}
+.admin-servicios-catalog .card.is-on {
+  box-shadow: 0 0 0 2px var(--yellow), 0 8px 24px rgba(255, 208, 0, 0.22);
+}
+.admin-servicios-catalog .card-abrir {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.admin-servicios-catalog .card-photo {
+  position: relative;
+  height: 240px;
+  background: #222 center/cover no-repeat;
+  overflow: hidden;
+}
+.admin-servicios-catalog .card-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+.admin-servicios-catalog .card-tags {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+}
+.admin-servicios-catalog .tag {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.admin-servicios-catalog .tag-canal {
+  background: #111;
+  color: var(--yellow);
+}
+.admin-servicios-catalog .tag-dto { background: var(--green); color: #042; }
+.admin-servicios-catalog .tag-agotado { background: #dfe1e6; color: #42526e; }
+.admin-servicios-catalog .tag-stock { background: #fff0b3; color: #172b4d; }
+.admin-servicios-catalog .card-agotado { opacity: 0.92; }
+.admin-servicios-catalog .card-agotado .card-photo { filter: grayscale(0.35); }
+.admin-servicios-catalog .card-body { padding: 14px 16px 18px; }
+.admin-servicios-catalog .card-body h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: 800;
+}
+.admin-servicios-catalog .card-body p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.admin-servicios-catalog .card-veh {
+  margin: -2px 0 10px !important;
+  font-size: 0.75rem !important;
+  font-weight: 700;
+  color: #333 !important;
+  -webkit-line-clamp: 3;
+}
+.admin-servicios-catalog .precio { font-weight: 800; font-size: 1.05rem; }
+.admin-servicios-catalog .precio-lista.tachado {
+  text-decoration: line-through;
+  color: #9a9a9a;
+  font-size: 0.95rem;
+}
+.admin-servicios-catalog .precio-card-oferta {
+  color: var(--green);
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+.admin-servicios-catalog .ahorro-tag {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(18, 184, 90, 0.12);
+  color: #067a3a;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .lista { display: flex; flex-direction: column; gap: 8px; overflow: auto; flex: 1; }
@@ -134,6 +287,154 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .vacio { color: var(--muted); }
+
+.flotas-panel {
+  padding: 20px 24px 32px;
+  max-width: 960px;
+}
+.flotas-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.flotas-top h2 { margin: 0 0 6px; font-size: 1.2rem; }
+.flotas-top p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+.flotas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.flota-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.flota-card:hover {
+  border-color: #ffd000;
+  box-shadow: 0 8px 24px rgba(9, 30, 66, 0.08);
+}
+.flota-card strong { font-size: 1rem; }
+.flota-card span { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+
+.kanban-top-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.btn-back-flota {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.kanban-flota .kanban-apex-flota {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0 -8px 8px;
+  padding: 36px 12px 14px;
+  background: #fff;
+}
+.kanban-flota .kanban-apex-flota.has-foto {
+  flex: 0 0 188px;
+  min-height: 188px;
+  max-height: 188px;
+  padding: 0;
+  overflow: hidden;
+}
+.kanban-flota .kanban-apex-flota.has-foto .kanban-apex-foto {
+  height: 188px;
+  min-height: 188px;
+  background: #c5c8ce;
+}
+.kanban-flota .kanban-apex-flota.has-foto .kanban-apex-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.kanban-flota .kanban-apex-meta-flota {
+  position: static;
+  background: none;
+  color: #172b4d;
+  padding: 0 36px 0 0;
+  pointer-events: none;
+}
+.kanban-flota .kanban-apex-flota.has-foto .kanban-apex-meta-flota {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 28px 12px 10px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+  color: #fff;
+}
+.kanban-flota .kanban-apex-meta-flota strong {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-shadow: none;
+  color: #172b4d;
+}
+.kanban-flota .kanban-apex-flota.has-foto .kanban-apex-meta-flota strong {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.flota-foto-preview.col-carnet {
+  margin: 12px 0;
+  min-height: 120px;
+}
+.kanban-card-flota {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(9, 30, 66, 0.13);
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+}
+.kanban-cover-flota {
+  height: 120px;
+  min-height: 120px;
+  background: #c5c8ce;
+}
+.kanban-cover-flota img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+.kanban-card-flota .kanban-body {
+  padding: 8px 10px 12px;
+}
+.kanban-card-flota .kanban-body strong {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  color: #172b4d;
+}
+.kanban-desc {
+  margin: 5px 0 8px;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: #5e6c84;
+}
+.kanban-precio {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0052cc;
+}
 
 .stage-board {
   padding: 0;
