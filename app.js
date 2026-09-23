@@ -2774,6 +2774,32 @@ function vaciarCarritoTrasTicket() {
   renderVista({ quedarse: true });
 }
 
+function textoCompartirTicket(code, patente) {
+  const c6 = String(code || "")
+    .replace(/\D/g, "")
+    .slice(-6);
+  const pat = String(patente || "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase();
+  if (c6 && pat) return `Ticket AutoDato · ${c6} · ${pat}`;
+  if (c6) return `Ticket AutoDato · ${c6}`;
+  if (pat) return `Ticket AutoDato · ${pat}`;
+  return "Ticket AutoDato";
+}
+
+function textoCompartirTicketDesdeHoja() {
+  const hoja = $("ticket-sheet");
+  if (!hoja) return "Ticket AutoDato";
+  const preset = hoja.getAttribute("data-share-text");
+  if (preset) return preset;
+  const code =
+    hoja.getAttribute("data-ticket-code") ||
+    (hoja.querySelector(".ticket-code-num") && hoja.querySelector(".ticket-code-num").textContent) ||
+    "";
+  const pat = hoja.getAttribute("data-ticket-patente") || "";
+  return textoCompartirTicket(code, pat);
+}
+
 async function abrirTicket(payload) {
   const items = payload.servicios || [];
   const ticketFlota = Boolean(payload.flota_id || payload.neto != null);
@@ -2781,8 +2807,9 @@ async function abrirTicket(payload) {
     ? Number(payload.neto) ||
       items.reduce((n, s) => n + (Number(s.neto) || 0), 0)
     : 0;
+  const shareText = textoCompartirTicket(payload.code, payload.patente);
   $("ticket-contenido").innerHTML = `
-    <div id="ticket-sheet" class="ticket-sheet">
+    <div id="ticket-sheet" class="ticket-sheet" data-ticket-code="${escapeAttr(String(payload.code || "").trim())}" data-ticket-patente="${escapeAttr(String(payload.patente || "").trim())}" data-share-text="${escapeAttr(shareText)}">
       <div class="ticket-head">
         <img data-logo src="${logoHref()}" alt="AutoDato" />
       </div>
@@ -2922,12 +2949,13 @@ function bajarBlob(blob, nombre) {
   });
 }
 
-async function compartirArchivo(file) {
+async function compartirArchivo(file, text) {
   if (!(navigator.canShare && navigator.canShare({ files: [file] }))) return false;
+  const msg = String(text || textoCompartirTicketDesdeHoja() || "Ticket AutoDato").trim();
   await navigator.share({
     files: [file],
     title: "Ticket AutoDato",
-    text: "Ticket de visita AutoDato",
+    text: msg,
   });
   return true;
 }
@@ -2941,7 +2969,7 @@ async function descargarTicket() {
   try {
     const { blob, file, nombre } = await fotoDelTicket();
     if (esIos()) {
-      if (await compartirArchivo(file)) return;
+      if (await compartirArchivo(file, textoCompartirTicketDesdeHoja())) return;
     }
     await bajarBlob(blob, nombre);
   } catch (e) {
@@ -2959,7 +2987,8 @@ async function descargarTicket() {
 async function compartirTicket() {
   try {
     const { blob, file, nombre } = await fotoDelTicket();
-    if (await compartirArchivo(file)) return;
+    const shareText = textoCompartirTicketDesdeHoja();
+    if (await compartirArchivo(file, shareText)) return;
     await bajarBlob(blob, nombre);
   } catch (e) {
     if (e && e.name === "AbortError") return;
