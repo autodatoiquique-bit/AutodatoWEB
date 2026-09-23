@@ -1363,7 +1363,15 @@ function cerrarModalKpi() {
   if (overlayLibre()) $("overlay").hidden = true;
 }
 
-const IDS_CAMPOS_AGENDA = ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo", "flota-pin-input"];
+const IDS_CAMPOS_AGENDA = [
+  "c-nombre",
+  "c-telefono",
+  "c-patente",
+  "c-sintoma",
+  "c-correo",
+  "flota-pin-input",
+  "flota-busqueda-input",
+];
 
 function tecladoFichaActivo() {
   const a = document.activeElement;

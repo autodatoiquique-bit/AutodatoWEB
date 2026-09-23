@@ -696,12 +696,53 @@ body.en-area-flotas .sidebar-note {
   color: #0052cc;
   margin: 0 0 12px;
 }
+.flota-cat-head {
+  position: sticky;
+  top: 0;
+  z-index: 75;
+  background: var(--stage);
+  padding: 8px 14px 10px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+body.en-area-flotas .flota-cat-panel.panel {
+  padding-top: 10px;
+  min-height: 0;
+}
+.flota-cat-head .flota-modulo-top {
+  margin-bottom: 8px;
+}
+.flota-cat-panel {
+  padding-top: 12px;
+}
 .flota-busqueda-field {
-  margin-bottom: 14px;
+  margin: 0;
+}
+.flota-busq-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 .flota-busqueda-field input {
   width: 100%;
   font-size: 1rem;
+  padding: 12px 14px;
+}
+body.en-flotas-busqueda .flota-cat-meta {
+  display: none;
+}
+body.en-flotas-busqueda .flota-cat-panel {
+  padding-top: 4px;
+}
+body.en-flotas-busqueda.teclado-abierto .kpi-stack {
+  display: none !important;
+}
+body.en-flotas-busqueda.teclado-abierto .stage {
+  padding-bottom: calc(var(--teclado, 0px) + 12px);
+}
+body.en-flotas-busqueda.teclado-abierto .flota-busqueda-resultados {
+  padding-bottom: 8px;
 }
 .flota-busqueda-resultados {
   display: flex;
@@ -1547,6 +1588,15 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
   }
   .perfil-nom { font-size: 0.72rem; }
   body.hay-perfil .panel { padding-top: 72px; }
+  body.en-area-flotas.hay-perfil .flota-cat-head {
+    padding-top: 52px;
+  }
+  body.en-area-flotas .flota-cat-panel.panel {
+    padding-top: 6px;
+  }
+  body.en-flotas-busqueda.teclado-abierto .flota-cat-panel.panel {
+    padding-bottom: calc(20px + var(--teclado, 0px));
+  }
 
   .kpi-stack {
     top: 10px;

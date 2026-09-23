@@ -47,6 +47,27 @@ function htmlFilaBusquedaFlota(hit, flotaId) {
   `;
 }
 
+function syncChromeBusquedaFlota() {
+  const inp = $("flota-busqueda-input");
+  const activo =
+    state.vista === "flotas-categorias" &&
+    Boolean(inp && (inp.value.trim() || document.activeElement === inp));
+  document.body.classList.toggle("en-flotas-busqueda", activo);
+  if (typeof syncTecladoViewport === "function") syncTecladoViewport();
+}
+
+function scrollBusquedaFlotaVisible() {
+  const head = document.querySelector(".flota-cat-head");
+  const stage = $("stage");
+  if (head) {
+    head.scrollIntoView({ block: "start", behavior: "auto" });
+  }
+  if (stage) stage.scrollTop = 0;
+  if (typeof esMovil === "function" && esMovil()) {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+}
+
 function pintarResultadosBusquedaFlota() {
   const inp = $("flota-busqueda-input");
   const grid = $("flota-categorias-grid");
@@ -55,6 +76,7 @@ function pintarResultadosBusquedaFlota() {
   if (!inp || !box || !grid) return;
   const q = inp.value.trim();
   const f = flotaPorId(state.flotaActivaId);
+  syncChromeBusquedaFlota();
   if (!q || !f) {
     box.hidden = true;
     box.innerHTML = "";
@@ -75,7 +97,21 @@ function armarBusquedaFlotaCategorias() {
   const inp = $("flota-busqueda-input");
   if (!inp || inp.dataset.busqFlota) return;
   inp.dataset.busqFlota = "1";
-  inp.addEventListener("input", () => pintarResultadosBusquedaFlota());
+  inp.addEventListener("input", () => {
+    pintarResultadosBusquedaFlota();
+    scrollBusquedaFlotaVisible();
+  });
+  inp.addEventListener("focus", () => {
+    syncChromeBusquedaFlota();
+    scrollBusquedaFlotaVisible();
+    setTimeout(scrollBusquedaFlotaVisible, 80);
+    setTimeout(() => {
+      if (typeof syncTecladoViewport === "function") syncTecladoViewport();
+    }, 320);
+  });
+  inp.addEventListener("blur", () => {
+    setTimeout(syncChromeBusquedaFlota, 120);
+  });
   if (inp.value.trim()) pintarResultadosBusquedaFlota();
 }
 
@@ -187,15 +223,19 @@ function renderFlotaCategorias() {
       ? `<p class="flota-bienvenida">Bienvenido ${escFlota(state.flotaBienvenida)}</p>`
       : "";
   $("stage").innerHTML = `
-    ${htmlBarraSalirFlotas()}
-    <section class="panel claro">
-      <h2>${escFlota(f.nombre)}</h2>
-      ${bienvenida}
-      ${typeof htmlAvisoTicketCorto === "function" ? htmlAvisoTicketCorto() : ""}
+    <div class="flota-cat-head">
+      ${htmlBarraSalirFlotas()}
       <label class="field flota-busqueda-field">
-        <span>Buscar servicio</span>
-        <input id="flota-busqueda-input" type="search" enterkeyhint="search" autocomplete="off" placeholder="Ej. lavado, pértiga, baliza…" />
+        <span class="flota-busq-label">Buscar servicio</span>
+        <input id="flota-busqueda-input" type="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar servicio…" />
       </label>
+    </div>
+    <section class="panel claro flota-cat-panel">
+      <div class="flota-cat-meta">
+        <h2>${escFlota(f.nombre)}</h2>
+        ${bienvenida}
+        ${typeof htmlAvisoTicketCorto === "function" ? htmlAvisoTicketCorto() : ""}
+      </div>
       <div id="flota-busqueda-resultados" class="flota-busqueda-resultados" hidden></div>
       <p id="flota-categorias-hint" class="lead">Elige una categoría de servicios.</p>
       <div id="flota-categorias-grid" class="grid flota-cat-grid">
