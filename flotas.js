@@ -366,15 +366,39 @@ async function cargarFlotasPublico() {
 const FLOTA_SESION_PREFIX = "autodato_flota_ok_";
 
 function sesionFlotaOk(flotaId) {
-  return sessionStorage.getItem(`${FLOTA_SESION_PREFIX}${flotaId}`) === "1";
+  const id = String(flotaId || "").trim();
+  if (!id) return false;
+  const key = `${FLOTA_SESION_PREFIX}${id}`;
+  if (sessionStorage.getItem(key) === "1") return true;
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch (_e) {
+    return false;
+  }
 }
 
 function marcarSesionFlota(flotaId) {
-  sessionStorage.setItem(`${FLOTA_SESION_PREFIX}${flotaId}`, "1");
+  const id = String(flotaId || "").trim();
+  if (!id) return;
+  const key = `${FLOTA_SESION_PREFIX}${id}`;
+  sessionStorage.setItem(key, "1");
+  try {
+    localStorage.setItem(key, "1");
+  } catch (_e) {
+    /* ignore */
+  }
 }
 
 function cerrarSesionFlota(flotaId) {
-  sessionStorage.removeItem(`${FLOTA_SESION_PREFIX}${flotaId}`);
+  const id = String(flotaId || "").trim();
+  if (!id) return;
+  const key = `${FLOTA_SESION_PREFIX}${id}`;
+  sessionStorage.removeItem(key);
+  try {
+    localStorage.removeItem(key);
+  } catch (_e) {
+    /* ignore */
+  }
 }
 
 function flotaPorId(id) {

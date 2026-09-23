@@ -737,11 +737,6 @@ function initFlotasAdmin() {
       $("modal-flota-config").hidden = false;
       return;
     }
-    if (e.target.classList.contains("btn-quitar-sol")) {
-      const tr = e.target.closest("tr");
-      if (tr && tr.parentElement) tr.remove();
-      return;
-    }
     if (e.target.id === "btn-flota-clave-cliente") {
       $("flota-clave-pin").value = "";
       pintarLinkAccesoFlotaEnModal();
@@ -787,6 +782,15 @@ function initFlotasAdmin() {
   $("cerrar-flota-config").addEventListener("click", () => {
     $("modal-flota-config").hidden = true;
   });
+  const modalFlotaConfig = $("modal-flota-config");
+  if (modalFlotaConfig) {
+    modalFlotaConfig.addEventListener("click", (e) => {
+      const btn = e.target.closest(".btn-quitar-sol");
+      if (!btn) return;
+      const tr = btn.closest("tr");
+      if (tr) tr.remove();
+    });
+  }
   $("btn-flota-config-add-sol").addEventListener("click", () => {
     const tbody = $("flota-config-solicitantes-body");
     if (!tbody) return;

@@ -264,6 +264,7 @@ function renderFlotaPin() {
     </section>
   `;
   armarTecladoPinFlota();
+  void ensureFlotasPublico().catch(() => {});
   const inp = $("flota-pin-input");
   if (inp) {
     inp.focus({ preventScroll: true });
@@ -376,11 +377,39 @@ function abrirDetalleServicioFlota(servicioId) {
 }
 
 async function intentarPinFlota() {
-  const pin = ($("flota-pin-input") && $("flota-pin-input").value.trim()) || "";
   const err = $("flota-pin-error");
+  const btn = $("btn-flota-pin-ingresar");
   if (err) err.hidden = true;
-  const flotaId =
-    typeof resolverFlotaIdPorPin === "function" ? await resolverFlotaIdPorPin(pin) : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Verificando…";
+  }
+  try {
+    await ensureFlotasPublico();
+  } catch (_e) {
+    if (err) {
+      err.textContent = "No pudimos cargar el tarifario. Reintenta.";
+      err.hidden = false;
+    }
+    return;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Entrar";
+    }
+  }
+  const pin = ($("flota-pin-input") && $("flota-pin-input").value.trim()) || "";
+  if (err) err.textContent = "Clave incorrecta. Revisa con el taller.";
+  const preferId =
+    state.flotaActivaId ||
+    (typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "") ||
+    "";
+  let flotaId = null;
+  if (preferId && typeof verificarClaveFlota === "function" && (await verificarClaveFlota(preferId, pin))) {
+    flotaId = preferId;
+  } else if (typeof resolverFlotaIdPorPin === "function") {
+    flotaId = await resolverFlotaIdPorPin(pin);
+  }
   if (!flotaId) {
     if (err) err.hidden = false;
     return;

@@ -311,6 +311,7 @@ function irAContenido() {
 }
 
 function syncCromo() {
+  document.documentElement.classList.toggle("pull-refresh-ok", state.vista === "portada");
   document.body.classList.toggle("en-portada", state.vista === "portada");
   const datosAgenda =
     esMovil() &&
@@ -379,6 +380,62 @@ function renderTotales(animar) {
   }
 }
 
+const FLOTA_NAV_KEY = "autodato_flota_nav";
+
+function persistirNavFlota() {
+  if (!carritoTieneFlota()) {
+    localStorage.removeItem(FLOTA_NAV_KEY);
+    return;
+  }
+  const vistasGuardar = [
+    "flotas-categorias",
+    "flotas-servicios",
+    "flotas-servicio-detalle",
+    "carrito-agenda",
+    "agendamiento",
+  ];
+  if (!vistasGuardar.includes(state.vista) && !String(state.vista || "").startsWith("flotas")) return;
+  localStorage.setItem(
+    FLOTA_NAV_KEY,
+    JSON.stringify({
+      vista: state.vista,
+      flotaActivaId: state.flotaActivaId || "",
+      flotaCategoriaId: state.flotaCategoriaId || "",
+      ts: Date.now(),
+    })
+  );
+}
+
+function hidratarNavFlota() {
+  if (!carritoTieneFlota()) {
+    localStorage.removeItem(FLOTA_NAV_KEY);
+    return;
+  }
+  try {
+    const raw = JSON.parse(localStorage.getItem(FLOTA_NAV_KEY) || "null");
+    if (!raw || typeof raw !== "object") return;
+    const fid =
+      typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+    if (fid) state.flotaActivaId = fid;
+    else if (raw.flotaActivaId) state.flotaActivaId = raw.flotaActivaId;
+    state.areaFlotas = true;
+    if (!fid || typeof sesionFlotaOk !== "function" || !sesionFlotaOk(fid)) return;
+    const vistasOk = [
+      "flotas-categorias",
+      "flotas-servicios",
+      "flotas-servicio-detalle",
+      "carrito-agenda",
+      "agendamiento",
+    ];
+    if (raw.vista && vistasOk.includes(raw.vista)) {
+      state.vista = raw.vista;
+      if (raw.flotaCategoriaId) state.flotaCategoriaId = raw.flotaCategoriaId;
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
 function persistir() {
   localStorage.setItem(
     "autodato_sesion",
@@ -390,6 +447,7 @@ function persistir() {
       cita: state.cita,
     })
   );
+  persistirNavFlota();
 }
 
 function flotaActivaDelCarrito() {
@@ -696,15 +754,13 @@ function redirigirSiCarritoFlotaEnVistaParticular() {
   if (!carritoTieneFlota()) return false;
   if (state.vista.startsWith("flotas") || state.vista === "carrito-agenda") return false;
   if (state.vista === "agendamiento" && carritoSoloFlota()) return false;
-  if (!vistaCatalogoParticular(state.vista)) return false;
-  state.areaFlotas = true;
   const fid =
     typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+  if (fid && typeof sesionFlotaOk === "function" && sesionFlotaOk(fid)) return false;
+  if (!vistaCatalogoParticular(state.vista)) return false;
+  state.areaFlotas = true;
   if (fid) state.flotaActivaId = fid;
-  state.vista =
-    fid && typeof sesionFlotaOk === "function" && sesionFlotaOk(fid)
-      ? "flotas-categorias"
-      : "flotas-pin";
+  state.vista = "flotas-pin";
   syncAreaFlotasUi();
   return true;
 }
@@ -749,6 +805,7 @@ function syncAreaFlotasUi() {
 function vaciarCarritoSilencioso() {
   state.carrito = [];
   state.servicioAgenda = null;
+  localStorage.removeItem(FLOTA_NAV_KEY);
   persistir();
   renderTotales(false);
 }
@@ -839,6 +896,7 @@ function hidratar() {
     if (raw.entrega) state.entrega = { ...state.entrega, ...raw.entrega };
     if (raw.cita) state.cita = { ...state.cita, ...raw.cita };
     reconciliarAreaTrasCarrito();
+    hidratarNavFlota();
   } catch (e) {
     /* ignore */
   }

@@ -26,6 +26,11 @@ html, body {
   color: var(--ink);
   font-family: Manrope, sans-serif;
   color-scheme: only light;
+  overscroll-behavior-y: none;
+}
+html.pull-refresh-ok,
+html.pull-refresh-ok body {
+  overscroll-behavior-y: auto;
 }
 
 body { min-height: 100vh; }
