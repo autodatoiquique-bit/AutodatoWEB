@@ -371,6 +371,27 @@ function moverColumnaFlota(flotaId, colId, targetColId, insertBefore) {
   flota.columnas = list;
 }
 
+function serviciosFlotaEnOrdenCol(flotaId, colId) {
+  const col = columnaFlotaPorId(flotaId, colId);
+  if (!col) return [];
+  return tarjetasFlotaDe(col).map((t) => t.servicio);
+}
+
+function ordenarColumnaFlotaPorPrecio(flotaId, colId) {
+  const col = columnaFlotaPorId(flotaId, colId);
+  if (!col) return false;
+  sincronizarOrdenTarjetasFlota(col);
+  const sorted = (col.servicios || []).slice().sort((a, b) => {
+    const pa = Number(a.precio) || 0;
+    const pb = Number(b.precio) || 0;
+    if (pa !== pb) return pa - pb;
+    return String(a.nombre || "").localeCompare(String(b.nombre || ""), "es");
+  });
+  const tokens = sorted.map((s) => tokenFlotaServicio(s.id)).filter(Boolean);
+  aplicarTokensOrdenColFlota(col, tokens);
+  return true;
+}
+
 function moverTarjetaFlota(flotaId, colId, token, beforeToken) {
   const flota = flotaPorId(flotaId);
   const col = flota && flota.columnas.find((c) => c.id === colId);

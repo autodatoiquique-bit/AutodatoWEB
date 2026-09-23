@@ -684,6 +684,19 @@ function initFlotasAdmin() {
     }
   });
 
+  $("btn-flota-col-ordenar-precio").addEventListener("click", async () => {
+    if (!flotaKanbanId || !flotaColEditId) return;
+    if (typeof ordenarColumnaFlotaPorPrecio !== "function") return;
+    ordenarColumnaFlotaPorPrecio(flotaKanbanId, flotaColEditId);
+    try {
+      await guardarOrdenFlotaKanban();
+      $("modal-flota-col").hidden = true;
+      renderFlotaKanban(flotaKanbanId);
+    } catch (err) {
+      alert((err && err.message) || "No se pudo guardar el orden.");
+    }
+  });
+
   $("btn-flota-col-guardar").addEventListener("click", async () => {
     const titulo = $("flota-col-titulo").value.trim();
     if (!titulo || !flotaKanbanId || !flotaColEditId) return;

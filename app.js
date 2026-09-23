@@ -33,6 +33,7 @@ const state = {
   flotaPendienteId: "",
   flotaCategoriaId: "",
   flotaBienvenida: "",
+  flotaServicioDetalleId: "",
   areaFlotas: false,
 };
 
@@ -317,7 +318,8 @@ function marcarMenu() {
     const on =
       !fichaAbierta &&
       (btn.dataset.vista === state.vista ||
-        (state.vista.startsWith("flotas") && btn.dataset.vista === "flotas") ||
+        ((state.vista.startsWith("flotas") || state.vista === "flotas-servicio-detalle") &&
+          btn.dataset.vista === "flotas") ||
         ((state.vista === "oferta-detalle" || state.vista === "filtro-oferta") && btn.dataset.vista === state.origenLista) ||
         (state.vista === "carrito-agenda" && btn.dataset.vista === "agendamiento"));
     btn.classList.toggle("is-on", on);
@@ -1337,7 +1339,12 @@ function irAAgendaDesdeKpi() {
 function seguirExplorandoOfertas() {
   cerrarModalKpi();
   if (state.origenAgenda === "flotas" || (state.vistaAnterior && String(state.vistaAnterior).startsWith("flotas"))) {
-    state.vista = state.flotaCategoriaId ? "flotas-servicios" : "flotas-categorias";
+    state.vista =
+      state.vistaAnterior === "flotas-servicio-detalle" && state.flotaServicioDetalleId
+        ? "flotas-servicio-detalle"
+        : state.flotaCategoriaId
+          ? "flotas-servicios"
+          : "flotas-categorias";
   } else if (state.vistaAnterior === "oferta-detalle" && state.ofertaAbierta) {
     state.vista = "oferta-detalle";
   } else {
@@ -1611,6 +1618,7 @@ function renderVista(opts = {}) {
   } else if (state.vista === "flotas-pin") renderFlotaPin();
   else if (state.vista === "flotas-categorias") renderFlotaCategorias();
   else if (state.vista === "flotas-servicios") renderFlotaServicios();
+  else if (state.vista === "flotas-servicio-detalle") renderFlotaServicioDetalle();
   else renderInfo(state.vista);
   if (!opts.quedarse) irAContenido();
 }
@@ -2294,7 +2302,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-add-flota], [data-volver-flotas-categorias], #btn-ticket, #btn-flota-pin-ingresar, #btn-salir-flotas, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-volver-flotas-categorias], [data-volver-flota-detalle], #btn-ticket, #btn-flota-pin-ingresar, #btn-salir-flotas, #chip-auto"
   );
   if (!t) return;
 
@@ -2388,12 +2396,24 @@ document.addEventListener("click", (e) => {
   if (t.dataset.addDiag) agregarDiagnostico(t.dataset.addDiag);
   if (t.dataset.flotaCategoria) {
     state.flotaCategoriaId = t.dataset.flotaCategoria;
+    state.flotaServicioDetalleId = "";
+    state.vista = "flotas-servicios";
+    renderVista();
+  }
+  if (t.dataset.flotaServicio && typeof abrirDetalleServicioFlota === "function") {
+    abrirDetalleServicioFlota(t.dataset.flotaServicio);
+  }
+  if (t.hasAttribute("data-volver-flota-detalle")) {
+    state.flotaServicioDetalleId = "";
     state.vista = "flotas-servicios";
     renderVista();
   }
   if (t.dataset.addFlota) {
     const [fid, sid] = String(t.dataset.addFlota || "").split("|");
-    if (fid && sid) agregarServicioFlotaAlCarrito(fid, sid);
+    if (fid && sid) {
+      agregarServicioFlotaAlCarrito(fid, sid);
+      if (state.vista === "flotas-servicio-detalle") renderFlotaServicioDetalle();
+    }
   }
   if (t.hasAttribute("data-volver-flotas-categorias")) {
     state.flotaCategoriaId = "";
