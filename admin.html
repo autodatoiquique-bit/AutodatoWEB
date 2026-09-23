@@ -125,6 +125,17 @@
         <span>Nueva clave</span>
         <input id="flota-clave-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="Ej. 1234" />
       </label>
+      <div class="flota-link-directo">
+        <p class="muted">Enlace directo (entra al tarifario sin pedir clave). Compártelo solo con quien corresponda.</p>
+        <label class="field">
+          <span>URL</span>
+          <input id="flota-link-acceso" type="text" readonly />
+        </label>
+        <div class="flota-link-acciones">
+          <button class="btn-soft" type="button" id="btn-flota-copiar-link">Copiar enlace</button>
+          <button class="btn-soft" type="button" id="btn-flota-regenerar-link">Regenerar enlace</button>
+        </div>
+      </div>
       <button class="btn-primary btn-block" type="button" id="btn-flota-clave-guardar">Guardar clave</button>
     </div>
   </div>

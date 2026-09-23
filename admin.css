@@ -288,6 +288,17 @@ button { font-family: inherit; cursor: pointer; }
 
 .vacio { color: var(--muted); }
 
+.flota-link-directo {
+  margin: 16px 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.flota-link-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
 .flotas-panel {
   padding: 20px 24px 32px;
   max-width: 960px;

@@ -622,15 +622,35 @@ body.hay-perfil .panel { padding-top: 88px; }
 .flota-cat-grid .card-photo { height: 200px; }
 .flota-precio-iva { font-weight: 800; color: #0052cc; font-size: 1rem; margin-top: 4px; }
 
-body.en-area-flotas #menu-principal > button:not(#btn-salir-flotas) {
+body.en-area-flotas #menu-principal > button {
   display: none !important;
-}
-body.en-area-flotas #menu-principal #btn-salir-flotas {
-  display: flex !important;
-  width: 100%;
 }
 body.en-area-flotas .sidebar-note {
   display: none;
+}
+.flota-modulo-top {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.btn-salir-flota-modulo {
+  font-weight: 700;
+}
+.flota-bienvenida {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0052cc;
+  margin: 0 0 12px;
+}
+body.en-flotas-pin .stage {
+  padding-bottom: calc(var(--teclado, 0px) + 32px);
+}
+body.en-flotas-pin .flota-pin-panel {
+  scroll-margin-top: 72px;
+  scroll-margin-bottom: calc(var(--teclado, 0px) + 48px);
+}
+body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
+  margin-bottom: 8px;
 }
 
 .precio { font-weight: 800; }
@@ -1347,20 +1367,8 @@ body.en-area-flotas .sidebar-note {
     stroke: none;
   }
 
-  body.en-area-flotas #menu-principal > button:not(#btn-salir-flotas) {
+  body.en-area-flotas #menu-principal > button {
     display: none !important;
-  }
-  body.en-area-flotas #menu-principal .menu-salir-flotas {
-    display: flex !important;
-    flex: 0 0 100%;
-    width: 100%;
-  }
-  .menu-salir-flotas .ico {
-    background: #111;
-    box-shadow: 0 0 0 2px var(--yellow);
-  }
-  .menu-salir-flotas .ico svg {
-    stroke: var(--yellow);
   }
 
   .home-logo {

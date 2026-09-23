@@ -32,6 +32,7 @@ const state = {
   flotaActivaId: "",
   flotaPendienteId: "",
   flotaCategoriaId: "",
+  flotaBienvenida: "",
   areaFlotas: false,
 };
 
@@ -424,8 +425,7 @@ function carritoMixto() {
 function syncAreaFlotasUi() {
   const on = Boolean(state.areaFlotas);
   document.body.classList.toggle("en-area-flotas", on);
-  const salir = $("btn-salir-flotas");
-  if (salir) salir.hidden = !on;
+  document.body.classList.toggle("en-flotas-pin", on && state.vista === "flotas-pin");
 }
 
 function vaciarCarritoSilencioso() {
@@ -441,10 +441,13 @@ function salirAreaFlotas() {
     if (!ok) return;
     vaciarCarritoSilencioso();
   }
+  const flotaSes = state.flotaActivaId;
   state.areaFlotas = false;
   state.flotaActivaId = "";
   state.flotaCategoriaId = "";
   state.flotaPendienteId = "";
+  state.flotaBienvenida = "";
+  if (flotaSes && typeof cerrarSesionFlota === "function") cerrarSesionFlota(flotaSes);
   state.vista = "portada";
   syncAreaFlotasUi();
   renderVista();
@@ -1353,7 +1356,7 @@ function cerrarModalKpi() {
   if (overlayLibre()) $("overlay").hidden = true;
 }
 
-const IDS_CAMPOS_AGENDA = ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo"];
+const IDS_CAMPOS_AGENDA = ["c-nombre", "c-telefono", "c-patente", "c-sintoma", "c-correo", "flota-pin-input"];
 
 function tecladoFichaActivo() {
   const a = document.activeElement;
@@ -1373,7 +1376,11 @@ function campoAgendaActivo() {
 function llevarCampoSobreTeclado(el) {
   if (!el || !esMovil()) return;
   const vv = window.visualViewport;
-  const reservado = document.body.classList.contains("en-agenda-datos") ? 72 : 96;
+  const reservado = document.body.classList.contains("en-flotas-pin")
+    ? 48
+    : document.body.classList.contains("en-agenda-datos")
+      ? 72
+      : 96;
   const teclado = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 280;
   const limite = (vv ? vv.height + vv.offsetTop : window.innerHeight) - reservado;
   const r = el.getBoundingClientRect();
@@ -1598,8 +1605,10 @@ function renderVista(opts = {}) {
   else if (state.vista === "oferta-detalle") renderDetalleOferta();
   else if (state.vista === "diagnostico") renderDiagnostico();
   else if (state.vista === "agendamiento" || state.vista === "carrito-agenda") renderAgendamiento();
-  else if (state.vista === "flotas") renderFlotasEmpresas();
-  else if (state.vista === "flotas-pin") renderFlotaPin();
+  else if (state.vista === "flotas") {
+    state.vista = "flotas-pin";
+    renderFlotaPin();
+  } else if (state.vista === "flotas-pin") renderFlotaPin();
   else if (state.vista === "flotas-categorias") renderFlotaCategorias();
   else if (state.vista === "flotas-servicios") renderFlotaServicios();
   else renderInfo(state.vista);
@@ -2285,7 +2294,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-empresa], [data-flota-categoria], [data-add-flota], [data-volver-flotas-empresas], [data-volver-flotas-categorias], #btn-ticket, #btn-flota-pin-ingresar, #btn-salir-flotas, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-add-flota], [data-volver-flotas-categorias], #btn-ticket, #btn-flota-pin-ingresar, #btn-salir-flotas, #chip-auto"
   );
   if (!t) return;
 
@@ -2377,7 +2386,6 @@ document.addEventListener("click", (e) => {
       .catch(() => alert("No pudimos cargar el catálogo. Reintenta."));
   }
   if (t.dataset.addDiag) agregarDiagnostico(t.dataset.addDiag);
-  if (t.dataset.flotaEmpresa) elegirEmpresaFlota(t.dataset.flotaEmpresa);
   if (t.dataset.flotaCategoria) {
     state.flotaCategoriaId = t.dataset.flotaCategoria;
     state.vista = "flotas-servicios";
@@ -2386,13 +2394,6 @@ document.addEventListener("click", (e) => {
   if (t.dataset.addFlota) {
     const [fid, sid] = String(t.dataset.addFlota || "").split("|");
     if (fid && sid) agregarServicioFlotaAlCarrito(fid, sid);
-  }
-  if (t.hasAttribute("data-volver-flotas-empresas")) {
-    state.flotaActivaId = "";
-    state.flotaCategoriaId = "";
-    state.flotaPendienteId = "";
-    state.vista = "flotas";
-    renderVista();
   }
   if (t.hasAttribute("data-volver-flotas-categorias")) {
     state.flotaCategoriaId = "";
@@ -2613,18 +2614,37 @@ if (stageEl) {
   });
 }
 
+function tokenFlotaAccesoDesdeQuery() {
+  return new URLSearchParams(location.search).get("flota_acceso") || "";
+}
+
+function limpiarQueryFlotaAccesoEnHistorial() {
+  if (typeof history === "undefined" || !history.replaceState) return;
+  const u = new URL(location.href);
+  if (!u.searchParams.has("flota_acceso")) return;
+  u.searchParams.delete("flota_acceso");
+  const qs = u.searchParams.toString();
+  history.replaceState(history.state, "", u.pathname + (qs ? `?${qs}` : "") + u.hash);
+}
+
 async function arrancar() {
   if (typeof hidratarModelosExtra === "function") hidratarModelosExtra();
   if (typeof hidratarFotosModelos === "function") hidratarFotosModelos();
   if (typeof hidratarTablero === "function") hidratarTablero();
   if (typeof hidratarPortadaLocal === "function") hidratarPortadaLocal();
   hidratar();
+  const flotaAcceso = tokenFlotaAccesoDesdeQuery();
   const entrada = aplicarVehiculoDesdeUrlAlInicio();
   pintarDatosFicha();
   renderVista({ quedarse: true });
   aplicarLogos();
   renderTotales(false);
   pistaMenuDesplazable();
+  if (flotaAcceso && typeof entrarFlotaPorLinkAcceso === "function") {
+    void entrarFlotaPorLinkAcceso(flotaAcceso).then((ok) => {
+      if (ok) limpiarQueryFlotaAccesoEnHistorial();
+    });
+  }
   if (entrada.servicioId) void abrirPromocionDesdeUrl(entrada.servicioId);
   void (async () => {
     if (typeof refrescarDatosInicioEnFondo === "function") {

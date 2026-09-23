@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=flotas-cli2" />
+  <link rel="stylesheet" href="styles.css?v=flotas-cli4" />
 </head>
 <body>
   <div class="split">
@@ -38,17 +38,13 @@
           <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.2-4.2"/></svg></span>
           <span class="menu-txt">Diagnóstico automotriz</span>
         </button>
-        <button type="button" data-vista="flotas">
-          <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h12v8H3V6Zm14 2h4v10H3v-2h14V8ZM7 18h6v2H7v-2Z"/></svg></span>
-          <span class="menu-txt">Flotas</span>
-        </button>
         <button type="button" data-vista="agendamiento">
           <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></span>
           <span class="menu-txt">Agendamiento</span>
         </button>
-        <button type="button" id="btn-salir-flotas" class="menu-salir-flotas" hidden>
-          <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5M14 8l5 5-5 5M19 13H9"/></svg></span>
-          <span class="menu-txt">Salir</span>
+        <button type="button" data-vista="flotas">
+          <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h12v8H3V6Zm14 2h4v10H3v-2h14V8ZM7 18h6v2H7v-2Z"/></svg></span>
+          <span class="menu-txt">Flotas</span>
         </button>
       </nav>
       <p class="sidebar-note">Solo atendemos marcas, modelos y años que aparecen en el filtro.</p>
@@ -76,7 +72,7 @@
           </div>
         </button>
         <button id="btn-seguir-kpi" class="seguir-kpi" type="button" data-seguir-explorando hidden>
-          Explorar ofertas
+          Volver al catálogo
         </button>
       </div>
       <main class="stage" id="stage"></main>
@@ -92,7 +88,7 @@
       <p class="muted">¿Agendar con lo seleccionado o seguir explorando?</p>
       <div class="kpi-acciones">
         <button class="btn-green btn-block" type="button" data-kpi="ticket">Ir a agendar ticket</button>
-        <button class="btn-soft btn-block" type="button" data-kpi="explorar">Seguir explorando</button>
+        <button class="btn-soft btn-block" type="button" data-kpi="explorar">Volver al catálogo</button>
       </div>
     </div>
   </div>
@@ -166,8 +162,8 @@
   <script src="config.js"></script>
   <script src="nube.js?v=png4"></script>
   <script src="catalogo.js?v=rapido2"></script>
-  <script src="flotas.js?v=flotas-cli1"></script>
-  <script src="flotas-cliente.js?v=flotas-cli1"></script>
-  <script src="app.js?v=flotas-cli3"></script>
+  <script src="flotas.js?v=flotas-cli4"></script>
+  <script src="flotas-cliente.js?v=flotas-cli4"></script>
+  <script src="app.js?v=flotas-cli4"></script>
 </body>
 </html>

@@ -108,8 +108,47 @@ function normalizarFlota(f) {
     nombre: String(f.nombre).trim(),
     columnas,
     pin_hash: pinHash,
+    link_acceso: String(f.link_acceso || "").trim(),
     canal_webhook: String(f.canal_webhook || "").trim(),
   };
+}
+
+function tokenLinkAccesoFlota() {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return [...a].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function asegurarLinkAccesoFlota(flotaId) {
+  const f = flotaPorId(flotaId);
+  if (!f) return "";
+  if (!f.link_acceso) f.link_acceso = tokenLinkAccesoFlota();
+  return f.link_acceso;
+}
+
+function flotaPorLinkAcceso(token) {
+  const t = String(token || "").trim();
+  if (!t) return null;
+  return (FLOTAS || []).find((f) => f.link_acceso === t) || null;
+}
+
+function urlPublicaAccesoFlota(flotaId) {
+  const tok = asegurarLinkAccesoFlota(flotaId);
+  if (!tok) return "";
+  const base = `${location.origin}${location.pathname || "/"}`;
+  const u = new URL(base);
+  u.searchParams.set("flota_acceso", tok);
+  return u.toString();
+}
+
+async function resolverFlotaIdPorPin(pin) {
+  const ingreso = String(pin || "").trim();
+  if (!/^\d{4}$/.test(ingreso)) return null;
+  for (const f of FLOTAS || []) {
+    if (!f.pin_hash) continue;
+    if ((await hashClaveFlota(f.id, ingreso)) === f.pin_hash) return f.id;
+  }
+  return null;
 }
 
 function flotaCanalWebhook(f) {

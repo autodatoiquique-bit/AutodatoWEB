@@ -8,6 +8,16 @@ let flotaKanbanSuppressClick = false;
 let flotaColFotoDraft = null;
 let flotaSrvFotoDraft = null;
 
+function pintarLinkAccesoFlotaEnModal() {
+  if (!flotaKanbanId || typeof asegurarLinkAccesoFlota !== "function") return;
+  asegurarLinkAccesoFlota(flotaKanbanId);
+  persistirFlotas();
+  const inp = $("flota-link-acceso");
+  if (inp && typeof urlPublicaAccesoFlota === "function") {
+    inp.value = urlPublicaAccesoFlota(flotaKanbanId);
+  }
+}
+
 function pintarPreviewFlotaCol(foto) {
   const img = $("flota-col-carnet-img");
   const vacio = $("flota-col-carnet-vacio");
@@ -576,6 +586,7 @@ function initFlotasAdmin() {
     }
     if (e.target.id === "btn-flota-clave-cliente") {
       $("flota-clave-pin").value = "";
+      pintarLinkAccesoFlotaEnModal();
       $("modal-flota-clave").hidden = false;
       return;
     }
@@ -622,6 +633,7 @@ function initFlotasAdmin() {
       alert("La clave debe ser exactamente 4 números.");
       return;
     }
+    if (typeof asegurarLinkAccesoFlota === "function") asegurarLinkAccesoFlota(flotaKanbanId);
     const ok = await establecerClaveFlota(flotaKanbanId, pin);
     if (!ok) {
       alert("No se pudo guardar la clave.");
@@ -633,6 +645,42 @@ function initFlotasAdmin() {
       alert(pin ? "Clave guardada. El cliente la usará en la app." : "Acceso libre: ya no se pide clave.");
     } catch (err) {
       alert((err && err.message) || "No se pudo sincronizar la flota.");
+    }
+  });
+
+  $("btn-flota-copiar-link").addEventListener("click", async () => {
+    const inp = $("flota-link-acceso");
+    const url = (inp && inp.value.trim()) || "";
+    if (!url) {
+      alert("No hay enlace. Abre «Clave cliente» desde el tablero de la flota.");
+      return;
+    }
+    try {
+      if (typeof copiarTextoPlano === "function") await copiarTextoPlano(url);
+      else if (navigator.clipboard) await navigator.clipboard.writeText(url);
+      $("btn-flota-copiar-link").textContent = "Copiado";
+      setTimeout(() => {
+        $("btn-flota-copiar-link").textContent = "Copiar enlace";
+      }, 2000);
+    } catch (e) {
+      inp.select();
+      alert("Selecciona la URL y cópiala manualmente.");
+    }
+  });
+
+  $("btn-flota-regenerar-link").addEventListener("click", async () => {
+    if (!flotaKanbanId) return;
+    const f = flotaPorId(flotaKanbanId);
+    if (!f) return;
+    if (!confirm("¿Regenerar enlace? El enlace anterior dejará de funcionar.")) return;
+    if (typeof tokenLinkAccesoFlota === "function") f.link_acceso = tokenLinkAccesoFlota();
+    persistirFlotas();
+    pintarLinkAccesoFlotaEnModal();
+    try {
+      await guardarFlotasNube();
+      alert("Enlace nuevo guardado.");
+    } catch (err) {
+      alert((err && err.message) || "No se pudo sincronizar el enlace.");
     }
   });
 

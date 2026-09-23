@@ -15,14 +15,8 @@ function htmlIconoCarroFlota() {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2l1 2h14l-1.6 8H8L6 7"/><circle cx="9" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>`;
 }
 
-function htmlTarjetaEmpresaFlota(f) {
-  const n = (f.columnas || []).reduce((acc, c) => acc + (c.servicios || []).length, 0);
-  return `
-    <button type="button" class="flota-empresa-card" data-flota-empresa="${escFlota(f.id)}">
-      <strong>${escFlota(f.nombre)}</strong>
-      <span>${(f.columnas || []).length} categorías · ${n} servicios</span>
-    </button>
-  `;
+function htmlBarraSalirFlotas() {
+  return `<div class="flota-modulo-top"><button type="button" class="btn-soft btn-salir-flota-modulo" id="btn-salir-flotas">Salir</button></div>`;
 }
 
 function htmlTarjetaCategoriaFlota(col) {
@@ -72,31 +66,37 @@ function htmlTarjetaServicioFlota(srv, flotaId) {
   `;
 }
 
-function renderFlotasEmpresas() {
-  const lista = FLOTAS || [];
-  $("stage").innerHTML = `
-    <section class="panel claro">
-      <h2>Flotas</h2>
-      ${typeof htmlAvisoTicketCorto === "function" ? htmlAvisoTicketCorto() : ""}
-      <p class="lead">Elige la empresa con la que tienes convenio. Te pediremos la clave de 4 dígitos que te entregó el taller.</p>
-      <div class="flota-empresas-grid">
-        ${
-          lista.length
-            ? lista.map(htmlTarjetaEmpresaFlota).join("")
-            : `<p class="muted">Aún no hay flotas disponibles.</p>`
-        }
-      </div>
-    </section>
-  `;
+function armarTecladoPinFlota() {
+  const inp = $("flota-pin-input");
+  if (!inp || inp.dataset.tecladoFlota) return;
+  inp.dataset.tecladoFlota = "1";
+  const onFocus = () => {
+    document.body.classList.add("en-flotas-pin");
+    document.body.classList.add("teclado-abierto");
+    if (typeof syncTecladoViewport === "function") {
+      setTimeout(syncTecladoViewport, 60);
+      setTimeout(syncTecladoViewport, 320);
+      setTimeout(() => {
+        if (typeof llevarCampoSobreTeclado === "function") llevarCampoSobreTeclado(inp);
+      }, 380);
+    }
+  };
+  const onBlur = () => {
+    setTimeout(() => {
+      if (document.activeElement !== inp) document.body.classList.remove("en-flotas-pin");
+      if (typeof syncTecladoViewport === "function") syncTecladoViewport();
+    }, 150);
+  };
+  inp.addEventListener("focus", onFocus);
+  inp.addEventListener("blur", onBlur);
 }
 
 function renderFlotaPin() {
-  const f = flotaPorId(state.flotaPendienteId);
   $("stage").innerHTML = `
+    ${htmlBarraSalirFlotas()}
     <section class="panel claro flota-pin-panel">
-      <button type="button" class="btn-soft btn-volver-flota" data-volver-flotas-empresas>← Empresas</button>
-      <h2>${escFlota((f && f.nombre) || "Flota")}</h2>
-      <p class="lead">Ingresa la clave de 4 dígitos.</p>
+      <h2>Tarifario flotas</h2>
+      <p class="lead">Ingresa la clave de 4 dígitos que te entregó el taller.</p>
       <label class="field">
         <span>Clave</span>
         <input id="flota-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="••••" />
@@ -105,9 +105,10 @@ function renderFlotaPin() {
       <button class="btn-primary btn-block" type="button" id="btn-flota-pin-ingresar">Entrar</button>
     </section>
   `;
+  armarTecladoPinFlota();
   const inp = $("flota-pin-input");
   if (inp) {
-    inp.focus();
+    inp.focus({ preventScroll: true });
     inp.addEventListener("keydown", (e) => {
       if (e.key === "Enter") intentarPinFlota();
     });
@@ -117,14 +118,19 @@ function renderFlotaPin() {
 function renderFlotaCategorias() {
   const f = flotaPorId(state.flotaActivaId);
   if (!f) {
-    state.vista = "flotas";
-    renderFlotasEmpresas();
+    state.vista = "flotas-pin";
+    renderFlotaPin();
     return;
   }
+  const bienvenida =
+    state.flotaBienvenida && String(state.flotaBienvenida).trim()
+      ? `<p class="flota-bienvenida">Bienvenido ${escFlota(state.flotaBienvenida)}</p>`
+      : "";
   $("stage").innerHTML = `
+    ${htmlBarraSalirFlotas()}
     <section class="panel claro">
-      <button type="button" class="btn-soft btn-volver-flota" data-volver-flotas-empresas>← Cambiar empresa</button>
       <h2>${escFlota(f.nombre)}</h2>
+      ${bienvenida}
       ${typeof htmlAvisoTicketCorto === "function" ? htmlAvisoTicketCorto() : ""}
       <p class="lead">Elige una categoría de servicios.</p>
       <div class="grid flota-cat-grid">
@@ -136,6 +142,7 @@ function renderFlotaCategorias() {
       </div>
     </section>
   `;
+  state.flotaBienvenida = "";
 }
 
 function renderFlotaServicios() {
@@ -148,6 +155,7 @@ function renderFlotaServicios() {
   }
   const servicios = col.servicios || [];
   $("stage").innerHTML = `
+    ${htmlBarraSalirFlotas()}
     <section class="panel claro">
       <button type="button" class="btn-soft btn-volver-flota" data-volver-flotas-categorias>← Categorías</button>
       <h2>${escFlota(col.titulo)}</h2>
@@ -167,19 +175,22 @@ async function intentarPinFlota() {
   const pin = ($("flota-pin-input") && $("flota-pin-input").value.trim()) || "";
   const err = $("flota-pin-error");
   if (err) err.hidden = true;
-  const ok = await verificarClaveFlota(state.flotaPendienteId, pin);
-  if (!ok) {
+  const flotaId =
+    typeof resolverFlotaIdPorPin === "function" ? await resolverFlotaIdPorPin(pin) : null;
+  if (!flotaId) {
     if (err) err.hidden = false;
     return;
   }
-  marcarSesionFlota(state.flotaPendienteId);
-  entrarFlota(state.flotaPendienteId);
+  marcarSesionFlota(flotaId);
+  entrarFlota(flotaId, { bienvenida: true });
 }
 
-function entrarFlota(id) {
+function entrarFlota(id, opts = {}) {
+  const f = flotaPorId(id);
   state.flotaActivaId = id;
   state.flotaCategoriaId = "";
   state.flotaPendienteId = "";
+  if (opts.bienvenida && f) state.flotaBienvenida = f.nombre;
   state.vista = "flotas-categorias";
   if (typeof renderVista === "function") renderVista();
 }
@@ -192,21 +203,31 @@ async function abrirVistaFlotas() {
     alert("No pudimos cargar las flotas. Reintenta.");
     return;
   }
+  const sesionId = (FLOTAS || []).find((f) => sesionFlotaOk(f.id));
+  if (sesionId) {
+    entrarFlota(sesionId.id, { bienvenida: false });
+    return;
+  }
   state.flotaActivaId = "";
   state.flotaCategoriaId = "";
   state.flotaPendienteId = "";
-  state.vista = "flotas";
+  state.vista = "flotas-pin";
   if (typeof renderVista === "function") renderVista();
 }
 
-function elegirEmpresaFlota(id) {
-  state.flotaPendienteId = id;
-  if (sesionFlotaOk(id) || !flotaRequiereClave(id)) {
-    entrarFlota(id);
-    return;
+async function entrarFlotaPorLinkAcceso(token) {
+  try {
+    await ensureFlotasPublico();
+  } catch (e) {
+    return false;
   }
-  state.vista = "flotas-pin";
-  if (typeof renderVista === "function") renderVista();
+  const f = typeof flotaPorLinkAcceso === "function" ? flotaPorLinkAcceso(token) : null;
+  if (!f) return false;
+  if (typeof entrarAreaFlotas === "function" && !entrarAreaFlotas()) return false;
+  marcarSesionFlota(f.id);
+  state.flotaBienvenida = f.nombre;
+  entrarFlota(f.id, { bienvenida: true });
+  return true;
 }
 
 function agregarServicioFlotaAlCarrito(flotaId, servicioId) {
@@ -231,8 +252,7 @@ function agregarServicioFlotaAlCarrito(flotaId, servicioId) {
 }
 
 function refrescarVistaFlotaCliente() {
-  if (state.vista === "flotas") renderFlotasEmpresas();
-  else if (state.vista === "flotas-pin") renderFlotaPin();
+  if (state.vista === "flotas-pin") renderFlotaPin();
   else if (state.vista === "flotas-categorias") renderFlotaCategorias();
   else if (state.vista === "flotas-servicios") renderFlotaServicios();
 }
