@@ -256,10 +256,12 @@ function armarTecladoPinFlota() {
 }
 
 function renderFlotaPin() {
+  const f = state.flotaActivaId ? flotaPorId(state.flotaActivaId) : null;
+  const tituloFlota = f && f.nombre ? escFlota(f.nombre) : "";
   $("stage").innerHTML = `
     ${htmlBarraNavFlotas()}
     <section class="panel claro flota-pin-panel">
-      <h2>Tarifario flotas</h2>
+      <h2>${tituloFlota ? `Tarifario ${tituloFlota}` : "Tarifario flotas"}</h2>
       <p class="lead">Ingresa la clave de 4 dígitos que te entregó el taller.</p>
       <label class="field">
         <span>Clave</span>
@@ -486,14 +488,34 @@ async function entrarFlotaPorLinkAcceso(token) {
   }
   const f = typeof flotaPorLinkAcceso === "function" ? flotaPorLinkAcceso(token) : null;
   if (!f) return false;
+  if (typeof entrarAreaFlotas === "function" && !entrarAreaFlotas()) return false;
+  if (typeof guardarTokenLinkFlotaSesion === "function") guardarTokenLinkFlotaSesion(f.id, token);
+  state.flotaActivaId = f.id;
+  state.flotaPendienteId = f.id;
+
+  if (typeof sesionFlotaOk === "function" && sesionFlotaOk(f.id)) {
+    try {
+      await ensureFlotasPublico();
+    } catch (e) {
+      return false;
+    }
+    entrarFlota(f.id, { bienvenida: false });
+    return true;
+  }
+
+  const pidePin = typeof flotaRequiereClave === "function" && flotaRequiereClave(f.id);
+  if (pidePin) {
+    state.vista = "flotas-pin";
+    if (typeof renderVista === "function") renderVista();
+    return true;
+  }
+
   try {
     await ensureFlotasPublico();
   } catch (e) {
     return false;
   }
-  if (typeof entrarAreaFlotas === "function" && !entrarAreaFlotas()) return false;
   marcarSesionFlota(f.id);
-  if (typeof guardarTokenLinkFlotaSesion === "function") guardarTokenLinkFlotaSesion(f.id, token);
   state.flotaBienvenida = f.nombre;
   entrarFlota(f.id, { bienvenida: true });
   return true;

@@ -120,13 +120,13 @@
     <div class="modal-card">
       <button class="x" type="button" id="cerrar-flota-clave">×</button>
       <h3>Clave de acceso (cliente)</h3>
-      <p class="muted">4 dígitos que el conductor usa en la app pública para ver el tarifario. Déjala vacía para acceso libre.</p>
+      <p class="muted">4 dígitos que el conductor usa en la app pública. Déjala vacía para acceso libre. La clave queda visible aquí para que puedas consultarla o cambiarla.</p>
       <label class="field">
-        <span>Nueva clave</span>
-        <input id="flota-clave-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="Ej. 1234" />
+        <span>Clave de acceso</span>
+        <input id="flota-clave-pin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="Ej. 1234" />
       </label>
       <div class="flota-link-directo">
-        <p class="muted">Enlace directo (entra al tarifario sin pedir clave). Compártelo solo con quien corresponda.</p>
+        <p class="muted">Enlace para tu cliente (app pública, tarifario de esta flota). Al abrirlo pedirá la clave una sola vez en ese dispositivo.</p>
         <label class="field">
           <span>URL</span>
           <input id="flota-link-acceso" type="text" readonly />
@@ -246,8 +246,8 @@
   <script src="config.js"></script>
   <script src="nube.js?v=flota-split1"></script>
   <script src="catalogo.js?v=rapido2"></script>
-  <script src="flotas.js?v=flotas-foto1"></script>
+  <script src="flotas.js?v=flota-link1"></script>
   <script src="admin.js?v=menu-admin2"></script>
-  <script src="admin-flotas.js?v=flota-split1"></script>
+  <script src="admin-flotas.js?v=flota-link1"></script>
 </body>
 </html>

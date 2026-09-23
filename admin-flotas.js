@@ -67,6 +67,14 @@ function pintarLinkAccesoFlotaEnModal() {
   }
 }
 
+function pintarClaveFlotaEnModal() {
+  const inp = $("flota-clave-pin");
+  if (!inp || !flotaKanbanId) return;
+  hidratarFlotas();
+  const f = flotaPorId(flotaKanbanId);
+  inp.value = f && f.pin_cliente ? String(f.pin_cliente) : "";
+}
+
 function fotoGuardadaColumnaFlota(col) {
   if (!col || typeof col !== "object") return "";
   if (!Object.prototype.hasOwnProperty.call(col, "foto")) return "";
@@ -742,7 +750,7 @@ function initFlotasAdmin() {
       return;
     }
     if (e.target.id === "btn-flota-clave-cliente") {
-      $("flota-clave-pin").value = "";
+      pintarClaveFlotaEnModal();
       pintarLinkAccesoFlotaEnModal();
       $("modal-flota-clave").hidden = false;
       return;
@@ -832,7 +840,7 @@ function initFlotasAdmin() {
     }
     try {
       await guardarFlotasNube();
-      $("modal-flota-clave").hidden = true;
+      pintarClaveFlotaEnModal();
       alert(pin ? "Clave guardada. El cliente la usará en la app." : "Acceso libre: ya no se pide clave.");
     } catch (err) {
       alert((err && err.message) || "No se pudo sincronizar la flota.");

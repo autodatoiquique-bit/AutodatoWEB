@@ -112,11 +112,13 @@ function normalizarFlota(f) {
     .map(normalizarSolicitanteFlota)
     .filter(Boolean);
   const agendaModo = String(f.agenda_modo || "limitada").trim().toLowerCase();
+  const pinCliente = String(f.pin_cliente || "").trim();
   return {
     id: String(f.id || uidFlota("flota")),
     nombre: String(f.nombre).trim(),
     columnas,
     pin_hash: pinHash,
+    pin_cliente: /^\d{4}$/.test(pinCliente) ? pinCliente : "",
     link_acceso: String(f.link_acceso || "").trim(),
     canal_webhook: String(f.canal_webhook || "").trim(),
     agenda_modo: agendaModo === "libre" ? "libre" : "limitada",
@@ -253,8 +255,7 @@ function flotaPorLinkAcceso(token) {
 function urlPublicaAccesoFlota(flotaId) {
   const tok = asegurarLinkAccesoFlota(flotaId);
   if (!tok) return "";
-  const base = `${location.origin}${location.pathname || "/"}`;
-  const u = new URL(base);
+  const u = new URL("/", typeof location !== "undefined" ? location.origin : "https://autodato.cl");
   u.searchParams.set("flota_acceso", tok);
   return u.toString();
 }
@@ -301,10 +302,12 @@ async function establecerClaveFlota(flotaId, pinPlano) {
   const pin = String(pinPlano || "").trim();
   if (!pin) {
     f.pin_hash = "";
+    f.pin_cliente = "";
     return true;
   }
   if (!/^\d{4}$/.test(pin)) return false;
   f.pin_hash = await hashClaveFlota(flotaId, pin);
+  f.pin_cliente = pin;
   return true;
 }
 
@@ -417,7 +420,13 @@ async function cargarFlotasPublico() {
       if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
       const remoto = await nubeLeerFlotasTarifarioRemoto();
       if (remoto && remoto.length) {
-        FLOTAS = remoto.map(normalizarFlota).filter(Boolean);
+        FLOTAS = remoto
+          .map((raw) => {
+            const n = normalizarFlota(raw);
+            if (n && Object.prototype.hasOwnProperty.call(n, "pin_cliente")) delete n.pin_cliente;
+            return n;
+          })
+          .filter(Boolean);
         persistirFlotas();
         flotasTarifarioRemotoListo = true;
       }
