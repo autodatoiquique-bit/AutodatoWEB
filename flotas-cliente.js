@@ -539,6 +539,12 @@ function agregarServicioFlotaAlCarrito(flotaId, servicioId) {
   state.carrito.push({ tipo: "flota", id, flotaId, servicioId });
   if (typeof persistir === "function") persistir();
   if (typeof renderTotales === "function") renderTotales(true);
+  if (state.vista === "flotas-servicio-detalle") {
+    state.flotaServicioDetalleId = "";
+    state.vista = "flotas-servicios";
+    if (typeof renderVista === "function") renderVista();
+    return;
+  }
   refrescarUiCarritoFlota();
 }
 
