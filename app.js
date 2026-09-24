@@ -558,38 +558,52 @@ function instanteDesdeIsoHora(iso, hora) {
   return new Date(p[0], p[1] - 1, p[2], Number(t[0]) || 0, Number(t[1]) || 0, 0, 0);
 }
 
-function textoBusquedaSolicitanteFlota(s) {
-  return typeof normalizarTextoBusquedaFlota === "function"
-    ? normalizarTextoBusquedaFlota(`${(s && s.nombre) || ""} ${(s && s.correo) || ""} ${(s && s.patente) || ""}`)
-    : String(`${(s && s.nombre) || ""} ${(s && s.correo) || ""}`)
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/\p{M}/gu, "");
+const FLOTA_HIST_CLIENTE_PREFIX = "autodato_flota_cliente_";
+
+function claveHistorialClienteFlota(flotaId) {
+  return `${FLOTA_HIST_CLIENTE_PREFIX}${String(flotaId || "").trim()}`;
 }
 
-function tokensBusquedaSolicitanteFlota(q) {
-  const raw =
-    typeof normalizarTextoBusquedaFlota === "function"
-      ? normalizarTextoBusquedaFlota(q)
-      : String(q || "")
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/\p{M}/gu, "");
-  return raw.split(/\s+/).filter(Boolean);
+function historialClienteFlota(flotaId) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(claveHistorialClienteFlota(flotaId)) || "null");
+    if (!raw || !String(raw.nombre || "").trim()) return null;
+    return {
+      nombre: String(raw.nombre || "").trim(),
+      telefono: String(raw.telefono || "").trim(),
+      correo: String(raw.correo || "").trim(),
+      patente: String(raw.patente || "").trim().toUpperCase(),
+    };
+  } catch (_e) {
+    return null;
+  }
 }
 
-const SOLICITANTE_FLOTA_MIN_BUSQUEDA = 3;
+function guardarHistorialClienteFlota(flotaId) {
+  const id = String(flotaId || "").trim();
+  const nombre = state.cliente.nombre.trim();
+  if (!id || !nombre) return;
+  try {
+    localStorage.setItem(
+      claveHistorialClienteFlota(id),
+      JSON.stringify({
+        nombre,
+        telefono: state.cliente.telefono.trim(),
+        correo: state.cliente.correo.trim(),
+        patente: state.cliente.patente.trim().toUpperCase(),
+      })
+    );
+  } catch (_e) {}
+}
 
-function filtrarSolicitantesFlota(lista, query) {
-  const base = Array.isArray(lista) ? lista : [];
-  const q = String(query || "").trim();
-  if (q.length < SOLICITANTE_FLOTA_MIN_BUSQUEDA) return [];
-  const tokens = tokensBusquedaSolicitanteFlota(q);
-  if (!tokens.length) return [];
-  return base.filter((s) => {
-    const hay = textoBusquedaSolicitanteFlota(s);
-    return tokens.every((t) => hay.includes(t));
-  });
+function aplicarHistorialClienteFlotaSiVacio(flotaId) {
+  const h = historialClienteFlota(flotaId);
+  if (!h) return;
+  if (!state.cliente.nombre.trim()) state.cliente.nombre = h.nombre;
+  if (!state.cliente.telefono.trim()) state.cliente.telefono = h.telefono;
+  if (!state.cliente.correo.trim()) state.cliente.correo = h.correo;
+  if (!state.cliente.patente.trim()) state.cliente.patente = h.patente;
+  if (state.cliente.nombre.trim()) sincronizarSolicitanteIdDesdeNombreFlota();
 }
 
 function solicitanteFlotaPorNombreEnFlota(flota, nombre) {
@@ -598,68 +612,6 @@ function solicitanteFlotaPorNombreEnFlota(flota, nombre) {
     .toLowerCase();
   if (!n || !flota) return null;
   return (flota.solicitantes || []).find((s) => String(s.nombre || "").trim().toLowerCase() === n) || null;
-}
-
-function aplicarSolicitanteFlotaAlFormulario(sol) {
-  if (!sol) return;
-  state.cliente.solicitanteId = sol.id;
-  state.cliente.nombre = sol.nombre || "";
-  state.cliente.telefono = sol.telefono || "";
-  state.cliente.correo = sol.correo || "";
-  if (sol.patente) state.cliente.patente = sol.patente;
-  persistir();
-  const nom = $("c-nombre");
-  const tel = $("c-telefono");
-  const cor = $("c-correo");
-  const pat = $("c-patente");
-  if (nom) nom.value = state.cliente.nombre;
-  if (tel) tel.value = state.cliente.telefono;
-  if (cor) cor.value = state.cliente.correo;
-  if (pat) pat.value = state.cliente.patente;
-  ocultarSugerenciasSolicitanteFlota();
-}
-
-function ocultarSugerenciasSolicitanteFlota() {
-  const box = $("c-solicitante-lista");
-  const inp = $("c-nombre");
-  if (box) box.hidden = true;
-  if (inp) inp.setAttribute("aria-expanded", "false");
-}
-
-function pintarSugerenciasSolicitanteFlota() {
-  const flota = flotaActivaDelCarrito();
-  const lista = (flota && flota.solicitantes) || [];
-  const inp = $("c-nombre");
-  const box = $("c-solicitante-lista");
-  if (!inp || !box) return;
-  if (!lista.length) {
-    box.hidden = true;
-    return;
-  }
-  const q = inp.value.trim();
-  if (q.length < SOLICITANTE_FLOTA_MIN_BUSQUEDA) {
-    box.hidden = true;
-    inp.setAttribute("aria-expanded", "false");
-    return;
-  }
-  const filtrados = filtrarSolicitantesFlota(lista, q);
-  if (!filtrados.length) {
-    box.innerHTML = `<li class="flota-sol-vacio"><span class="muted">Sin coincidencias — se guardará al generar el ticket</span></li>`;
-    box.hidden = false;
-    inp.setAttribute("aria-expanded", "true");
-    return;
-  }
-  box.innerHTML = filtrados
-    .slice(0, 14)
-    .map(
-      (s) =>
-        `<li><button type="button" class="flota-sol-opc" data-sol-pick="${escapeAttr(s.id)}"><strong>${escapeHtml(s.nombre)}</strong>${
-          s.correo ? `<span class="flota-sol-meta">${escapeHtml(s.correo)}</span>` : ""
-        }</button></li>`
-    )
-    .join("");
-  box.hidden = false;
-  inp.setAttribute("aria-expanded", "true");
 }
 
 function sincronizarSolicitanteIdDesdeNombreFlota() {
@@ -677,22 +629,6 @@ function sincronizarSolicitanteIdDesdeNombreFlota() {
   if (porId && String(porId.nombre || "").trim().toLowerCase() === nombre.toLowerCase()) return;
   const porNombre = solicitanteFlotaPorNombreEnFlota(flota, nombre);
   state.cliente.solicitanteId = porNombre ? porNombre.id : "";
-}
-
-function enlazarComboboxSolicitanteFlota() {
-  const inp = $("c-nombre");
-  if (!inp || inp.dataset.solCombo === "1") return;
-  inp.dataset.solCombo = "1";
-  inp.addEventListener("input", () => {
-    guardarClienteDesdeForma();
-    sincronizarSolicitanteIdDesdeNombreFlota();
-    persistir();
-    pintarSugerenciasSolicitanteFlota();
-  });
-  inp.addEventListener("focus", () => pintarSugerenciasSolicitanteFlota());
-  inp.addEventListener("blur", () => {
-    setTimeout(() => ocultarSugerenciasSolicitanteFlota(), 160);
-  });
 }
 
 async function guardarSolicitanteFlotaEnNube(opts = {}) {
@@ -737,6 +673,7 @@ async function guardarSolicitanteFlotaEnNube(opts = {}) {
       state.cliente.nombre = data.solicitante.nombre || nombre;
       persistir();
     }
+    guardarHistorialClienteFlota(flotaId);
     return { ok: true, solicitante: data.solicitante };
   } catch (_e) {
     return { ok: false, error: "No hubo conexión para guardar el solicitante." };
@@ -2068,35 +2005,14 @@ function enlazarFormularioDatosAgenda() {
     el.addEventListener("change", guardarClienteDesdeForma);
   });
   if (carritoSoloFlota()) {
-    enlazarComboboxSolicitanteFlota();
     enlazarTrasladoFlota();
     enlazarEntregaFlota();
   }
 }
 
-function htmlCamposClienteAgendaFlota(flota) {
-  const lista = (flota && flota.solicitantes) || [];
-  const placeholder = lista.length
-    ? "Mín. 3 letras para buscar solicitante…"
-    : "Nombre completo del solicitante";
+function htmlCamposClienteAgendaFlota(_flota) {
   return `
-    <label class="field flota-sol-combobox">
-      <span>Nombre</span>
-      <div class="flota-sol-wrap">
-        <input
-          id="c-nombre"
-          type="text"
-          role="combobox"
-          aria-expanded="false"
-          aria-controls="c-solicitante-lista"
-          autocomplete="off"
-          value="${escapeAttr(state.cliente.nombre)}"
-          placeholder="${escapeAttr(placeholder)}"
-        />
-        <ul id="c-solicitante-lista" class="flota-sol-sugerencias" role="listbox" hidden></ul>
-      </div>
-      <p class="muted flota-manual-hint">Escribe al menos 3 letras para ver coincidencias. Si no estás en la lista, completa tus datos: se guardará al generar el ticket.</p>
-    </label>
+    <label class="field"><span>Nombre</span><input id="c-nombre" type="text" autocomplete="name" value="${escapeAttr(state.cliente.nombre)}" placeholder="Nombre completo del solicitante" /></label>
     <label class="field"><span>Teléfono</span><input id="c-telefono" type="tel" value="${escapeAttr(state.cliente.telefono)}" /></label>
     <label class="field"><span>Patente</span><input id="c-patente" type="text" maxlength="8" value="${escapeAttr(state.cliente.patente)}" required /></label>
     <label class="field"><span>Notas del servicio (opcional)</span><textarea id="c-sintoma" rows="3" maxlength="400" placeholder="Detalle adicional para el taller">${escapeHtml(state.cliente.sintoma)}</textarea></label>
@@ -2219,6 +2135,11 @@ function actualizarCalendarioAgendaEnDom() {
 
 async function renderDatosAgenda(opts = {}) {
   const gen = ++renderDatosAgendaGen;
+  if (carritoSoloFlota()) {
+    const flotaId =
+      typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
+    aplicarHistorialClienteFlotaSiVacio(flotaId);
+  }
   $("stage").innerHTML = htmlPanelDatosAgenda();
   enlazarFormularioDatosAgenda();
   if (opts.scrollToTicket && state.cita.fecha && state.cita.hora) enfocarBtnTicketAgenda();
@@ -2751,6 +2672,8 @@ async function generarTicket() {
   const payload = { ...borrador, code, folio: code };
   llegoAgenda = true;
 
+  if (soloFlota && flotaId) guardarHistorialClienteFlota(flotaId);
+
   const tickets = JSON.parse(localStorage.getItem("autodato_tickets") || "[]");
   tickets.unshift(payload);
   localStorage.setItem("autodato_tickets", JSON.stringify(tickets));
@@ -3056,7 +2979,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-sol-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -3073,15 +2996,6 @@ document.addEventListener("click", (e) => {
     elegirDrop(t.dataset.ddPick, t.dataset.value);
     return;
   }
-  if (t.dataset.solPick) {
-    const flotaId =
-      typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "";
-    const sol =
-      typeof solicitanteFlotaPorId === "function" ? solicitanteFlotaPorId(flotaId, t.dataset.solPick) : null;
-    if (sol) aplicarSolicitanteFlotaAlFormulario(sol);
-    return;
-  }
-
   if (t.dataset.vista || t.dataset.open) cerrar();
 
   if (t.dataset.vista) {
