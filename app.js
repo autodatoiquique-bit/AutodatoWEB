@@ -128,6 +128,25 @@ function vehiculoOk() {
   );
 }
 
+function flotaClienteActiva() {
+  const id =
+    state.flotaActivaId ||
+    (typeof flotaIdDesdeCarrito === "function" ? flotaIdDesdeCarrito(state.carrito) : "");
+  if (!id || typeof flotaPorId !== "function") return null;
+  return flotaPorId(id);
+}
+
+function flotaActivaExigeModeloVehiculo() {
+  const f = flotaClienteActiva();
+  return typeof flotaExigeModeloVehiculo === "function" && flotaExigeModeloVehiculo(f);
+}
+
+function debePedirVehiculoEnAgenda() {
+  if (vehiculoOk()) return false;
+  if (carritoSoloFlota()) return flotaActivaExigeModeloVehiculo();
+  return true;
+}
+
 function textoVehiculo() {
   if (!state.vehiculo) return "";
   const fuel = state.vehiculo.combustible ? ` · ${etiquetaCombustible(state.vehiculo.combustible)}` : "";
@@ -236,9 +255,15 @@ function htmlFiltro(contexto) {
   const ano = state.vehiculo?.ano || "";
   const combustible = state.vehiculo?.combustible || "";
   const modelos = marca ? modelosDe(marca) : [];
+  const titulo =
+    contexto === "editar"
+      ? "Cambia tu vehículo"
+      : contexto === "flota"
+        ? "Vehículo para esta flota"
+        : "¿Qué vehículo tienes?";
   return `
     <div class="filtro">
-      <h2>${contexto === "editar" ? "Cambia tu vehículo" : "¿Qué vehículo tienes?"}</h2>
+      <h2>${titulo}</h2>
       <p class="lead">Marca, modelo, año y combustible. Si tu auto no está en la lista, no podemos abrirte el servicio. El año y el combustible importan: un mismo trabajo puede ser otro producto.</p>
       ${htmlDrop("marca", "Marca", MARCAS, marca, "Elige la marca", false)}
       ${htmlDrop("modelo", "Modelo", modelos, modelo, marca ? "Elige el modelo" : "Primero elige la marca", !marca)}
@@ -1711,7 +1736,7 @@ function renderInfo(clave) {
 
 function renderAgendamiento() {
   if (state.carrito.length) {
-    if (!vehiculoOk()) {
+    if (debePedirVehiculoEnAgenda()) {
       $("stage").innerHTML = `<section class="panel claro">${htmlFiltro("agenda-oferta")}</section>`;
       return;
     }
@@ -1719,7 +1744,7 @@ function renderAgendamiento() {
     return;
   }
 
-  if (state.pasoAgenda === "filtro" || !vehiculoOk()) {
+  if (state.pasoAgenda === "filtro" || debePedirVehiculoEnAgenda()) {
     $("stage").innerHTML = `<section class="panel claro">${htmlFiltro("agenda")}</section>`;
     return;
   }
@@ -2363,6 +2388,10 @@ function renderVista(opts = {}) {
   else if (state.vista === "mantencion") renderMantencion();
   else if (state.vista === "filtro-oferta") renderFiltroOferta();
   else if (state.vista === "filtro-menu") renderFiltroMenu();
+  else if (state.vista === "filtro-flota") {
+    if (typeof renderFiltroFlotaEntrada === "function") renderFiltroFlotaEntrada();
+    else renderFiltroMenu();
+  }
   else if (state.vista === "oferta-detalle") renderDetalleOferta();
   else if (state.vista === "diagnostico") renderDiagnostico();
   else if (state.vista === "agendamiento" || state.vista === "carrito-agenda") renderAgendamiento();
@@ -2400,6 +2429,12 @@ async function aplicarFiltro(contexto) {
     renderVista({ quedarse: true });
     return;
   }
+  if (contexto === "flota") {
+    state.vista = "flotas-categorias";
+    renderVista({ quedarse: true });
+    return;
+  }
+
   if (contexto === "menu") {
     const dest = state.vistaPendiente || "ofertas";
     state.vistaPendiente = "";

@@ -98,6 +98,7 @@ function flotaSnapshotAccesoNube(f) {
     link_acceso: f.link_acceso || "",
     canal_webhook: f.canal_webhook || "",
     agenda_modo: f.agenda_modo || "limitada",
+    exigir_modelo_vehiculo: f.exigir_modelo_vehiculo || "no",
     columnas: [],
     solicitantes: [],
   };

@@ -161,6 +161,14 @@
           <option value="libre">Agenda libre (cualquier horario hábil aunque el cupo esté lleno)</option>
         </select>
       </label>
+      <label class="field">
+        <span>Exigir modelo de vehículo</span>
+        <select id="flota-config-exigir-vehiculo">
+          <option value="no">No aplica</option>
+          <option value="si">Exigir marca, modelo, año y combustible</option>
+        </select>
+      </label>
+      <p class="muted">Con «No aplica», la app de flotas no pide filtro de vehículo (PC ni celular).</p>
       <h4>Solicitantes</h4>
       <p class="muted">Al elegir un nombre en la app se completan teléfono, correo y patente por defecto.</p>
       <div class="flota-config-sol-wrap">
@@ -258,6 +266,6 @@
   <script src="flotas.js?v=flota-kanban-xcol1"></script>
   <script src="admin.js?v=guardando1"></script>
   <script src="admin-combos.js?v=guardando1"></script>
-  <script src="admin-flotas.js?v=flota-kanban-xcol1"></script>
+  <script src="admin-flotas.js?v=flota-exigir-veh1"></script>
 </body>
 </html>

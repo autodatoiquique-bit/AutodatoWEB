@@ -122,8 +122,19 @@ function normalizarFlota(f) {
     link_acceso: String(f.link_acceso || "").trim(),
     canal_webhook: String(f.canal_webhook || "").trim(),
     agenda_modo: agendaModo === "libre" ? "libre" : "limitada",
+    exigir_modelo_vehiculo: normalizarExigirModeloVehiculoFlota(f.exigir_modelo_vehiculo),
     solicitantes,
   };
+}
+
+function normalizarExigirModeloVehiculoFlota(raw) {
+  const v = String(raw || "no").trim().toLowerCase();
+  if (v === "si" || v === "sí" || v === "exigir" || v === "true") return "si";
+  return "no";
+}
+
+function flotaExigeModeloVehiculo(f) {
+  return Boolean(f && normalizarExigirModeloVehiculoFlota(f.exigir_modelo_vehiculo) === "si");
 }
 
 function normalizarSolicitanteFlota(s) {
@@ -390,6 +401,7 @@ function fusionarFlotaAccesoEnMemoria(nueva) {
       link_acceso: n.link_acceso,
       canal_webhook: n.canal_webhook,
       agenda_modo: n.agenda_modo,
+      exigir_modelo_vehiculo: n.exigir_modelo_vehiculo,
     };
   } else {
     FLOTAS[idx] = n;

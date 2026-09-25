@@ -444,14 +444,24 @@ async function intentarPinFlota() {
   entrarFlota(flotaId, { bienvenida: true });
 }
 
+function renderFiltroFlotaEntrada() {
+  const barra = typeof htmlBarraNavFlotas === "function" ? htmlBarraNavFlotas() : "";
+  $("stage").innerHTML = `${barra}<section class="panel claro">${htmlFiltro("flota")}</section>`;
+}
+
 function entrarFlota(id, opts = {}) {
   const f = flotaPorId(id);
   state.flotaActivaId = id;
   state.flotaCategoriaId = "";
   state.flotaPendienteId = "";
   if (opts.bienvenida && f) state.flotaBienvenida = f.nombre;
-  state.vista = "flotas-categorias";
-  if (typeof renderVista === "function") renderVista();
+  const exige =
+    typeof flotaExigeModeloVehiculo === "function" &&
+    flotaExigeModeloVehiculo(f) &&
+    typeof vehiculoOk === "function" &&
+    !vehiculoOk();
+  state.vista = exige ? "filtro-flota" : "flotas-categorias";
+  if (typeof renderVista === "function") renderVista({ quedarse: true });
 }
 
 async function abrirVistaFlotas() {

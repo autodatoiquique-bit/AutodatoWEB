@@ -28,6 +28,11 @@ function pintarModalConfigFlota() {
   if (!flota) return;
   const sel = $("flota-config-agenda");
   if (sel) sel.value = flota.agenda_modo === "libre" ? "libre" : "limitada";
+  const selVeh = $("flota-config-exigir-vehiculo");
+  if (selVeh) {
+    selVeh.value =
+      typeof flotaExigeModeloVehiculo === "function" && flotaExigeModeloVehiculo(flota) ? "si" : "no";
+  }
   const tbody = $("flota-config-solicitantes-body");
   if (!tbody) return;
   const lista = flota.solicitantes || [];
@@ -858,6 +863,13 @@ function initFlotasAdmin() {
     if (!flota) return;
     const modo = ($("flota-config-agenda") && $("flota-config-agenda").value) || "limitada";
     flota.agenda_modo = modo === "libre" ? "libre" : "limitada";
+    const exVeh = ($("flota-config-exigir-vehiculo") && $("flota-config-exigir-vehiculo").value) || "no";
+    flota.exigir_modelo_vehiculo =
+      typeof normalizarExigirModeloVehiculoFlota === "function"
+        ? normalizarExigirModeloVehiculoFlota(exVeh)
+        : exVeh === "si"
+          ? "si"
+          : "no";
     flota.solicitantes = leerSolicitantesDesdeModalConfig();
     persistirFlotas();
     try {
