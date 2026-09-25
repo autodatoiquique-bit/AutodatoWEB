@@ -1303,6 +1303,10 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 
 .modal-horas[hidden] { display: none; }
 
+#modal-sustituir-aceite:not([hidden]) {
+  z-index: 100;
+}
+
 .modal-card {
   position: relative;
   width: min(340px, 100%);

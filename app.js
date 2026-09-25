@@ -1307,7 +1307,7 @@ function htmlComboExtrasEnDetalle(s) {
   const extras = catalogoExtrasConDescuentoCombo(s);
   if (!extras.length) return "";
   return `
-      <div class="combo-inclusiones-extras suma-ofertas">
+      <div id="combo-sugerencias-post-ticket" class="combo-inclusiones-extras suma-ofertas">
         <h3>También con descuento al sumar con este combo</h3>
         <div class="minis">${extras.map((serv) => htmlMini(serv, null, ctx)).join("")}</div>
       </div>`;
@@ -2610,7 +2610,8 @@ function agregarOfertaDirecto(id) {
   if (state.vista === "oferta-detalle") {
     state.ofertaAbierta = id;
     state.origenAgenda = "ofertas";
-    renderVista();
+    renderDetalleOferta();
+    if (esCombo) enfocarComboSugerenciasTrasAgregar();
     return;
   }
   if (!state.ofertaAbierta) state.ofertaAbierta = id;
@@ -2618,21 +2619,54 @@ function agregarOfertaDirecto(id) {
   refrescarListasCotizacion();
 }
 
+function etiquetaAceiteParaModal(s) {
+  if (!s) return "aceite";
+  const n = String(s.nombre || "")
+    .replace(/^cambio de aceite de motor\s*/i, "")
+    .replace(/^cambio de aceite\s*/i, "")
+    .trim();
+  return n || s.nombre || "aceite";
+}
+
+function precioAceiteEnTicket(s) {
+  const otros = state.carrito.filter((x) => x.tipo === "oferta" && x.id !== s.id).map((x) => x.id);
+  const p = precioPagado(s, otros);
+  return p.pagado != null ? p.pagado : s.precio;
+}
+
+function enfocarComboSugerenciasTrasAgregar() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const el = $("combo-sugerencias-post-ticket");
+      if (!el) return;
+      const stage = $("stage");
+      const margen = 72;
+      if (stage && stage.scrollHeight > stage.clientHeight + 4) {
+        const stageRect = stage.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const offset = elRect.top - stageRect.top + stage.scrollTop - margen;
+        stage.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+        return;
+      }
+      const y = window.scrollY + el.getBoundingClientRect().top - margen;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    });
+  });
+}
+
 function pedirSustituirAceite(nuevoId, reemplazar) {
   const nuevo = oferta(nuevoId);
-  if (!nuevo) return;
+  const viejo = (reemplazar || [])[0];
+  if (!nuevo || !viejo) return;
   sustituirAceitePendiente = nuevoId;
-  const lista = (reemplazar || [])
-    .map((m) => `<li><strong>${escapeHtml(m.nombre)}</strong></li>`)
-    .join("");
+  const marcaVieja = escapeHtml(etiquetaAceiteParaModal(viejo));
+  const marcaNueva = escapeHtml(etiquetaAceiteParaModal(nuevo));
+  const precioViejo = clp(precioAceiteEnTicket(viejo));
+  const precioNuevo = clp(precioAceiteEnTicket(nuevo));
   $("sustituir-aceite-cuerpo").innerHTML = `
-    <p class="muted">Solo puede haber <strong>un cambio de aceite de motor</strong> en el ticket.</p>
-    <p>Al agregar <strong>${escapeHtml(nuevo.nombre)}</strong>, se sustituirá el aceite que ya tienes:</p>
-    <ul class="muted">${lista}</ul>
-    <p>No podrás llevar dos tipos de aceite al mismo tiempo.</p>
+    <p>¿Quieres sustituir el aceite <strong>${marcaVieja}</strong> de <strong>${precioViejo}</strong> por <strong>${marcaNueva}</strong> ${precioNuevo}?</p>
   `;
   $("modal-sustituir-aceite").hidden = false;
-  $("overlay").hidden = false;
 }
 
 function cerrarModalSustituirAceite() {
@@ -2688,7 +2722,6 @@ function overlayLibre() {
     $("modal-kpi").hidden &&
     $("modal-horas").hidden &&
     $("modal-quitar").hidden &&
-    ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden) &&
     $("modal-informe").hidden
   );
 }
@@ -3208,7 +3241,7 @@ function guardarClienteDesdeForma() {
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -3362,6 +3395,10 @@ document.addEventListener("click", (e) => {
 });
 
 $("overlay").addEventListener("click", () => {
+  if ($("modal-sustituir-aceite") && !$("modal-sustituir-aceite").hidden) {
+    cerrarModalSustituirAceite();
+    return;
+  }
   if (!$("modal-quitar").hidden) {
     cerrarModalQuitar();
     return;
@@ -3387,6 +3424,11 @@ $("modal-informe").addEventListener("click", (e) => {
 if ($("modal-auto")) {
   $("modal-auto").addEventListener("click", (e) => {
     if (e.target.id === "modal-auto") cerrarModalAuto();
+  });
+}
+if ($("modal-sustituir-aceite")) {
+  $("modal-sustituir-aceite").addEventListener("click", (e) => {
+    if (e.target.id === "modal-sustituir-aceite") cerrarModalSustituirAceite();
   });
 }
 
