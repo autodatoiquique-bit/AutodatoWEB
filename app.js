@@ -1494,7 +1494,7 @@ function htmlTarjetaOferta(s) {
   `;
 }
 
-function serviciosParaVehiculo(lista) {
+function serviciosParaVehiculo(lista, canal) {
   let candidatos = Array.isArray(lista) ? lista.slice() : [];
   if (vehiculoOk()) {
     const col = columnaDeVehiculo(state.vehiculo);
@@ -1503,14 +1503,18 @@ function serviciosParaVehiculo(lista) {
       idsDeColumna(col, "servicios").forEach((sid) => {
         if (ids.has(String(sid))) return;
         const s = servicioPorId(sid);
-        if (s && s.activo !== false) {
-          candidatos.push(s);
-          ids.add(String(sid));
-        }
+        if (!s || s.activo === false) return;
+        if (canal && typeof servicioEnCanal === "function" && !servicioEnCanal(s, canal)) return;
+        candidatos.push(s);
+        ids.add(String(sid));
       });
     }
   }
-  const filtrados = candidatos.filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
+  const filtrados = candidatos.filter((s) => {
+    if (!servicioAplicaAVehiculo(s, state.vehiculo)) return false;
+    if (canal && typeof servicioEnCanal === "function" && !servicioEnCanal(s, canal)) return false;
+    return true;
+  });
   if (!vehiculoOk()) return filtrados;
   const col = columnaDeVehiculo(state.vehiculo);
   if (col && typeof ordenarServiciosColumna === "function") return ordenarServiciosColumna(col, filtrados);
@@ -1552,7 +1556,7 @@ function renderOfertas() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Promociones",
     "Promociones de ocasión. Las mantenciones regulares están en Mantención preventiva.",
-    serviciosParaVehiculo(serviciosOferta())
+    serviciosParaVehiculo(serviciosOferta(), "ofertas")
   );
 }
 
@@ -1560,7 +1564,7 @@ function renderMantencion() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Mantención preventiva",
     "¡Arma tu combo y ahorra en mano de obra! Al realizar varios servicios en una misma visita optimizamos los tiempos de taller y desarme, permitiéndonos ofrecerte un descuento especial en cada mantención adicional que sumes a tu ticket.",
-    serviciosParaVehiculo(serviciosMantencion()),
+    serviciosParaVehiculo(serviciosMantencion(), "mantencion")
     { fijo: true }
   );
 }
@@ -1770,7 +1774,7 @@ function renderDiagnostico() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Diagnóstico automotriz",
     "Revisión enfocada en tu problema real. Para garantizar un diagnóstico certero, cada sistema se analiza por separado: escáner electrónico, ruidos mecánicos o inspección de fugas. Selecciona el servicio correspondiente según la falla que notes en tu vehículo.",
-    serviciosParaVehiculo(serviciosDiagnostico()),
+    serviciosParaVehiculo(serviciosDiagnostico(), "diagnostico")
     { fijo: true }
   );
 }

@@ -492,6 +492,29 @@ button { font-family: inherit; cursor: pointer; }
 .kanban-top {
   padding: 16px 20px 8px;
 }
+.kanban-top-row-main {
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
+.btn-tablero-revertir {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.btn-tablero-revertir:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.admin-confirm-cuerpo p {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.admin-confirm-acciones {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
 .flota-admin-busqueda-field {
   margin: 12px 0 0;
   max-width: 420px;
@@ -832,8 +855,16 @@ button { font-family: inherit; cursor: pointer; }
 .kanban-add {
   flex: 0 0 auto;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 4px 0 0;
+}
+.kanban-col-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #5e6c84;
+  white-space: nowrap;
 }
 .kanban-add-card {
   border: 0;

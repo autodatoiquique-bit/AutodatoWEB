@@ -19,6 +19,9 @@ let kanbanDrag = { kind: "", payload: "" };
 let kanbanSuppressClick = false;
 let kanbanCardPointer = null;
 let scrollTableroGuardado = { trackLeft: 0, cols: {} };
+let tableroSnapshotRevertir = null;
+let tableroOmitirSnapshot = false;
+let adminConfirmResolver = null;
 let adminGuardadoDepth = 0;
 let adminGuardadoOkTimer = null;
 
@@ -371,6 +374,17 @@ function htmlCamposColumna(col, id) {
     <label class="field"><span>Combustible</span>
       <select data-col-campo="combustible" data-col-id="${id}">${htmlOpcionesCombustible(esNueva ? "" : combustible || "ambos", esNueva)}</select>
     </label>
+    ${
+      esNueva
+        ? ""
+        : `<label class="field"><span>Orden de tarjetas</span>
+      <select data-col-campo="orden-auto" data-col-id="${id}">
+        <option value="no" ${!col || col.orden_automatico_tarjetas !== "si" ? "selected" : ""}>Manual (arrastrar)</option>
+        <option value="si" ${col && col.orden_automatico_tarjetas === "si" ? "selected" : ""}>Automático (portadas, combos, aceite, precio)</option>
+      </select>
+    </label>
+    <p class="muted col-orden-hint">Automático: portadas, combos, aceite de motor y demás servicios de menor a mayor precio normal.</p>`
+    }
   `;
 }
 
@@ -386,6 +400,7 @@ function leerCamposColumna(id) {
     ano_hasta: adelante ? null : hastaRaw !== "" && hastaRaw != null ? Number(hastaRaw) : null,
     combustible: q("combustible") && q("combustible").value,
     adelante,
+    orden_automatico_tarjetas: q("orden-auto") && q("orden-auto").value === "si" ? "si" : "no",
   };
 }
 
@@ -396,6 +411,127 @@ async function guardarTableroNube() {
       await nubeGuardarCatalogoCanales(catalogo);
     }
   });
+}
+
+function clonarTableroParaSnapshot() {
+  return JSON.parse(JSON.stringify(TABLERO_COLUMNAS || []));
+}
+
+function capturarSnapshotTablero() {
+  tableroSnapshotRevertir = clonarTableroParaSnapshot();
+}
+
+function tableroTieneCambiosRevertibles() {
+  if (!tableroSnapshotRevertir) return false;
+  return JSON.stringify(TABLERO_COLUMNAS) !== JSON.stringify(tableroSnapshotRevertir);
+}
+
+function pintarEstadoRevertirTablero() {
+  const btn = $("btn-tablero-revertir");
+  if (!btn) return;
+  btn.disabled = !tableroTieneCambiosRevertibles();
+}
+
+function pedirConfirmacionAdmin(titulo, htmlCuerpo) {
+  return new Promise((resolve) => {
+    adminConfirmResolver = resolve;
+    if ($("admin-confirm-titulo")) $("admin-confirm-titulo").textContent = titulo || "Confirmar";
+    if ($("admin-confirm-cuerpo")) $("admin-confirm-cuerpo").innerHTML = htmlCuerpo || "";
+    if ($("modal-admin-confirm")) $("modal-admin-confirm").hidden = false;
+  });
+}
+
+function cerrarConfirmacionAdmin(ok) {
+  if ($("modal-admin-confirm")) $("modal-admin-confirm").hidden = true;
+  if (adminConfirmResolver) {
+    adminConfirmResolver(Boolean(ok));
+    adminConfirmResolver = null;
+  }
+}
+
+async function quitarColumnaTablero(colId) {
+  const id = String(colId || "");
+  if (!id) return;
+  const col = TABLERO_COLUMNAS.find((c) => c.id === id);
+  if (!col) return;
+  const titulo = typeof tituloColumna === "function" ? tituloColumna(col) : `${col.marca} ${col.modelo}`;
+  const ok = await pedirConfirmacionAdmin(
+    "Quitar columna",
+    `<p>Vas a quitar del tablero la columna <strong>${escapeText(titulo)}</strong>.</p>
+     <p class="muted">El cliente ya no verá esas tarjetas para ese vehículo. Los servicios y portadas no se borran del catálogo.</p>`
+  );
+  if (!ok) return;
+  TABLERO_COLUMNAS = TABLERO_COLUMNAS.filter((c) => c.id !== id);
+  try {
+    await guardarTableroNube();
+  } catch (e) {
+    alert((e && e.message) || "No se pudo guardar el tablero.");
+    return;
+  }
+  if (columnaEditId === id) cerrarModalColumna();
+  renderTablero();
+}
+
+async function revertirCambiosTablero() {
+  if (!tableroSnapshotRevertir || !tableroTieneCambiosRevertibles()) return;
+  const ok = await pedirConfirmacionAdmin(
+    "Revertir cambios",
+    `<p>¿Volver el tablero al estado de cuando abriste esta vista?</p>
+     <p class="muted">Se deshacen columnas, orden y tarjetas modificadas desde entonces y se guarda en la nube.</p>`
+  );
+  if (!ok) return;
+  TABLERO_COLUMNAS = tableroSnapshotRevertir
+    .map((c) => (typeof normalizarColumnaTablero === "function" ? normalizarColumnaTablero(c) : c))
+    .filter(Boolean);
+  persistirTablero();
+  tableroOmitirSnapshot = true;
+  try {
+    await guardarTableroNube();
+  } catch (e) {
+    alert((e && e.message) || "No se pudo guardar el tablero.");
+    return;
+  }
+  capturarSnapshotTablero();
+  renderTablero();
+}
+
+function nuevoIdColumnaTablero() {
+  return `col-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function duplicarColumnaTablero(colId) {
+  const i = TABLERO_COLUMNAS.findIndex((c) => c.id === colId);
+  if (i < 0) return null;
+  const src = TABLERO_COLUMNAS[i];
+  const raw = JSON.parse(JSON.stringify(src));
+  raw.id = nuevoIdColumnaTablero();
+  const copia = typeof normalizarColumnaTablero === "function" ? normalizarColumnaTablero(raw) : raw;
+  if (!copia) return null;
+  TABLERO_COLUMNAS.splice(i + 1, 0, copia);
+  return copia;
+}
+
+function enfocarColumnaTablero(colId) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`.kanban-col[data-col-id="${String(colId).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    });
+  });
+}
+
+async function duplicarColumnaTableroYGuardar(colId) {
+  const nueva = duplicarColumnaTablero(colId);
+  if (!nueva) return;
+  if (columnaEditId === colId) cerrarModalColumna();
+  try {
+    await guardarTableroNube();
+  } catch (e) {
+    alert((e && e.message) || "No se pudo guardar el tablero.");
+    return;
+  }
+  renderTablero();
+  enfocarColumnaTablero(nueva.id);
 }
 
 function htmlKanbanCardShell(colId, token, inner) {
@@ -479,6 +615,7 @@ function htmlColumnaKanban(col) {
         ${!tarjetas.length ? `<p class="kanban-vacio">Sin promociones para este auto.</p>` : ""}
       </div>
       <div class="kanban-add">
+        <span class="kanban-col-count" aria-label="Tarjetas en esta columna">${tarjetas.length} ${tarjetas.length === 1 ? "tarjeta" : "tarjetas"}</span>
         <button type="button" class="kanban-add-card" data-kanban-tarjeta="${col.id}">Añadir tarjeta</button>
       </div>
     </section>
@@ -831,6 +968,9 @@ async function asignarServiciosAColumna(sids, colId) {
     sumarItemAColumna(col, sid, "servicios");
     n += 1;
   });
+  if (typeof aplicarOrdenColumnaTableroSiCorresponde === "function") {
+    aplicarOrdenColumnaTableroSiCorresponde(col);
+  }
   if (!n) return;
   try {
     persistirTablero();
@@ -895,20 +1035,29 @@ function armarMemoriaScrollTablero(track) {
   });
 }
 
-function renderTablero() {
+function renderTablero(opciones) {
   capturarScrollTablero();
   editando = null;
   hidratarTablero();
   if (sembrarMembresiaColumnas()) persistirTablero();
   const sembrar = !TABLERO_COLUMNAS.length;
   if (sembrar) sembrarColumnasTablero();
+  const reiniciarSnapshot = opciones && opciones.reiniciarSnapshot;
+  if (reiniciarSnapshot) tableroSnapshotRevertir = null;
+  if (!tableroOmitirSnapshot && (!tableroSnapshotRevertir || reiniciarSnapshot)) {
+    capturarSnapshotTablero();
+  }
+  tableroOmitirSnapshot = false;
   $("stage").classList.add("stage-board");
   $("stage").innerHTML = `
     <div class="kanban">
       <div class="kanban-top">
-        <div>
-          <h2>Tablero de promociones</h2>
-          <p>Cada columna es un auto: marca, modelo, años y combustible. Arrastra ⋮⋮ para mover columnas. Mantén pulsada una tarjeta y arrástrala; el orden es el que ve el cliente.</p>
+        <div class="kanban-top-row kanban-top-row-main">
+          <div>
+            <h2>Tablero de promociones</h2>
+            <p>Cada columna es un auto: marca, modelo, años y combustible. Arrastra ⋮⋮ para mover columnas. Mantén pulsada una tarjeta y arrástrala; el orden es el que ve el cliente.</p>
+          </div>
+          <button type="button" class="btn-soft btn-tablero-revertir" id="btn-tablero-revertir" disabled title="Deshacer cambios desde que abriste el tablero">Revertir</button>
         </div>
       </div>
       <div class="kanban-track">
@@ -921,6 +1070,8 @@ function renderTablero() {
   armarDragTablero();
   armarMemoriaScrollTablero(document.querySelector(".kanban-track"));
   restaurarScrollTablero();
+  pintarEstadoRevertirTablero();
+  $("btn-tablero-revertir")?.addEventListener("click", () => revertirCambiosTablero());
   if (sembrar) guardarTableroNube();
 }
 
@@ -950,6 +1101,9 @@ function moverTarjetaColumna(colId, token, beforeToken) {
   if (from < to) to -= 1;
   list.splice(to, 0, token);
   aplicarTokensOrdenCol(col, list);
+  if (typeof aplicarOrdenColumnaTableroSiCorresponde === "function") {
+    aplicarOrdenColumnaTableroSiCorresponde(col);
+  }
 }
 
 async function guardarOrdenTablero() {
@@ -1302,6 +1456,9 @@ async function guardarColumnaTablero(id) {
     foto: previa.foto,
   });
   if (previa.foto) aplicarFotoColumna(TABLERO_COLUMNAS[i], previa.foto);
+  if (typeof aplicarOrdenColumnaTableroSiCorresponde === "function") {
+    aplicarOrdenColumnaTableroSiCorresponde(TABLERO_COLUMNAS[i]);
+  }
   try {
     await guardarTableroNube();
   } catch (e) {
@@ -2649,7 +2806,7 @@ $("logo-file")?.addEventListener("change", async (e) => {
   }
 });
 
-$("btn-tablero").addEventListener("click", renderTablero);
+$("btn-tablero").addEventListener("click", () => renderTablero({ reiniciarSnapshot: true }));
 $("btn-portada").addEventListener("click", abrirEditorPortada);
 $("btn-fotos-modelos").addEventListener("click", renderEditorFotosModelos);
 $("btn-datos-taller").addEventListener("click", renderDatosTaller);
@@ -2876,8 +3033,7 @@ $("stage").addEventListener("click", (e) => {
     return;
   }
   if (t.dataset.kanbanDelCol) {
-    TABLERO_COLUMNAS = TABLERO_COLUMNAS.filter((c) => c.id !== t.dataset.kanbanDelCol);
-    guardarTableroNube().then(renderTablero);
+    void quitarColumnaTablero(t.dataset.kanbanDelCol);
     return;
   }
   if (t.dataset.fotoModelo) {
@@ -3220,13 +3376,19 @@ $("btn-col-foto")?.addEventListener("click", () => {
 $("btn-guardar-columna")?.addEventListener("click", () => {
   if (columnaEditId) guardarColumnaTablero(columnaEditId);
 });
+$("btn-duplicar-columna")?.addEventListener("click", () => {
+  if (!columnaEditId) return;
+  void duplicarColumnaTableroYGuardar(columnaEditId);
+});
 $("btn-quitar-columna")?.addEventListener("click", () => {
   if (!columnaEditId) return;
-  TABLERO_COLUMNAS = TABLERO_COLUMNAS.filter((c) => c.id !== columnaEditId);
-  guardarTableroNube().then(() => {
-    cerrarModalColumna();
-    renderTablero();
-  });
+  void quitarColumnaTablero(columnaEditId);
+});
+$("btn-admin-confirm-ok")?.addEventListener("click", () => cerrarConfirmacionAdmin(true));
+$("btn-admin-confirm-cancel")?.addEventListener("click", () => cerrarConfirmacionAdmin(false));
+$("cerrar-admin-confirm")?.addEventListener("click", () => cerrarConfirmacionAdmin(false));
+$("modal-admin-confirm")?.addEventListener("click", (e) => {
+  if (e.target.id === "modal-admin-confirm") cerrarConfirmacionAdmin(false);
 });
 $("modal-columna")?.addEventListener("click", (e) => {
   if (e.target.id === "modal-columna") cerrarModalColumna();

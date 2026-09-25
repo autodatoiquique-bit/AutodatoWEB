@@ -210,7 +210,18 @@ function fusionarExtraEnServicio(s, extra, opts) {
   const lite = opts && opts.lite;
   const ex = extra && extra[s.id] && String(s.id).charAt(0) !== "_" ? extra[s.id] : null;
   if (!ex) return s;
-  s.canales = ex;
+  if (typeof normalizarCanales === "function") {
+    s.canales = normalizarCanales(
+      { ofertas: ex.ofertas, mantencion: ex.mantencion, diagnostico: ex.diagnostico },
+      s.tipo
+    );
+  } else {
+    s.canales = {
+      ofertas: Boolean(ex.ofertas),
+      mantencion: Boolean(ex.mantencion),
+      diagnostico: Boolean(ex.diagnostico),
+    };
+  }
   if (ex.tiene_oferta != null) s.tiene_oferta = Boolean(ex.tiene_oferta) && Number(ex.precio_oferta) > 0;
   if (ex.oferta_combo != null) s.oferta_combo = Boolean(ex.oferta_combo);
   if (Number(ex.precio_oferta) > 0) s.precio_oferta = Number(ex.precio_oferta);

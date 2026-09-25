@@ -191,6 +191,7 @@ function sumarItemAColumna(col, id, campo) {
   const tok = tokenTarjetaColumna(key === "portadas" ? "portada" : "servicio", sid);
   if (!Array.isArray(col.orden_tarjetas)) col.orden_tarjetas = [];
   if (!col.orden_tarjetas.includes(tok)) col.orden_tarjetas.push(tok);
+  aplicarOrdenColumnaTableroSiCorresponde(col);
   return true;
 }
 
@@ -206,11 +207,89 @@ function quitarItemDeColumnas(id) {
   });
 }
 
+function normalizarOrdenAutomaticoTarjetasCol(raw) {
+  const v = String(raw || "no").trim().toLowerCase();
+  return v === "si" || v === "sí" || v === "true" ? "si" : "no";
+}
+
+function columnaOrdenAutomaticoTarjetas(col) {
+  return Boolean(col && col.orden_automatico_tarjetas === "si");
+}
+
+function esAceiteMotorNombreServicio(s) {
+  if (!s) return false;
+  return String(s.nombre || "")
+    .toLowerCase()
+    .includes("aceite de motor");
+}
+
+function grupoOrdenTarjetaTablero(tarjeta) {
+  if (!tarjeta) return 9;
+  if (tarjeta.tipo === "portada") return 0;
+  const s = tarjeta.servicio;
+  if (!s) return 9;
+  if (typeof esServicioCombo === "function" && esServicioCombo(s)) return 1;
+  if (esAceiteMotorNombreServicio(s)) return 2;
+  return 3;
+}
+
+function precioOrdenTarjetaTablero(tarjeta) {
+  if (!tarjeta || !tarjeta.servicio) return 0;
+  const s = tarjeta.servicio;
+  const n = typeof valorNormalDe === "function" ? valorNormalDe(s) : s.precio;
+  return Number(n) || 0;
+}
+
+function ordenarColumnaTableroAutomatico(col) {
+  if (!col) return false;
+  sincronizarOrdenTarjetasCol(col);
+  const items = tarjetasKanbanDe(col);
+  const sorted = items.slice().sort((a, b) => {
+    const ga = grupoOrdenTarjetaTablero(a);
+    const gb = grupoOrdenTarjetaTablero(b);
+    if (ga !== gb) return ga - gb;
+    if (ga >= 1) {
+      const pa = precioOrdenTarjetaTablero(a);
+      const pb = precioOrdenTarjetaTablero(b);
+      if (pa !== pb) return pa - pb;
+      return String(a.servicio?.nombre || "").localeCompare(String(b.servicio?.nombre || ""), "es");
+    }
+    if (a.tipo === "portada" && b.tipo === "portada") {
+      return (a.i || 0) - (b.i || 0);
+    }
+    return 0;
+  });
+  aplicarTokensOrdenCol(
+    col,
+    sorted.map((t) => t.token).filter(Boolean)
+  );
+  return true;
+}
+
+function aplicarOrdenColumnaTableroSiCorresponde(colRef) {
+  const tablero = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  const c =
+    colRef && colRef.marca && colRef.modelo
+      ? colRef
+      : tablero.find((x) => x.id === (typeof colRef === "string" ? colRef : colRef && colRef.id));
+  if (!c || !columnaOrdenAutomaticoTarjetas(c)) return false;
+  return ordenarColumnaTableroAutomatico(c);
+}
+
+function servicioEnCanal(s, canal) {
+  if (!canal || !s) return true;
+  const c =
+    typeof normalizarCanales === "function"
+      ? normalizarCanales(s.canales, s.tipo)
+      : s.canales || {};
+  return Boolean(c[canal]);
+}
+
 function normalizarColumnaTablero(c) {
   if (!c || !c.marca || !c.modelo) return null;
   const d = anioONull(c.ano_desde);
   const h = anioONull(c.ano_hasta);
-  return {
+  const col = {
     id: String(c.id || `col-${c.marca}-${c.modelo}-${d || ""}-${h || ""}`),
     marca: String(c.marca),
     modelo: String(c.modelo),
@@ -223,6 +302,8 @@ function normalizarColumnaTablero(c) {
     orden_tarjetas: Array.isArray(c.orden_tarjetas) ? c.orden_tarjetas.map(String) : [],
     ocultos: Array.isArray(c.ocultos) ? c.ocultos.map(String) : [],
   };
+  col.orden_automatico_tarjetas = normalizarOrdenAutomaticoTarjetasCol(c.orden_automatico_tarjetas);
+  return col;
 }
 
 function claveColumnaTablero(c) {

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=guardado-ok1" />
+  <link rel="stylesheet" href="admin.css?v=tablero-revertir1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -67,6 +67,18 @@
     </main>
   </div>
 
+  <div id="modal-admin-confirm" class="modal" hidden>
+    <div class="modal-card">
+      <button class="x" type="button" id="cerrar-admin-confirm">×</button>
+      <h3 id="admin-confirm-titulo">Confirmar</h3>
+      <div id="admin-confirm-cuerpo" class="admin-confirm-cuerpo"></div>
+      <div class="btn-row admin-confirm-acciones">
+        <button class="btn-soft" type="button" id="btn-admin-confirm-cancel">Cancelar</button>
+        <button class="btn-primary" type="button" id="btn-admin-confirm-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-columna" class="modal" hidden>
     <div class="modal-card modal-columna">
       <button class="x" type="button" id="cerrar-columna">×</button>
@@ -79,6 +91,7 @@
       <button class="btn-line btn-block" type="button" id="btn-col-foto">Subir foto de portada</button>
       <div id="col-campos"></div>
       <button class="btn-primary btn-block" type="button" id="btn-guardar-columna">Guardar columna</button>
+      <button class="btn-line btn-block" type="button" id="btn-duplicar-columna">Duplicar columna</button>
       <button class="btn-soft btn-block" type="button" id="btn-quitar-columna">Quitar columna</button>
     </div>
   </div>
@@ -276,10 +289,10 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="nube.js?v=combo-pack1"></script>
-  <script src="catalogo.js?v=combo-col1"></script>
+  <script src="nube.js?v=tablero-orden-canales1"></script>
+  <script src="catalogo.js?v=tablero-orden-canales1"></script>
   <script src="flotas.js?v=flota-kanban-busq1"></script>
-  <script src="admin.js?v=guardado-ok1"></script>
+  <script src="admin.js?v=tablero-duplicar-col1"></script>
   <script src="admin-combos.js?v=guardado-ok1"></script>
   <script src="admin-flotas.js?v=flota-kanban-busq1"></script>
 </body>
