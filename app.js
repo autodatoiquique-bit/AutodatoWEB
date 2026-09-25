@@ -1149,6 +1149,7 @@ function armarCarruselPortada(nReal, indicePrincipal) {
   };
   const pintarDots = (i) => {
     dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    if (typeof pintarThumbsPortada === "function") pintarThumbsPortada(i);
   };
   const irA = (i, suave) => {
     const w = ancho();
@@ -1201,6 +1202,46 @@ function armarCarruselPortada(nReal, indicePrincipal) {
     irA(loop ? realDe(crudo()) + 1 : crudo(), false);
   };
   window.addEventListener("resize", window._portadaResize);
+  armarNavegacionPortada({ nReal, loop, irA, realDe, crudo });
+}
+
+function armarNavegacionPortada(ctx) {
+  if (!ctx || ctx.nReal < 2) return;
+  const { nReal, loop, irA, realDe, crudo } = ctx;
+  const irReal = (realIdx) => {
+    const i = Math.max(0, Math.min(nReal - 1, Number(realIdx) || 0));
+    irA(loop ? i + 1 : i, true);
+    pintarThumbsPortada(i);
+  };
+  const siguiente = () => {
+    const r = loop ? realDe(crudo()) : crudo();
+    irReal((r + 1) % nReal);
+  };
+  const dotsEl = document.querySelector(".home-dots");
+  if (dotsEl) {
+    dotsEl.setAttribute("role", "button");
+    dotsEl.setAttribute("aria-label", "Siguiente portada");
+    dotsEl.querySelectorAll("i").forEach((dot, n) => {
+      dot.setAttribute("role", "presentation");
+      dot.addEventListener("click", (e) => {
+        e.stopPropagation();
+        irReal(n);
+      });
+    });
+    dotsEl.addEventListener("click", (e) => {
+      if (e.target.tagName === "I") return;
+      siguiente();
+    });
+  }
+  document.querySelectorAll("[data-portada-ir]").forEach((btn) => {
+    btn.addEventListener("click", () => irReal(btn.dataset.portadaIr));
+  });
+}
+
+function pintarThumbsPortada(indiceReal) {
+  document.querySelectorAll(".home-portada-thumb").forEach((btn) => {
+    btn.classList.toggle("is-on", String(btn.dataset.portadaIr) === String(indiceReal));
+  });
 }
 
 let holdContacto = { tipo: "", held: false, timer: 0 };
@@ -1317,12 +1358,27 @@ function renderPortada() {
   const loop = lista.length > 1;
   const pista = loop ? [lista[lista.length - 1], ...lista, lista[0]] : lista;
   const indicePrincipal = loop ? 1 : 0;
+  const varias = lista.length > 1;
+  const strip =
+    varias
+      ? `<div class="home-portada-strip" aria-label="Otras portadas">
+          ${lista
+            .map(
+              (s, i) =>
+                `<button type="button" class="home-portada-thumb${i === 0 ? " is-on" : ""}" data-portada-ir="${i}" title="Ver portada ${i + 1}">
+                  <img src="${escapeAttr(s.foto)}" alt="" loading="lazy" decoding="async" />
+                </button>`
+            )
+            .join("")}
+        </div>`
+      : "";
   $("stage").innerHTML = `
-    <section class="home-screen">
+    <section class="home-screen${varias ? " portada-varias" : ""}">
       <header class="home-logo" style="height:${bannerAltoPortada(portadaUi)}px">
         <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
       </header>
       <div class="home-slides" id="home-slides">${pista.map((s, i) => htmlSlidePortada(s, i, indicePrincipal)).join("")}</div>
+      ${strip}
       ${htmlCapaPortada(portadaUi, lista.length, 0, false)}
     </section>
   `;

@@ -1574,7 +1574,11 @@ function slidesPortadaPara(vehiculo) {
   const base = todos.length ? todos : PORTADA_DEFECTO.map(normalizarSlide);
   const reserva = portadasDefectoDe(base);
   if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) {
-    return reserva.length ? reserva : base;
+    const genericos = base.filter((s) => s.foto && !normalizarVehiculos(s.vehiculos).length);
+    if (genericos.length > 1) return genericos;
+    if (reserva.length > 1) return reserva;
+    if (todos.length > 1) return todos;
+    return reserva.length ? reserva : base.filter((s) => s.foto);
   }
   const col = columnaDeVehiculo(vehiculo);
   const propios = col ? portadasFlyerDeColumna(col, base) : [];
