@@ -1299,12 +1299,12 @@ function htmlDetalleComboInclusiones(s) {
           })
           .join("")}
       </ul>
-      ${htmlComboExtrasEnDetalle(s)}
       <div class="combo-inclusiones-total">
         <div><span>Total por separado</span><strong class="tachado">${clp(pack.lista)}</strong></div>
         <div><span>Total combo</span><strong>${clp(pack.pagado)}</strong></div>
         <div><span>Ahorras</span><strong class="ahorro-tag">${clp(pack.ahorro)}</strong></div>
       </div>
+      ${htmlComboExtrasEnDetalle(s)}
     </section>
   `;
 }
