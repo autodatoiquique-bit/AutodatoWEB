@@ -292,6 +292,11 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 0.82rem;
   margin: 6px 0 14px;
 }
+.btn-flota-eliminar-col {
+  color: var(--red);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
 .flota-link-directo {
   margin: 16px 0;
   padding-top: 12px;

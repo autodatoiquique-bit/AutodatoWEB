@@ -713,6 +713,14 @@ function quitarServicioFlotaCol(flotaId, colId, token) {
   col.orden_tarjetas = (col.orden_tarjetas || []).filter((t) => t !== token);
 }
 
+function eliminarColumnaFlota(flotaId, colId) {
+  const flota = flotaPorId(flotaId);
+  if (!flota || !colId) return false;
+  const antes = (flota.columnas || []).length;
+  flota.columnas = (flota.columnas || []).filter((c) => c.id !== colId);
+  return flota.columnas.length < antes;
+}
+
 function agregarColumnaFlota(flotaId, titulo) {
   const flota = flotaPorId(flotaId);
   if (!flota) return null;

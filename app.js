@@ -2973,16 +2973,21 @@ async function generarTicket() {
   tickets.unshift(payload);
   localStorage.setItem("autodato_tickets", JSON.stringify(tickets));
   if (typeof nubeActiva === "function" && nubeActiva()) {
-    try {
-      await nubeGuardarTicket(payload);
-    } catch (e) {
+    void nubeGuardarTicket(payload).catch((e) => {
       console.warn("El ticket quedó en este navegador, pero no en la nube.", e);
-    }
+    });
   }
 
-  if (typeof ensureCatalogoCliente === "function") await ensureCatalogoCliente();
   vaciarCarritoTrasTicket();
+  mostrarCargaTicket(false);
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "Generar ticket y agendar";
+  }
   await abrirTicket(payload);
+  if (typeof refrescarCatalogoRemoto === "function") {
+    void refrescarCatalogoRemoto().catch(() => {});
+  }
   } finally {
     mostrarCargaTicket(false);
     if (btn) {
@@ -3112,15 +3117,26 @@ async function abrirTicket(payload) {
   `;
   abrir("ticket");
   syncSeguirKpi();
-  await asegurarLibsTicket();
+  void pintarQrTicket(String(payload.code || "").trim());
+}
+
+async function pintarQrTicket(code) {
   const nodo = $("ticket-qr");
-  nodo.innerHTML = "";
-  new QRCode(nodo, {
-    text: String(payload.code || "").trim(),
-    width: 240,
-    height: 240,
-    correctLevel: QRCode.CorrectLevel.L,
-  });
+  if (!nodo) return;
+  nodo.innerHTML = `<p class="muted ticket-qr-hint">Generando QR…</p>`;
+  try {
+    await asegurarLibsTicket();
+    if (!window.QRCode) throw new Error("sin qrcode");
+    nodo.innerHTML = "";
+    new QRCode(nodo, {
+      text: String(code || "").trim(),
+      width: 240,
+      height: 240,
+      correctLevel: QRCode.CorrectLevel.L,
+    });
+  } catch (e) {
+    nodo.innerHTML = `<p class="muted ticket-qr-hint">No se pudo cargar el QR. Usa el código numérico.</p>`;
+  }
 }
 
 function cargarScriptTicket(src) {
@@ -3643,6 +3659,7 @@ async function arrancar() {
   aplicarLogos();
   renderTotales(false);
   pistaMenuDesplazable();
+  void asegurarLibsTicket().catch(() => {});
   if (flotaAcceso && typeof entrarFlotaPorLinkAcceso === "function") {
     void entrarFlotaPorLinkAcceso(flotaAcceso).then((ok) => {
       if (ok) limpiarQueryFlotaAccesoEnHistorial();

@@ -951,6 +951,31 @@ function initFlotasAdmin() {
     }
   });
 
+  $("btn-flota-col-eliminar").addEventListener("click", async () => {
+    if (!flotaKanbanId || !flotaColEditId) return;
+    const flota = flotaPorId(flotaKanbanId);
+    const col = flota && flota.columnas.find((c) => c.id === flotaColEditId);
+    if (!col) return;
+    const n = (col.servicios || []).length;
+    const tituloCol = String(col.titulo || "esta categoría").trim();
+    const msg =
+      n > 0
+        ? `¿Eliminar «${tituloCol}» y sus ${n} servicio(s)? No se puede deshacer.`
+        : `¿Eliminar la categoría «${tituloCol}»? No se puede deshacer.`;
+    if (!confirm(msg)) return;
+    if (typeof eliminarColumnaFlota !== "function" || !eliminarColumnaFlota(flotaKanbanId, flotaColEditId)) return;
+    flotaColEditId = "";
+    flotaColFotoDraft = null;
+    flotaColFotoDraftColId = "";
+    $("modal-flota-col").hidden = true;
+    try {
+      await guardarOrdenFlotaKanban();
+      renderFlotaKanban(flotaKanbanId);
+    } catch (err) {
+      alert((err && err.message) || "No se pudo guardar el tablero.");
+    }
+  });
+
   $("btn-flota-col-guardar").addEventListener("click", async () => {
     const titulo = $("flota-col-titulo").value.trim();
     if (!titulo || !flotaKanbanId || !flotaColEditId) return;
