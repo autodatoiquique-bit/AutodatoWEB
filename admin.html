@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=guardando1" />
+  <link rel="stylesheet" href="admin.css?v=guardado-ok1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -214,8 +214,14 @@
         <button class="btn-soft" type="button" id="btn-flota-col-quitar-foto">Quitar</button>
       </div>
       <label class="field"><span>Nombre de la columna</span><input id="flota-col-titulo" type="text" /></label>
-      <button class="btn-soft btn-block" type="button" id="btn-flota-col-ordenar-precio">Ordenar por precio</button>
-      <p class="muted flota-orden-hint">Ordena las tarjetas de arriba abajo, de la más barata a la más cara.</p>
+      <label class="field">
+        <span>Orden de tarjetas</span>
+        <select id="flota-col-orden-precio">
+          <option value="no">Manual (arrastrar)</option>
+          <option value="si">Automático por precio (menor a mayor)</option>
+        </select>
+      </label>
+      <p class="muted flota-orden-hint">Con orden automático, las tarjetas nuevas se ubican solas por precio neto.</p>
       <button class="btn-soft btn-block btn-flota-eliminar-col" type="button" id="btn-flota-col-eliminar">Eliminar categoría</button>
       <button class="btn-primary btn-block" type="button" id="btn-flota-col-guardar">Guardar</button>
     </div>
@@ -237,6 +243,14 @@
       <label class="field"><span>Nombre</span><input id="flota-s-nombre" type="text" /></label>
       <label class="field"><span>Descripción</span><textarea id="flota-s-desc" rows="4"></textarea></label>
       <label class="field"><span>Precio neto (CLP)</span><input id="flota-s-precio" type="number" min="0" step="1000" /></label>
+      <button class="btn-soft btn-block" type="button" id="btn-flota-s-mover-cat" hidden>Mover de categoría</button>
+      <div id="flota-s-mover-cat-panel" class="flota-mover-cat-panel" hidden>
+        <label class="field">
+          <span>Categoría destino</span>
+          <select id="flota-s-mover-cat-select"></select>
+        </label>
+        <button class="btn-primary btn-block" type="button" id="btn-flota-s-mover-cat-ok">Mover servicio</button>
+      </div>
       <button class="btn-primary btn-block" type="button" id="btn-flota-s-guardar">Guardar</button>
     </div>
   </div>
@@ -264,9 +278,9 @@
   <script src="config.js"></script>
   <script src="nube.js?v=combo-pack1"></script>
   <script src="catalogo.js?v=combo-col1"></script>
-  <script src="flotas.js?v=flota-col-del1"></script>
-  <script src="admin.js?v=guardando1"></script>
-  <script src="admin-combos.js?v=guardando1"></script>
-  <script src="admin-flotas.js?v=flota-col-del1"></script>
+  <script src="flotas.js?v=flota-kanban-busq1"></script>
+  <script src="admin.js?v=guardado-ok1"></script>
+  <script src="admin-combos.js?v=guardado-ok1"></script>
+  <script src="admin-flotas.js?v=flota-kanban-busq1"></script>
 </body>
 </html>

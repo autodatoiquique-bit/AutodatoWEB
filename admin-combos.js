@@ -338,7 +338,6 @@ async function guardarCombo() {
     await guardarCatalogo(catalogo);
     editando = copia;
     renderEditorCombo();
-    alert("Combo guardado. Ya se ve en el sitio público.");
   } catch (e) {
     alert(e.message || "No se pudo guardar en la nube.");
   }

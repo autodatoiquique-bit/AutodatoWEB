@@ -9,6 +9,7 @@ let flotaColFotoDraft = null;
 let flotaColFotoDraftColId = "";
 let flotaSrvFotoDraft = null;
 let flotaSrvFotoDraftSrvId = "";
+let flotaKanbanBusqueda = "";
 
 function htmlFilaSolicitanteConfigFlota(s) {
   const sol = s || {};
@@ -347,8 +348,52 @@ function renderListadoFlotas() {
   renderLista();
 }
 
+function htmlFilaBusquedaFlotaAdmin(hit) {
+  const srv = hit.servicio;
+  const precioTxt = typeof clpNetoMasIva === "function" ? clpNetoMasIva(srv.precio) : clp(srv.precio);
+  return `<article class="flota-admin-busq-item">
+    <button type="button" class="flota-admin-busq-main" data-flota-busq-srv="${escapeAttr(srv.id)}">
+      <strong class="flota-admin-busq-nombre">${escapeText(srv.nombre)}</strong>
+      ${hit.categoria ? `<span class="flota-admin-busq-cat">${escapeText(hit.categoria)}</span>` : ""}
+      ${srv.descripcion ? `<span class="flota-admin-busq-desc">${escapeText(srv.descripcion)}</span>` : ""}
+      <span class="flota-admin-busq-precio">${escapeText(precioTxt)}</span>
+    </button>
+  </article>`;
+}
+
+function pintarBusquedaFlotaAdmin() {
+  const inp = $("flota-admin-busqueda");
+  const box = $("flota-admin-busqueda-resultados");
+  const root = document.querySelector(".kanban-flota");
+  if (!inp || !box || !root) return;
+  const q = inp.value.trim();
+  flotaKanbanBusqueda = q;
+  root.classList.toggle("kanban-flota-buscando", Boolean(q));
+  if (!q || !flotaKanbanId) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  const hits = typeof buscarServiciosFlota === "function" ? buscarServiciosFlota(flotaKanbanId, q) : [];
+  box.hidden = false;
+  box.innerHTML = hits.length
+    ? hits.map((h) => htmlFilaBusquedaFlotaAdmin(h)).join("")
+    : `<p class="muted flota-admin-busq-vacio">Ningún servicio coincide con «${escapeText(q)}».</p>`;
+}
+
+function armarBusquedaFlotaAdmin() {
+  const inp = $("flota-admin-busqueda");
+  if (!inp || inp.dataset.busqFlotaAdmin) return;
+  inp.dataset.busqFlotaAdmin = "1";
+  if (flotaKanbanBusqueda) inp.value = flotaKanbanBusqueda;
+  inp.addEventListener("input", () => pintarBusquedaFlotaAdmin());
+  pintarBusquedaFlotaAdmin();
+}
+
 function renderFlotaKanban(flotaId) {
   capturarScrollFlota();
+  const prevBusq = $("flota-admin-busqueda");
+  if (prevBusq) flotaKanbanBusqueda = prevBusq.value.trim();
   editando = null;
   hidratarFlotas();
   const flota = flotaPorId(flotaId);
@@ -370,7 +415,12 @@ function renderFlotaKanban(flotaId) {
           <button type="button" class="btn-soft" id="btn-flota-config">Configuración</button>
           <button type="button" class="btn-soft" id="btn-flota-clave-cliente">Clave cliente</button>
         </div>
+        <label class="field flota-admin-busqueda-field">
+          <span class="flota-admin-busq-label">Buscar servicio</span>
+          <input id="flota-admin-busqueda" type="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar servicio…" value="${escapeAttr(flotaKanbanBusqueda)}" />
+        </label>
       </div>
+      <div id="flota-admin-busqueda-resultados" class="flota-admin-busqueda-resultados" hidden></div>
       <div class="kanban-track">
         ${(flota.columnas || []).map(htmlColumnaFlotaKanban).join("")}
         ${htmlFormColumnaFlota()}
@@ -379,6 +429,7 @@ function renderFlotaKanban(flotaId) {
   `;
   renderLista();
   armarDragFlotaKanban();
+  armarBusquedaFlotaAdmin();
   armarMemoriaScrollFlota(document.querySelector(".kanban-flota .kanban-track"));
   restaurarScrollFlota();
 }
@@ -550,6 +601,27 @@ function programarFlotaKanbanDragPintado(st) {
   });
 }
 
+function pintarMoverCategoriaServicioFlota() {
+  const btn = $("btn-flota-s-mover-cat");
+  const panel = $("flota-s-mover-cat-panel");
+  const sel = $("flota-s-mover-cat-select");
+  if (!btn || !panel || !sel || !flotaSrvEdit || !flotaSrvEdit.servicioId) {
+    if (btn) btn.hidden = true;
+    if (panel) panel.hidden = true;
+    return;
+  }
+  const flota = flotaPorId(flotaSrvEdit.flotaId);
+  if (!flota) return;
+  btn.hidden = false;
+  panel.hidden = true;
+  const opts = (flota.columnas || [])
+    .filter((c) => c.id !== flotaSrvEdit.colId)
+    .map((c) => `<option value="${escapeAttr(c.id)}">${escapeText(c.titulo)}</option>`)
+    .join("");
+  sel.innerHTML = opts || `<option value="">Sin otra categoría</option>`;
+  sel.disabled = !opts;
+}
+
 function abrirEditorServicioFlota(servicioId) {
   const flota = flotaPorId(flotaKanbanId);
   if (!flota) return;
@@ -569,6 +641,7 @@ function abrirEditorServicioFlota(servicioId) {
   $("flota-s-desc").value = srv.descripcion || "";
   $("flota-s-precio").value = srv.precio || "";
   pintarPreviewFlotaServicio(srv.foto || "");
+  pintarMoverCategoriaServicioFlota();
   $("modal-flota-servicio").hidden = false;
 }
 
@@ -579,6 +652,13 @@ function abrirModalFlotaCol(colId) {
   flotaColFotoDraft = null;
   flotaColFotoDraftColId = "";
   $("flota-col-titulo").value = (col && col.titulo) || "";
+  const selOrden = $("flota-col-orden-precio");
+  if (selOrden) {
+    selOrden.value =
+      col && typeof columnaOrdenAutomaticoPorPrecio === "function" && columnaOrdenAutomaticoPorPrecio(col)
+        ? "si"
+        : "no";
+  }
   pintarPreviewFlotaCol(col ? fotoGuardadaColumnaFlota(col) : "");
   $("modal-flota-col").hidden = false;
 }
@@ -759,6 +839,11 @@ function armarDragFlotaKanban() {
       abrirModalFlotaCol(cfg.dataset.flotaConfig || "");
       return;
     }
+    const busqSrv = e.target.closest("[data-flota-busq-srv]");
+    if (busqSrv) {
+      abrirEditorServicioFlota(busqSrv.dataset.flotaBusqSrv || "");
+      return;
+    }
     const addSrv = e.target.closest("[data-flota-add-srv]");
     if (addSrv) {
       flotaSrvEdit = { flotaId: flotaKanbanId, colId: addSrv.dataset.flotaAddSrv, servicioId: "" };
@@ -767,6 +852,7 @@ function armarDragFlotaKanban() {
       $("flota-s-desc").value = "";
       $("flota-s-precio").value = "";
       pintarPreviewFlotaServicio("");
+      pintarMoverCategoriaServicioFlota();
       $("modal-flota-servicio").hidden = false;
     }
   });
@@ -938,19 +1024,6 @@ function initFlotasAdmin() {
     }
   });
 
-  $("btn-flota-col-ordenar-precio").addEventListener("click", async () => {
-    if (!flotaKanbanId || !flotaColEditId) return;
-    if (typeof ordenarColumnaFlotaPorPrecio !== "function") return;
-    ordenarColumnaFlotaPorPrecio(flotaKanbanId, flotaColEditId);
-    try {
-      await guardarOrdenFlotaKanban();
-      $("modal-flota-col").hidden = true;
-      renderFlotaKanban(flotaKanbanId);
-    } catch (err) {
-      alert((err && err.message) || "No se pudo guardar el orden.");
-    }
-  });
-
   $("btn-flota-col-eliminar").addEventListener("click", async () => {
     if (!flotaKanbanId || !flotaColEditId) return;
     const flota = flotaPorId(flotaKanbanId);
@@ -983,8 +1056,18 @@ function initFlotasAdmin() {
     const col = flota && flota.columnas.find((c) => c.id === flotaColEditId);
     if (!col) return;
     col.titulo = titulo;
+    const ordenPrecio = ($("flota-col-orden-precio") && $("flota-col-orden-precio").value) || "no";
+    col.orden_por_precio =
+      typeof normalizarOrdenPorPrecioCol === "function"
+        ? normalizarOrdenPorPrecioCol(ordenPrecio)
+        : ordenPrecio === "si"
+          ? "si"
+          : "no";
     if (flotaColFotoDraft !== null && String(flotaColFotoDraftColId || "") === String(flotaColEditId || "")) {
       col.foto = String(flotaColFotoDraft || "").trim();
+    }
+    if (typeof aplicarOrdenColumnaFlotaSiCorresponde === "function") {
+      aplicarOrdenColumnaFlotaSiCorresponde(flotaKanbanId, flotaColEditId);
     }
     flotaColFotoDraft = null;
     flotaColFotoDraftColId = "";
@@ -1083,7 +1166,38 @@ function initFlotasAdmin() {
         foto: fotoSrv !== undefined ? fotoSrv : "",
       });
     }
+    if (typeof aplicarOrdenColumnaFlotaSiCorresponde === "function") {
+      aplicarOrdenColumnaFlotaSiCorresponde(flotaSrvEdit.flotaId, flotaSrvEdit.colId);
+    }
     flotaSrvFotoDraft = null;
+    $("modal-flota-servicio").hidden = true;
+    flotaSrvEdit = null;
+    await guardarOrdenFlotaKanban();
+    renderFlotaKanban(flotaKanbanId);
+  });
+
+  $("btn-flota-s-mover-cat").addEventListener("click", () => {
+    const panel = $("flota-s-mover-cat-panel");
+    if (!panel || !flotaSrvEdit || !flotaSrvEdit.servicioId) return;
+    panel.hidden = !panel.hidden;
+  });
+
+  $("btn-flota-s-mover-cat-ok").addEventListener("click", async () => {
+    if (!flotaSrvEdit || !flotaSrvEdit.servicioId) return;
+    const destColId = ($("flota-s-mover-cat-select") && $("flota-s-mover-cat-select").value) || "";
+    if (!destColId) {
+      alert("Elige otra categoría.");
+      return;
+    }
+    if (
+      typeof moverServicioFlotaAColumna !== "function" ||
+      !moverServicioFlotaAColumna(flotaSrvEdit.flotaId, flotaSrvEdit.servicioId, destColId)
+    ) {
+      alert("No se pudo mover el servicio.");
+      return;
+    }
+    flotaSrvEdit.colId = destColId;
+    $("flota-s-mover-cat-panel").hidden = true;
     $("modal-flota-servicio").hidden = true;
     flotaSrvEdit = null;
     await guardarOrdenFlotaKanban();

@@ -1254,7 +1254,16 @@ function comboEnCarrito(s) {
   if (typeof esServicioCombo !== "function" || !esServicioCombo(s)) return false;
   const ids = idsMiembrosCombo(s);
   if (!ids.length) return false;
-  return ids.every((mid) => state.carrito.some((x) => x.id === mid));
+  const cartIds = new Set(state.carrito.filter((x) => x.tipo === "oferta").map((x) => x.id));
+  const aceitesMiembro = ids.filter((mid) => esAceiteMotorServicio(oferta(mid)));
+  const fijos = ids.filter((mid) => !aceitesMiembro.includes(mid));
+  if (!fijos.every((mid) => cartIds.has(mid))) return false;
+  if (!aceitesMiembro.length) return true;
+  return state.carrito.some((x) => {
+    if (x.tipo !== "oferta") return false;
+    const m = oferta(x.id);
+    return m && esAceiteMotorServicio(m);
+  });
 }
 
 function precioVistaCombo(s) {
@@ -2631,6 +2640,15 @@ function agregarOfertaDirecto(id) {
   const s = oferta(id);
   const esCombo = s && typeof esServicioCombo === "function" && esServicioCombo(s);
   if (esCombo) {
+    if (comboEnCarrito(s)) {
+      persistir();
+      renderTotales(true);
+      if (state.vista === "oferta-detalle") {
+        state.ofertaAbierta = id;
+        renderDetalleOferta();
+      } else refrescarListasCotizacion();
+      return;
+    }
     quitarAceitesMotorDelCarrito();
     idsMiembrosCombo(s).forEach((sid) => {
       if (!state.carrito.some((x) => x.id === sid)) state.carrito.push({ tipo: "oferta", id: sid });
@@ -2713,11 +2731,22 @@ function cerrarModalSustituirAceite() {
 function confirmarSustituirAceite() {
   const nuevoId = sustituirAceitePendiente;
   if (!nuevoId) return;
+  const comboIdAbierto =
+    state.vista === "oferta-detalle" &&
+    state.ofertaAbierta &&
+    typeof esServicioCombo === "function" &&
+    esServicioCombo(oferta(state.ofertaAbierta))
+      ? state.ofertaAbierta
+      : null;
   sustituirAceitePendiente = null;
   $("modal-sustituir-aceite").hidden = true;
   if (overlayLibre()) $("overlay").hidden = true;
   quitarAceitesMotorDelCarrito();
   agregarOfertaDirecto(nuevoId);
+  if (comboIdAbierto) {
+    state.ofertaAbierta = comboIdAbierto;
+    renderDetalleOferta();
+  }
 }
 
 function refrescarListasCotizacion() {
@@ -2830,7 +2859,16 @@ function quitarOferta(id) {
   const s = oferta(id);
   if (s && typeof esServicioCombo === "function" && esServicioCombo(s)) {
     const ids = new Set(idsMiembrosCombo(s));
-    state.carrito = state.carrito.filter((x) => !ids.has(x.id));
+    const quitaAceiteSustituto = comboIncluyeAceiteMotor(s);
+    state.carrito = state.carrito.filter((x) => {
+      if (x.tipo !== "oferta") return true;
+      if (ids.has(x.id)) return false;
+      if (quitaAceiteSustituto) {
+        const m = oferta(x.id);
+        if (m && esAceiteMotorServicio(m)) return false;
+      }
+      return true;
+    });
     persistir();
     renderTotales(true);
     refrescarListasCotizacion();

@@ -20,14 +20,25 @@ let kanbanSuppressClick = false;
 let kanbanCardPointer = null;
 let scrollTableroGuardado = { trackLeft: 0, cols: {} };
 let adminGuardadoDepth = 0;
+let adminGuardadoOkTimer = null;
 
 function adminTextoGuardado(txt) {
   const el = $("admin-guardando-texto");
   if (el && txt) el.textContent = txt;
 }
 
+function adminResetUiGuardado() {
+  const root = $("admin-guardando");
+  if (root) root.classList.remove("admin-guardando-ok");
+  const bar = root && root.querySelector(".admin-guardando-bar");
+  const spin = root && root.querySelector(".admin-guardando-spinner");
+  if (bar) bar.hidden = false;
+  if (spin) spin.hidden = false;
+}
+
 function adminIniciarGuardado(texto) {
   adminGuardadoDepth += 1;
+  adminResetUiGuardado();
   adminTextoGuardado(texto || "Guardando…");
   const root = $("admin-guardando");
   if (root) root.hidden = false;
@@ -40,15 +51,47 @@ function adminFinGuardado() {
     document.body.classList.remove("admin-guardando-on");
     const root = $("admin-guardando");
     if (root) root.hidden = true;
+    adminResetUiGuardado();
   }
+}
+
+function adminMostrarOkGuardado(mensaje) {
+  adminTextoGuardado(mensaje || "Cambio guardado");
+  const root = $("admin-guardando");
+  if (root) root.classList.add("admin-guardando-ok");
+  const bar = root && root.querySelector(".admin-guardando-bar");
+  const spin = root && root.querySelector(".admin-guardando-spinner");
+  if (bar) bar.hidden = true;
+  if (spin) spin.hidden = true;
+}
+
+function adminEsperarCierreOkGuardado(ms) {
+  return new Promise((resolve) => {
+    if (adminGuardadoOkTimer) clearTimeout(adminGuardadoOkTimer);
+    adminGuardadoOkTimer = setTimeout(resolve, ms);
+  });
+}
+
+async function adminCierreGuardadoOk(mensaje) {
+  adminMostrarOkGuardado(mensaje);
+  await adminEsperarCierreOkGuardado(1300);
+  adminFinGuardado();
 }
 
 async function adminGuardando(texto, fn) {
   adminIniciarGuardado(texto);
   try {
-    return await fn();
-  } finally {
+    const result = await fn();
+    if (adminGuardadoDepth === 1) {
+      await adminCierreGuardadoOk("Cambio guardado");
+    } else {
+      adminFinGuardado();
+    }
+    return result;
+  } catch (e) {
+    adminResetUiGuardado();
     adminFinGuardado();
+    throw e;
   }
 }
 
@@ -1976,7 +2019,6 @@ async function guardarServicio() {
     editando = copia;
     renderLista();
     renderEditor();
-    alert("Servicio guardado. Ya se ve en el sitio público.");
   } catch (e) {
     alert(e.message || "No se pudo guardar en la nube.");
   }
@@ -2559,7 +2601,6 @@ async function guardarEditorPortada() {
       console.warn("Portada guardada; no se pudo sincronizar el tablero.", eTab);
     }
     renderEditorPortada();
-    alert("Portada publicada. Revisa el tablero de promociones y recarga autodato.cl para verla en el celular.");
   } catch (e) {
     alert(
       (e && e.message) ||

@@ -98,8 +98,24 @@ function normalizarColumnaFlota(c) {
   if (Object.prototype.hasOwnProperty.call(c, "foto")) {
     col.foto = String(c.foto || "").trim();
   }
+  col.orden_por_precio = normalizarOrdenPorPrecioCol(c.orden_por_precio);
   sincronizarOrdenTarjetasFlota(col);
   return col;
+}
+
+function normalizarOrdenPorPrecioCol(raw) {
+  const v = String(raw || "no").trim().toLowerCase();
+  return v === "si" || v === "sí" || v === "true" ? "si" : "no";
+}
+
+function columnaOrdenAutomaticoPorPrecio(col) {
+  return Boolean(col && col.orden_por_precio === "si");
+}
+
+function aplicarOrdenColumnaFlotaSiCorresponde(flotaId, colId) {
+  const col = columnaFlotaPorId(flotaId, colId);
+  if (!col || !columnaOrdenAutomaticoPorPrecio(col)) return false;
+  return ordenarColumnaFlotaPorPrecio(flotaId, colId);
 }
 
 function normalizarFlota(f) {
@@ -682,6 +698,7 @@ function moverTarjetaFlota(flotaId, colId, token, beforeToken, destColId) {
     if (from < to) to -= 1;
     list.splice(to, 0, token);
     aplicarTokensOrdenColFlota(srcCol, list);
+    aplicarOrdenColumnaFlotaSiCorresponde(flotaId, srcCol.id);
     return;
   }
 
@@ -702,6 +719,26 @@ function moverTarjetaFlota(flotaId, colId, token, beforeToken, destColId) {
   if (to < 0) to = list.length;
   list.splice(to, 0, token);
   aplicarTokensOrdenColFlota(dstCol, list);
+  aplicarOrdenColumnaFlotaSiCorresponde(flotaId, srcCol.id);
+  aplicarOrdenColumnaFlotaSiCorresponde(flotaId, dstCol.id);
+}
+
+function moverServicioFlotaAColumna(flotaId, servicioId, destColId) {
+  const flota = flotaPorId(flotaId);
+  if (!flota || !servicioId || !destColId) return false;
+  let srcColId = "";
+  let token = "";
+  for (const col of flota.columnas || []) {
+    const srv = (col.servicios || []).find((s) => s.id === servicioId);
+    if (srv) {
+      srcColId = col.id;
+      token = tokenFlotaServicio(servicioId);
+      break;
+    }
+  }
+  if (!srcColId || !token || srcColId === destColId) return false;
+  moverTarjetaFlota(flotaId, srcColId, token, "", destColId);
+  return true;
 }
 
 function quitarServicioFlotaCol(flotaId, colId, token) {
@@ -737,6 +774,7 @@ function agregarServicioFlotaCol(flotaId, colId, datos) {
   if (!srv) return null;
   col.servicios.push(srv);
   col.orden_tarjetas.push(tokenFlotaServicio(srv.id));
+  aplicarOrdenColumnaFlotaSiCorresponde(flotaId, colId);
   return srv;
 }
 

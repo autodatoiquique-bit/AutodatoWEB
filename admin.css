@@ -492,6 +492,76 @@ button { font-family: inherit; cursor: pointer; }
 .kanban-top {
   padding: 16px 20px 8px;
 }
+.flota-admin-busqueda-field {
+  margin: 12px 0 0;
+  max-width: 420px;
+}
+.flota-admin-busq-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.flota-admin-busqueda-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.flota-admin-busqueda-resultados {
+  padding: 0 20px 12px;
+  max-height: min(52vh, 480px);
+  overflow: auto;
+}
+.kanban-flota-buscando .kanban-track {
+  display: none;
+}
+.flota-admin-busq-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+.flota-admin-busq-main {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.flota-admin-busq-nombre {
+  display: block;
+  font-size: 0.92rem;
+}
+.flota-admin-busq-cat {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.flota-admin-busq-desc {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.flota-admin-busq-precio {
+  display: block;
+  margin-top: 6px;
+  font-weight: 800;
+}
+.flota-mover-cat-panel {
+  margin: 10px 0 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f6f6f6;
+}
 .kanban-top h2 { margin: 0 0 4px; font-size: 1.15rem; }
 .kanban-top p { margin: 0; color: var(--muted); font-size: 0.86rem; }
 .kanban-track {
@@ -1786,6 +1856,12 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--ink);
+}
+.admin-guardando-ok #admin-guardando-texto {
+  color: #0a7a3b;
+}
+.admin-guardando-ok .admin-guardando-card {
+  padding-top: 26px;
 }
 body.admin-guardando-on { overflow: hidden; }
 body.admin-guardando-on .btn-primary,
