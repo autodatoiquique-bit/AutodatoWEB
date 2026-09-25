@@ -1652,7 +1652,7 @@ function renderMantencion() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Mantención preventiva",
     "¡Arma tu combo y ahorra en mano de obra! Al realizar varios servicios en una misma visita optimizamos los tiempos de taller y desarme, permitiéndonos ofrecerte un descuento especial en cada mantención adicional que sumes a tu ticket.",
-    serviciosParaVehiculo(serviciosMantencion(), "mantencion")
+    serviciosParaVehiculo(serviciosMantencion(), "mantencion"),
     { fijo: true }
   );
 }
@@ -1862,7 +1862,7 @@ function renderDiagnostico() {
   $("stage").innerHTML = htmlListaCotizacion(
     "Diagnóstico automotriz",
     "Revisión enfocada en tu problema real. Para garantizar un diagnóstico certero, cada sistema se analiza por separado: escáner electrónico, ruidos mecánicos o inspección de fugas. Selecciona el servicio correspondiente según la falla que notes en tu vehículo.",
-    serviciosParaVehiculo(serviciosDiagnostico(), "diagnostico")
+    serviciosParaVehiculo(serviciosDiagnostico(), "diagnostico"),
     { fijo: true }
   );
 }
