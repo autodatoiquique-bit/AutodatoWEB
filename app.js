@@ -250,29 +250,119 @@ function htmlDrop(id, label, lista, valor, placeholder, disabled) {
 }
 
 function htmlFiltro(contexto) {
-  const marca = state.vehiculo?.marca || "";
-  const modelo = state.vehiculo?.modelo || "";
-  const ano = state.vehiculo?.ano || "";
-  const combustible = state.vehiculo?.combustible || "";
-  const modelos = marca ? modelosDe(marca) : [];
+  if (typeof hidratarTablero === "function") hidratarTablero();
+  const usaTablero = typeof filtroUsaOpcionesTablero === "function" && filtroUsaOpcionesTablero(contexto);
+  const marcas = typeof marcasParaFiltroVehiculo === "function" ? marcasParaFiltroVehiculo(contexto) : MARCAS;
+  let marca = state.vehiculo?.marca || "";
+  let modelo = state.vehiculo?.modelo || "";
+  let ano = state.vehiculo?.ano || "";
+  let combustible = state.vehiculo?.combustible || "";
+  if (marca && !marcas.includes(marca)) marca = "";
+  const modelos = marca ? modelosParaFiltroVehiculo(marca, contexto) : [];
+  if (modelo && !modelos.includes(modelo)) modelo = "";
+  const aniosLista = marca && modelo ? aniosParaFiltroVehiculo(marca, modelo, contexto) : usaTablero ? [] : anios();
+  if (ano && !aniosLista.some((y) => String(y) === String(ano))) ano = "";
+  const combLista =
+    marca && modelo ? combustiblesParaFiltroVehiculo(marca, modelo, ano, contexto) : usaTablero ? [] : COMBUSTIBLES;
+  if (combustible && !combLista.some((c) => c.value === combustible)) combustible = "";
   const titulo =
     contexto === "editar"
       ? "Cambia tu vehículo"
       : contexto === "flota"
         ? "Vehículo para esta flota"
         : "¿Qué vehículo tienes?";
+  const lead = usaTablero
+    ? "Solo aparecen marcas, modelos y años que el taller tiene configurados en el tablero. Si tu auto no está, aún no hay promociones para ese vehículo."
+    : "Marca, modelo, año y combustible. Si tu auto no está en la lista, no podemos abrirte el servicio. El año y el combustible importan: un mismo trabajo puede ser otro producto.";
+  const fotoSrc =
+    marca && modelo
+      ? typeof fotoPortadaVehiculo === "function"
+        ? fotoPortadaVehiculo({ marca, modelo, ano, combustible })
+        : fotoModeloDe(marca, modelo)
+      : "";
   return `
-    <div class="filtro">
+    <div class="filtro" data-filtro-contexto="${escapeAttr(contexto)}">
       <h2>${titulo}</h2>
-      <p class="lead">Marca, modelo, año y combustible. Si tu auto no está en la lista, no podemos abrirte el servicio. El año y el combustible importan: un mismo trabajo puede ser otro producto.</p>
-      ${htmlDrop("marca", "Marca", MARCAS, marca, "Elige la marca", false)}
-      ${htmlDrop("modelo", "Modelo", modelos, modelo, marca ? "Elige el modelo" : "Primero elige la marca", !marca)}
-      ${htmlDrop("ano", "Año", anios(), ano, "Elige el año", false)}
-      ${htmlDrop("combustible", "Combustible", COMBUSTIBLES, combustible, "Elige el combustible", false)}
-      ${marca && modelo && fotoModeloDe(marca, modelo) ? `<div class="filtro-foto"><img src="${fotoModeloDe(marca, modelo)}" alt="${modelo}" /></div>` : ""}
+      <p class="lead">${lead}</p>
+      ${htmlDrop("marca", "Marca", marcas, marca, marcas.length ? "Elige la marca" : "Sin vehículos en tablero", !marcas.length)}
+      ${htmlDrop("modelo", "Modelo", modelos, modelo, marca ? (modelos.length ? "Elige el modelo" : "Sin modelos") : "Primero elige la marca", !marca || !modelos.length)}
+      ${htmlDrop(
+        "ano",
+        "Año",
+        aniosLista,
+        ano,
+        marca && modelo ? (aniosLista.length ? "Elige el año" : "Sin años") : "Primero marca y modelo",
+        usaTablero ? !marca || !modelo || !aniosLista.length : false
+      )}
+      ${htmlDrop(
+        "combustible",
+        "Combustible",
+        combLista,
+        combustible,
+        marca && modelo ? "Elige el combustible" : "Primero marca y modelo",
+        usaTablero ? !marca || !modelo || !combLista.length : false
+      )}
+      ${fotoSrc ? `<div class="filtro-foto"><img src="${fotoSrc}" alt="${escapeAttr(modelo)}" /></div>` : ""}
       <button class="btn-primary btn-block" type="button" data-filtrar="${contexto}">${contexto === "editar" ? "Guardar auto" : "Continuar"}</button>
     </div>
   `;
+}
+
+function contextoFiltroVehiculoActual() {
+  const root = document.querySelector(".filtro[data-filtro-contexto]");
+  return (root && root.dataset.filtroContexto) || "menu";
+}
+
+function pintarOpcionesDrop(id, lista, placeholder, disabled) {
+  const hidden = $(`f-${id}`);
+  const btn = document.querySelector(`[data-dd-toggle="${id}"]`);
+  const list = $(`dd-list-${id}`);
+  if (!hidden || !btn || !list) return;
+  const items = (lista || []).map((v) => (v && typeof v === "object" ? v : { value: v, label: v }));
+  const valor = hidden.value;
+  const valido = items.some((x) => String(x.value) === String(valor));
+  if (!valido) {
+    hidden.value = "";
+    const span = btn.querySelector("[data-dd-texto]");
+    if (span) span.textContent = placeholder;
+  }
+  btn.disabled = Boolean(disabled);
+  list.innerHTML = items
+    .map(
+      (v) =>
+        `<li><button type="button" data-dd-pick="${id}" data-value="${v.value}" class="${
+          String(valor) === String(v.value) ? "is-on" : ""
+        }">${v.label}</button></li>`
+    )
+    .join("");
+  if (valido && btn.querySelector("[data-dd-texto]")) {
+    const pick = items.find((x) => String(x.value) === String(valor));
+    btn.querySelector("[data-dd-texto]").textContent = pick ? pick.label : valor;
+  }
+}
+
+function refrescarDropsFiltroVehiculo() {
+  const ctx = contextoFiltroVehiculoActual();
+  const usaTablero = typeof filtroUsaOpcionesTablero === "function" && filtroUsaOpcionesTablero(ctx);
+  const marca = $("f-marca")?.value || "";
+  const modelo = $("f-modelo")?.value || "";
+  const ano = $("f-ano")?.value || "";
+  const modelos = marca ? modelosParaFiltroVehiculo(marca, ctx) : [];
+  const aniosLista = marca && modelo ? aniosParaFiltroVehiculo(marca, modelo, ctx) : usaTablero ? [] : anios();
+  const combLista = marca && modelo ? combustiblesParaFiltroVehiculo(marca, modelo, ano, ctx) : usaTablero ? [] : COMBUSTIBLES;
+  pintarOpcionesDrop("modelo", modelos, marca ? "Elige el modelo" : "Primero elige la marca", !marca || !modelos.length);
+  pintarOpcionesDrop(
+    "ano",
+    aniosLista,
+    marca && modelo ? "Elige el año" : "Primero marca y modelo",
+    usaTablero ? !marca || !modelo || !aniosLista.length : false
+  );
+  pintarOpcionesDrop(
+    "combustible",
+    combLista,
+    "Elige el combustible",
+    usaTablero ? !marca || !modelo || !combLista.length : false
+  );
 }
 
 function cerrarDrops(salvo) {
@@ -282,24 +372,17 @@ function cerrarDrops(salvo) {
 }
 
 function resetModeloDrop() {
+  const ctx = contextoFiltroVehiculoActual();
   const marca = $("f-marca")?.value;
-  const hidden = $("f-modelo");
-  const btn = document.querySelector('[data-dd-toggle="modelo"]');
-  const list = $("dd-list-modelo");
-  if (!hidden || !btn || !list) return;
-  hidden.value = "";
-  const span = btn.querySelector("[data-dd-texto]");
+  if ($("f-modelo")) $("f-modelo").value = "";
+  if ($("f-ano")) $("f-ano").value = "";
+  if ($("f-combustible")) $("f-combustible").value = "";
+  refrescarDropsFiltroVehiculo();
   if (!marca) {
-    btn.disabled = true;
+    const btn = document.querySelector('[data-dd-toggle="modelo"]');
+    const span = btn && btn.querySelector("[data-dd-texto]");
     if (span) span.textContent = "Primero elige la marca";
-    list.innerHTML = "";
-    return;
   }
-  btn.disabled = false;
-  if (span) span.textContent = "Elige el modelo";
-  list.innerHTML = modelosDe(marca)
-    .map((v) => `<li><button type="button" data-dd-pick="modelo" data-value="${v}">${v}</button></li>`)
-    .join("");
 }
 
 function elegirDrop(id, valor) {
@@ -317,12 +400,17 @@ function elegirDrop(id, valor) {
     list.querySelectorAll("[data-dd-pick]").forEach((b) => b.classList.toggle("is-on", b.dataset.value === String(valor)));
   }
   if (id === "marca") {
-    state.vehiculo = { ...(state.vehiculo || {}), marca: valor, modelo: "" };
+    state.vehiculo = { ...(state.vehiculo || {}), marca: valor, modelo: "", ano: "", combustible: "" };
     resetModeloDrop();
   } else if (id === "modelo") {
-    state.vehiculo = { ...(state.vehiculo || {}), modelo: valor };
+    state.vehiculo = { ...(state.vehiculo || {}), modelo: valor, ano: "", combustible: "" };
+    if ($("f-ano")) $("f-ano").value = "";
+    if ($("f-combustible")) $("f-combustible").value = "";
+    refrescarDropsFiltroVehiculo();
   } else if (id === "ano") {
-    state.vehiculo = { ...(state.vehiculo || {}), ano: Number(valor) };
+    state.vehiculo = { ...(state.vehiculo || {}), ano: Number(valor), combustible: "" };
+    if ($("f-combustible")) $("f-combustible").value = "";
+    refrescarDropsFiltroVehiculo();
   } else if (id === "combustible") {
     state.vehiculo = { ...(state.vehiculo || {}), combustible: valor };
   }
@@ -2426,6 +2514,15 @@ async function aplicarFiltro(contexto) {
   const combustible = $("f-combustible") && $("f-combustible").value;
   if (!marca || !modelo || !ano || !combustible) {
     alert("Elige marca, modelo, año y combustible. Si tu auto no está en la lista, no podemos abrirte el servicio.");
+    return;
+  }
+  if (
+    typeof filtroUsaOpcionesTablero === "function" &&
+    filtroUsaOpcionesTablero(contexto) &&
+    typeof columnaDeVehiculo === "function" &&
+    !columnaDeVehiculo({ marca, modelo, ano: Number(ano), combustible })
+  ) {
+    alert("Esa combinación no está disponible en el tablero del taller. Revisa año y combustible.");
     return;
   }
   if (contexto === "editar" && carritoBloqueaCambioAuto()) {

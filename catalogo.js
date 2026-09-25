@@ -493,6 +493,120 @@ function modelosDe(marca) {
   return out;
 }
 
+function columnasTableroActivas() {
+  return (typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : []).filter((c) => c && c.marca && c.modelo);
+}
+
+function columnasTableroPorMarca(marca) {
+  if (!marca) return [];
+  const m = String(marca).toLowerCase();
+  return columnasTableroActivas().filter((c) => String(c.marca).toLowerCase() === m);
+}
+
+function columnasTableroPorMarcaModelo(marca, modelo) {
+  if (!marca || !modelo) return [];
+  const mod = String(modelo).toLowerCase();
+  return columnasTableroPorMarca(marca).filter((c) => String(c.modelo).toLowerCase() === mod);
+}
+
+function marcasDesdeTablero() {
+  const set = new Set();
+  const orden = [];
+  columnasTableroActivas().forEach((c) => {
+    const m = String(c.marca).trim();
+    if (!m || set.has(m)) return;
+    set.add(m);
+    orden.push(m);
+  });
+  orden.sort((a, b) => {
+    const ia = MARCAS.indexOf(a);
+    const ib = MARCAS.indexOf(b);
+    if (ia >= 0 && ib >= 0) return ia - ib;
+    if (ia >= 0) return -1;
+    if (ib >= 0) return 1;
+    return a.localeCompare(b, "es");
+  });
+  return orden;
+}
+
+function modelosDesdeTablero(marca) {
+  const set = new Set();
+  const out = [];
+  columnasTableroPorMarca(marca).forEach((c) => {
+    const m = String(c.modelo).trim();
+    if (!m || set.has(m)) return;
+    set.add(m);
+    out.push(m);
+  });
+  out.sort((a, b) => a.localeCompare(b, "es"));
+  return out;
+}
+
+function aniosDesdeTablero(marca, modelo, combustible) {
+  const cols = columnasTableroPorMarcaModelo(marca, modelo);
+  if (!cols.length) return [];
+  const filtradas = combustible
+    ? cols.filter((c) => combustibleCoincide(combustible, c.combustible))
+    : cols;
+  const usar = filtradas.length ? filtradas : cols;
+  const set = new Set();
+  usar.forEach((col) => {
+    const desde = col.ano_desde != null ? col.ano_desde : ANIO_MIN;
+    const hasta = col.ano_hasta != null ? col.ano_hasta : ANIO_MAX;
+    for (let y = hasta; y >= desde; y -= 1) {
+      if (y >= ANIO_MIN && y <= ANIO_MAX) set.add(y);
+    }
+  });
+  return [...set].sort((a, b) => b - a);
+}
+
+function combustiblesDesdeTablero(marca, modelo, ano) {
+  let cols = columnasTableroPorMarcaModelo(marca, modelo);
+  if (!cols.length) return [];
+  if (ano != null && ano !== "") {
+    const n = Number(ano);
+    if (Number.isFinite(n)) cols = cols.filter((c) => anioEnRango(n, c));
+  }
+  const set = new Set();
+  cols.forEach((c) => {
+    const cb = normalizarCombustible(c.combustible);
+    if (cb === "ambos") {
+      set.add("diesel");
+      set.add("bencina");
+    } else if (cb) set.add(cb);
+  });
+  return COMBUSTIBLES.filter((x) => set.has(x.value));
+}
+
+function filtroUsaOpcionesTablero(contexto) {
+  return contexto !== "flota";
+}
+
+function marcasParaFiltroVehiculo(contexto) {
+  return filtroUsaOpcionesTablero(contexto) ? marcasDesdeTablero() : MARCAS;
+}
+
+function modelosParaFiltroVehiculo(marca, contexto) {
+  if (!marca) return [];
+  return filtroUsaOpcionesTablero(contexto) ? modelosDesdeTablero(marca) : modelosDe(marca);
+}
+
+function aniosParaFiltroVehiculo(marca, modelo, contexto, combustible) {
+  if (filtroUsaOpcionesTablero(contexto)) {
+    if (!marca || !modelo) return [];
+    return aniosDesdeTablero(marca, modelo, combustible);
+  }
+  return anios();
+}
+
+function combustiblesParaFiltroVehiculo(marca, modelo, ano, contexto) {
+  if (filtroUsaOpcionesTablero(contexto)) {
+    if (!marca || !modelo) return [];
+    return combustiblesDesdeTablero(marca, modelo, ano);
+  }
+  return COMBUSTIBLES;
+}
+
 function claveVehiculo(marca, modelo) {
   return `${marca}|${modelo}`;
 }
