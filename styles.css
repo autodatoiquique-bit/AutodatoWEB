@@ -635,8 +635,16 @@ body.hay-perfil .panel { padding-top: 88px; }
 .card-body p { margin: 0 0 10px; color: var(--muted); font-size: 0.88rem; }
 .card-veh { margin: -4px 0 10px !important; font-size: 0.75rem !important; font-weight: 700; color: #333 !important; }
 .card-combo { margin: 6px 0 0 !important; font-size: 0.78rem !important; font-weight: 700; }
-.combo-inclusiones { margin: 20px 0; padding: 16px; background: #f7f7f7; border-radius: 14px; }
-.combo-inclusiones h3 { margin: 0 0 12px; font-size: 1.05rem; }
+.combo-inclusiones { margin: 20px 0; padding: 16px; background: #f7f7f7; border-radius: 14px; color: var(--ink); }
+.combo-inclusiones h3 { margin: 0 0 12px; font-size: 1.05rem; color: var(--ink); }
+.detalle-copy .combo-inclusiones,
+.detalle-full .combo-inclusiones { color: var(--ink); }
+.detalle-copy .combo-inclusiones h3,
+.detalle-full .combo-inclusiones h3 { color: var(--ink); }
+.detalle-copy .combo-inclusiones .muted,
+.detalle-copy .combo-inclusiones .combo-incl-regla { color: var(--muted); }
+.combo-inclusiones-extras { margin-top: 18px; padding-top: 16px; border-top: 1px solid #e0e0e0; }
+.combo-inclusiones-extras h3 { margin: 0 0 10px; font-size: 1rem; color: var(--ink); }
 .combo-inclusiones-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .combo-incl-item { padding: 10px 12px; background: #fff; border-radius: 12px; border: 1px solid #ececec; }
 .combo-incl-agotado { opacity: 0.88; border-color: #f0c4c4; }

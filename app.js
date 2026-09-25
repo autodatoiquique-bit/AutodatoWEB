@@ -1241,6 +1241,39 @@ function precioVistaCombo(s) {
   };
 }
 
+function idsContextoCombo(s) {
+  return typeof idsMiembrosCombo === "function" ? idsMiembrosCombo(s) : [];
+}
+
+function catalogoExtrasConDescuentoCombo(comboServicio) {
+  const ctx = idsContextoCombo(comboServicio);
+  if (!ctx.length) return [];
+  const miembros = new Set(ctx);
+  const out = [];
+  (catalogo || []).forEach((serv) => {
+    if (!serv || miembros.has(serv.id)) return;
+    if (serv.es_combo) return;
+    if (serv.activo === false) return;
+    if (typeof servicioAplicaAVehiculo === "function" && !servicioAplicaAVehiculo(serv, state.vehiculo)) return;
+    const p = precioPagado(serv, ctx);
+    if (!p.ahorro || p.ahorro <= 0) return;
+    out.push(serv);
+  });
+  out.sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || ""), "es"));
+  return out;
+}
+
+function htmlComboExtrasEnDetalle(s) {
+  const ctx = idsContextoCombo(s);
+  const extras = catalogoExtrasConDescuentoCombo(s);
+  if (!extras.length) return "";
+  return `
+      <div class="combo-inclusiones-extras suma-ofertas">
+        <h3>También con descuento al sumar con este combo</h3>
+        <div class="minis">${extras.map((serv) => htmlMini(serv, null, ctx)).join("")}</div>
+      </div>`;
+}
+
 function htmlDetalleComboInclusiones(s) {
   if (typeof esServicioCombo !== "function" || !esServicioCombo(s)) return "";
   const pack = preciosPackCombo(s);
@@ -1266,6 +1299,7 @@ function htmlDetalleComboInclusiones(s) {
           })
           .join("")}
       </ul>
+      ${htmlComboExtrasEnDetalle(s)}
       <div class="combo-inclusiones-total">
         <div><span>Total por separado</span><strong class="tachado">${clp(pack.lista)}</strong></div>
         <div><span>Total combo</span><strong>${clp(pack.pagado)}</strong></div>
@@ -1592,10 +1626,11 @@ function armarCarruselDetalle() {
   window.addEventListener("resize", window._detalleResize);
 }
 
-function htmlMini(s, combo) {
+function htmlMini(s, combo, ctxOfertas) {
   const enCarro = state.carrito.some((x) => x.id === s.id);
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
-  const p = precioPagado(s, idsComboPara(s.id));
+  const baseIds = ctxOfertas || state.carrito.filter((x) => x.tipo === "oferta").map((x) => x.id);
+  const p = precioPagado(s, baseIds.filter((id) => id !== s.id));
   const precioCombo = combo && Number(combo.precioCombo) > 0 ? Number(combo.precioCombo) : null;
   const pagadoCombo = precioCombo != null && precioCombo < (p.pagado == null ? Infinity : p.pagado) ? precioCombo : p.pagado;
   const hayOferta = p.lista != null && pagadoCombo != null && pagadoCombo < p.lista;
