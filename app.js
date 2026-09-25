@@ -1374,7 +1374,22 @@ function htmlTarjetaOferta(s) {
 }
 
 function serviciosParaVehiculo(lista) {
-  const filtrados = (lista || []).filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
+  let candidatos = Array.isArray(lista) ? lista.slice() : [];
+  if (vehiculoOk()) {
+    const col = columnaDeVehiculo(state.vehiculo);
+    if (col && typeof idsDeColumna === "function" && typeof servicioPorId === "function") {
+      const ids = new Set(candidatos.map((s) => String(s.id)));
+      idsDeColumna(col, "servicios").forEach((sid) => {
+        if (ids.has(String(sid))) return;
+        const s = servicioPorId(sid);
+        if (s && s.activo !== false) {
+          candidatos.push(s);
+          ids.add(String(sid));
+        }
+      });
+    }
+  }
+  const filtrados = candidatos.filter((s) => servicioAplicaAVehiculo(s, state.vehiculo));
   if (!vehiculoOk()) return filtrados;
   const col = columnaDeVehiculo(state.vehiculo);
   if (col && typeof ordenarServiciosColumna === "function") return ordenarServiciosColumna(col, filtrados);

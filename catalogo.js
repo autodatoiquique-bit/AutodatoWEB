@@ -481,7 +481,13 @@ function anioEnRango(ano, v) {
 function servicioAplicaAVehiculo(s, vehiculo) {
   if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) return true;
   const col = columnaDeVehiculo(vehiculo);
-  if (col) return itemEnColumna(s, col);
+  if (col) {
+    const id = String((s && s.id) || "");
+    if (!id || s.activo === false) return false;
+    if (itemOcultoEnColumna(col, "servicio", id)) return false;
+    sincronizarOrdenTarjetasCol(col);
+    return idsDeColumna(col, "servicios").includes(id);
+  }
   const destinos = normalizarVehiculos(s && s.vehiculos);
   if (!destinos.length) return true;
   return destinos.some((v) => {

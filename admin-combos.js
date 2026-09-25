@@ -6,7 +6,7 @@ function comboVacio() {
   b.tiene_oferta = false;
   b.precio_oferta = null;
   b.complementos = [];
-  b.canales = { ofertas: true, mantencion: false, diagnostico: false };
+  b.canales = { ofertas: false, mantencion: true, diagnostico: false };
   b.tipo = tipoDesdeCanales(b.canales);
   return b;
 }
