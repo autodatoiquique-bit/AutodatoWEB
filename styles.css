@@ -645,6 +645,12 @@ body.hay-perfil .panel { padding-top: 88px; }
 .detalle-copy .combo-inclusiones .combo-incl-regla { color: var(--muted); }
 .combo-inclusiones-extras { margin-top: 18px; padding-top: 16px; border-top: 1px solid #e0e0e0; }
 .combo-inclusiones-extras h3 { margin: 0 0 10px; font-size: 1rem; color: var(--ink); }
+.detalle-copy > .combo-inclusiones-extras {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.detalle-copy > .combo-inclusiones-extras h3 { color: #fff; }
 .combo-inclusiones-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .combo-incl-item { padding: 10px 12px; background: #fff; border-radius: 12px; border: 1px solid #ececec; }
 .combo-incl-agotado { opacity: 0.88; border-color: #f0c4c4; }

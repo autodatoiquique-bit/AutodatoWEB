@@ -1338,12 +1338,6 @@ function htmlDetalleComboInclusiones(s) {
           })
           .join("")}
       </ul>
-      <div class="combo-inclusiones-total">
-        <div><span>Total por separado</span><strong class="tachado">${clp(pack.lista)}</strong></div>
-        <div><span>Total combo</span><strong>${clp(pack.pagado)}</strong></div>
-        <div><span>Ahorras</span><strong class="ahorro-tag">${clp(pack.ahorro)}</strong></div>
-      </div>
-      ${htmlComboExtrasEnDetalle(s)}
     </section>
   `;
 }
@@ -1602,6 +1596,7 @@ function renderDetalleOferta() {
                   : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al ticket</button>`
             }
           </div>
+          ${esCombo && enCarro ? htmlComboExtrasEnDetalle(s) : ""}
           ${esCombo ? "" : htmlSumaRelacionados(s, enCarro)}
           <button class="btn-line btn-block btn-volver-catalogo" type="button" data-volver-catalogo>Volver al catálogo</button>
         </div>
