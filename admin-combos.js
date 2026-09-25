@@ -177,7 +177,7 @@ function renderEditorCombo() {
                   : ""
             }
             <div class="btn-row">
-              <button class="btn-primary" type="button" id="btn-guardar-combo">Guardar combo</button>
+              <button class="btn-primary" type="button" id="btn-guardar-combo-editor">Guardar combo</button>
               ${s.id ? `<button class="btn-soft" type="button" id="btn-borrar-combo">Eliminar combo</button>` : ""}
             </div>
           </div>
@@ -368,7 +368,7 @@ $("stage")?.addEventListener("click", (e) => {
     renderListadoCombos();
     return;
   }
-  if (e.target.id === "btn-guardar-combo") {
+  if (e.target.id === "btn-guardar-combo-editor") {
     guardarCombo();
     return;
   }

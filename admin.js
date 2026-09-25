@@ -19,6 +19,57 @@ let kanbanDrag = { kind: "", payload: "" };
 let kanbanSuppressClick = false;
 let kanbanCardPointer = null;
 let scrollTableroGuardado = { trackLeft: 0, cols: {} };
+let adminGuardadoDepth = 0;
+
+function adminTextoGuardado(txt) {
+  const el = $("admin-guardando-texto");
+  if (el && txt) el.textContent = txt;
+}
+
+function adminIniciarGuardado(texto) {
+  adminGuardadoDepth += 1;
+  adminTextoGuardado(texto || "Guardando…");
+  const root = $("admin-guardando");
+  if (root) root.hidden = false;
+  document.body.classList.add("admin-guardando-on");
+}
+
+function adminFinGuardado() {
+  adminGuardadoDepth = Math.max(0, adminGuardadoDepth - 1);
+  if (adminGuardadoDepth === 0) {
+    document.body.classList.remove("admin-guardando-on");
+    const root = $("admin-guardando");
+    if (root) root.hidden = true;
+  }
+}
+
+async function adminGuardando(texto, fn) {
+  adminIniciarGuardado(texto);
+  try {
+    return await fn();
+  } finally {
+    adminFinGuardado();
+  }
+}
+
+function envolverFnGuardado(fn, etiqueta) {
+  if (typeof fn !== "function" || fn.__adminGuardadoWrap) return fn;
+  const orig = fn;
+  const wrapped = function (...args) {
+    return adminGuardando(etiqueta, () => orig.apply(this, args));
+  };
+  wrapped.__adminGuardadoWrap = true;
+  return wrapped;
+}
+
+function enlazarAdminGuardadoGlobal() {
+  if (typeof guardarCatalogo === "function") {
+    guardarCatalogo = envolverFnGuardado(guardarCatalogo, "Guardando catálogo en la nube…");
+  }
+  if (typeof guardarPortada === "function") {
+    guardarPortada = envolverFnGuardado(guardarPortada, "Guardando portada…");
+  }
+}
 
 function clp(n) {
   if (n == null || n === "") return "A confirmar";
@@ -296,10 +347,12 @@ function leerCamposColumna(id) {
 }
 
 async function guardarTableroNube() {
-  persistirTablero();
-  if (typeof nubeActiva === "function" && nubeActiva()) {
-    await nubeGuardarCatalogoCanales(catalogo);
-  }
+  return adminGuardando("Guardando tablero…", async () => {
+    persistirTablero();
+    if (typeof nubeActiva === "function" && nubeActiva()) {
+      await nubeGuardarCatalogoCanales(catalogo);
+    }
+  });
 }
 
 function htmlKanbanCardShell(colId, token, inner) {
@@ -3112,7 +3165,7 @@ $("stage").addEventListener("change", async (e) => {
 $("cerrar-combo").addEventListener("click", () => {
   $("modal-combo").hidden = true;
 });
-$("btn-guardar-combo").addEventListener("click", guardarCombo);
+$("btn-guardar-complemento")?.addEventListener("click", guardarCombo);
 $("combo-id").addEventListener("change", pintarPreviewCombo);
 $("combo-precio").addEventListener("input", pintarPreviewCombo);
 $("modal-combo").addEventListener("click", (e) => {
@@ -3244,4 +3297,5 @@ async function arrancarAdmin() {
   else mostrarAcceso();
 }
 
+enlazarAdminGuardadoGlobal();
 arrancarAdmin();

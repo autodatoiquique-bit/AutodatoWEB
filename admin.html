@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=combo-admin1" />
+  <link rel="stylesheet" href="admin.css?v=guardando1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -29,6 +29,14 @@
       </label>
       <button class="btn-primary btn-block" type="button" id="btn-acceso">Entrar</button>
       <p id="acceso-error" class="error" hidden></p>
+    </div>
+  </div>
+
+  <div id="admin-guardando" class="admin-guardando" hidden aria-live="polite" aria-busy="true">
+    <div class="admin-guardando-card">
+      <div class="admin-guardando-bar" aria-hidden="true"><span></span></div>
+      <div class="admin-guardando-spinner" aria-hidden="true"></div>
+      <p id="admin-guardando-texto">Guardando…</p>
     </div>
   </div>
 
@@ -239,7 +247,7 @@
         <input id="combo-precio" type="number" min="0" step="1000" />
       </label>
       <div class="combo-preview" id="combo-preview"></div>
-      <button class="btn-primary btn-block" type="button" id="btn-guardar-combo">Guardar complemento</button>
+      <button class="btn-primary btn-block" type="button" id="btn-guardar-complemento">Guardar complemento</button>
     </div>
   </div>
 
@@ -248,8 +256,8 @@
   <script src="nube.js?v=combo-pack1"></script>
   <script src="catalogo.js?v=combo-col1"></script>
   <script src="flotas.js?v=flota-kanban-xcol1"></script>
-  <script src="admin.js?v=menu-admin2"></script>
-  <script src="admin-combos.js?v=combo-pick2"></script>
+  <script src="admin.js?v=guardando1"></script>
+  <script src="admin-combos.js?v=guardando1"></script>
   <script src="admin-flotas.js?v=flota-kanban-xcol1"></script>
 </body>
 </html>

@@ -985,7 +985,7 @@ function hidratarCatalogoClienteLocal() {
   const raw = hidratarCatalogo();
   if (!Array.isArray(raw) || !raw.length) return catalogo;
   catalogo = raw.map((s) => normalizarServicioLista(s));
-  catalogoListo = true;
+  if (typeof nubeActiva !== "function" || !nubeActiva()) catalogoListo = true;
   return catalogo;
 }
 
@@ -1597,10 +1597,28 @@ async function refrescarPortadaRemota() {
   return null;
 }
 
+async function refrescarCatalogoRemoto() {
+  if (typeof nubeActiva === "function" && nubeActiva()) {
+    if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
+    catalogoListo = false;
+    catalogoPromesa = null;
+    try {
+      return await ensureCatalogoCargado();
+    } catch (e) {
+      console.warn("No se pudo refrescar el catálogo.", e);
+      if (catalogo.length) catalogoListo = true;
+      return null;
+    }
+  }
+  if (catalogo.length && !catalogoListo) catalogoListo = true;
+  return catalogo.length ? catalogo : null;
+}
+
 async function refrescarDatosInicioEnFondo() {
   const tareas = [];
   if (typeof sincronizarTableroRemoto === "function") tareas.push(sincronizarTableroRemoto());
   tareas.push(refrescarPortadaRemota());
+  tareas.push(refrescarCatalogoRemoto());
   await Promise.all(tareas);
 }
 

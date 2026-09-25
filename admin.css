@@ -1726,6 +1726,66 @@ button { font-family: inherit; cursor: pointer; }
   .portada-layout { grid-template-columns: 1fr; }
 }
 
+.admin-guardando {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 10, 10, 0.52);
+  backdrop-filter: blur(4px);
+}
+.admin-guardando[hidden] { display: none !important; }
+.admin-guardando-card {
+  width: min(360px, 100%);
+  padding: 22px 20px 18px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+.admin-guardando-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: #ececec;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.admin-guardando-bar span {
+  display: block;
+  height: 100%;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--yellow), #ffb800);
+  animation: admin-guardando-bar 1.1s ease-in-out infinite;
+}
+@keyframes admin-guardando-bar {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+.admin-guardando-spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 12px;
+  border: 3px solid #ececec;
+  border-top-color: #111;
+  border-radius: 50%;
+  animation: admin-guardando-spin 0.75s linear infinite;
+}
+@keyframes admin-guardando-spin {
+  to { transform: rotate(360deg); }
+}
+#admin-guardando-texto {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+body.admin-guardando-on { overflow: hidden; }
+body.admin-guardando-on .btn-primary,
+body.admin-guardando-on .btn-yellow { pointer-events: none; opacity: 0.72; }
+
 .tag-combo { background: #111; color: var(--yellow); }
 .combo-pick-wrap { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; }
 .combo-pick-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }

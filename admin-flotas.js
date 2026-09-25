@@ -199,14 +199,18 @@ function armarZonaImagenFlotaAdmin(zone, modal, onImagen) {
 }
 
 async function guardarFlotasNube() {
-  persistirFlotas();
-  if (typeof nubeActiva === "function" && nubeActiva()) {
-    if (typeof nubeGuardarFlotasTarifario === "function") {
-      await nubeGuardarFlotasTarifario();
-    } else {
-      await nubeGuardarCatalogoCanales(typeof catalogo !== "undefined" ? catalogo : []);
+  const ejecutar = async () => {
+    persistirFlotas();
+    if (typeof nubeActiva === "function" && nubeActiva()) {
+      if (typeof nubeGuardarFlotasTarifario === "function") {
+        await nubeGuardarFlotasTarifario();
+      } else {
+        await nubeGuardarCatalogoCanales(typeof catalogo !== "undefined" ? catalogo : []);
+      }
     }
-  }
+  };
+  if (typeof adminGuardando === "function") return adminGuardando("Guardando flotas…", ejecutar);
+  return ejecutar();
 }
 
 function htmlTarjetaFlotaKanban(srv, colId, token) {

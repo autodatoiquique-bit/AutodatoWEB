@@ -896,10 +896,30 @@ function origenAgendaDesdeCarrito() {
 }
 
 async function ensureCatalogoCliente() {
-  const lista = await ensureCatalogoCargado();
+  if (typeof nubeActiva === "function" && nubeActiva() && typeof refrescarCatalogoRemoto === "function") {
+    await refrescarCatalogoRemoto();
+  } else {
+    await ensureCatalogoCargado();
+  }
   sanitizarCarritoTrasCatalogo();
   renderTotales(false);
-  return lista;
+  return catalogo;
+}
+
+function reaplicarVistaTrasCatalogo() {
+  sanitizarCarritoTrasCatalogo();
+  renderTotales(false);
+  const v = state.vista;
+  if (
+    v === "ofertas" ||
+    v === "mantencion" ||
+    v === "diagnostico" ||
+    v === "oferta-detalle" ||
+    v === "filtro-oferta" ||
+    v === "agendamiento"
+  ) {
+    renderVista({ quedarse: true });
+  }
 }
 
 async function abrirVistaCatalogo(vista) {
@@ -3298,16 +3318,8 @@ window.addEventListener("focus", () => {
         aplicarLogos();
         renderPortada();
       }
+      reaplicarVistaTrasCatalogo();
     }
-    if (typeof catalogoEstaListo === "function" && catalogoEstaListo()) {
-      try {
-        await ensureCatalogoCliente();
-        renderVista({ quedarse: true });
-      } catch (e) {
-        /* ignore */
-      }
-    }
-    renderTotales(false);
   })();
 });
 
@@ -3455,6 +3467,7 @@ async function arrancar() {
       aplicarLogos();
       renderPortada();
     }
+    reaplicarVistaTrasCatalogo();
   })();
 }
 
