@@ -1660,6 +1660,10 @@ async function copiarTextoAdmin(texto, btn) {
 }
 
 function renderEditor() {
+  if (editando && editando.es_combo && typeof renderEditorCombo === "function") {
+    renderEditorCombo();
+    return;
+  }
   $("stage").classList.remove("stage-board");
   const s = editando;
   if (!s.media) s.media = mediaServicio(s);
@@ -1852,7 +1856,7 @@ function htmlTarjetaServicioAdmin(s) {
 }
 
 function htmlTarjetasServiciosGrid() {
-  return catalogo.map((s) => htmlTarjetaServicioAdmin(s)).join("");
+  return catalogo.filter((s) => !s.es_combo).map((s) => htmlTarjetaServicioAdmin(s)).join("");
 }
 
 function abrirServicio(id) {

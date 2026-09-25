@@ -142,6 +142,8 @@ async function nubeGuardarCatalogoCanales(lista) {
       agotado: Boolean(s.agotado),
       ultima_unidad: Boolean(s.ultima_unidad),
       stock_restante: stockRestanteDe(s),
+      es_combo: Boolean(s.es_combo),
+      combo_items: Array.isArray(s.combo_items) ? s.combo_items : [],
     };
   });
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
@@ -218,6 +220,8 @@ function fusionarExtraEnServicio(s, extra, opts) {
   if (ex.stock_restante != null && ex.stock_restante !== "") {
     s.stock_restante = stockRestanteDe({ stock_restante: ex.stock_restante });
   }
+  if (ex.es_combo != null) s.es_combo = Boolean(ex.es_combo);
+  if (Array.isArray(ex.combo_items)) s.combo_items = ex.combo_items;
   if (lite) {
     if (Array.isArray(ex.media) && ex.media.length) {
       const portada = ex.media.find((m) => m && m.src) || ex.media[0];

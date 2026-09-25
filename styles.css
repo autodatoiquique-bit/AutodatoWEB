@@ -200,6 +200,8 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 18px;
   background: #fff;
 }
+.top-bar-cliente { display: contents; }
+
 .kpi-stack {
   position: fixed;
   top: 16px;
@@ -209,6 +211,37 @@ button { font-family: inherit; cursor: pointer; }
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
+}
+
+@media (min-width: 861px) {
+  .top-bar-cliente {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    left: auto;
+    z-index: 80;
+  }
+  .top-bar-cliente .perfil-auto {
+    position: static;
+    left: auto;
+    top: auto;
+    max-width: 220px;
+    flex-shrink: 0;
+  }
+  .top-bar-cliente .kpi-stack {
+    position: static;
+    top: auto;
+    right: auto;
+    flex-shrink: 0;
+  }
+  .grid .card-resumen,
+  .grid .card-veh {
+    display: none;
+  }
 }
 
 .kpi-stack[hidden] { display: none !important; }
@@ -588,6 +621,7 @@ body.hay-perfil .panel { padding-top: 88px; }
   text-transform: uppercase;
 }
 .tag-carrito { background: var(--yellow); color: var(--ink); }
+.tag-combo { background: #111; color: var(--yellow); }
 .tag-dto { background: var(--green); color: #042; }
 .tag-agotado { background: #dfe1e6; color: #42526e; }
 .tag-stock { background: #fff0b3; color: #172b4d; }
@@ -601,6 +635,23 @@ body.hay-perfil .panel { padding-top: 88px; }
 .card-body p { margin: 0 0 10px; color: var(--muted); font-size: 0.88rem; }
 .card-veh { margin: -4px 0 10px !important; font-size: 0.75rem !important; font-weight: 700; color: #333 !important; }
 .card-combo { margin: 6px 0 0 !important; font-size: 0.78rem !important; font-weight: 700; }
+.combo-inclusiones { margin: 20px 0; padding: 16px; background: #f7f7f7; border-radius: 14px; }
+.combo-inclusiones h3 { margin: 0 0 12px; font-size: 1.05rem; }
+.combo-inclusiones-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.combo-incl-item { padding: 10px 12px; background: #fff; border-radius: 12px; border: 1px solid #ececec; }
+.combo-incl-agotado { opacity: 0.88; border-color: #f0c4c4; }
+.combo-incl-precios { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.combo-incl-regla { margin: 6px 0 0; font-size: 0.82rem; }
+.combo-inclusiones-total {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e0e0e0;
+}
+.combo-inclusiones-total div { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--muted); }
+.combo-inclusiones-total strong { font-size: 1.05rem; color: var(--ink); }
 .flota-empresas-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

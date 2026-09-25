@@ -722,11 +722,55 @@ function aplicarMediaServicio(s, media) {
   return s;
 }
 
+function comboItemsDe(s) {
+  if (!s || !Array.isArray(s.combo_items)) return [];
+  return s.combo_items.map((id) => String(id || "").trim()).filter(Boolean);
+}
+
+function esServicioCombo(s) {
+  return Boolean(s && s.es_combo && comboItemsDe(s).length >= 2);
+}
+
+function idsMiembrosCombo(s) {
+  if (!s || !s.es_combo) return [];
+  return comboItemsDe(s);
+}
+
+function preciosPackCombo(s) {
+  const ids = idsMiembrosCombo(s);
+  const lineas = [];
+  let lista = 0;
+  let pagado = 0;
+  ids.forEach((id) => {
+    const item = servicioPorId(id);
+    if (!item || item.precio == null) return;
+    const otros = ids.filter((x) => x !== id);
+    const p = precioPagado(item, otros);
+    if (p.lista == null || p.pagado == null) return;
+    lista += p.lista;
+    pagado += p.pagado;
+    lineas.push({ id, nombre: item.nombre || id, ...p });
+  });
+  return { lista, pagado, ahorro: Math.max(0, lista - pagado), lineas };
+}
+
+function comboSinStockMiembros(s) {
+  return idsMiembrosCombo(s).some((id) => {
+    const m = servicioPorId(id);
+    return m && servicioSinStock(m);
+  });
+}
+
 function normalizarServicio(s) {
   const canales = normalizarCanales(s && s.canales, s && s.tipo);
+  const comboItems = Array.isArray(s && s.combo_items)
+    ? s.combo_items.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
   const base = {
     ...s,
     canales,
+    es_combo: Boolean(s && s.es_combo),
+    combo_items: comboItems,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
     tiene_oferta: tieneOferta(s),
     oferta_combo: s && (s.oferta_combo === true || s.oferta_combo === "si" || (s.oferta_combo == null && (s.complementos || []).length > 0)),
@@ -749,9 +793,14 @@ function normalizarServicio(s) {
 
 function normalizarServicioLista(s) {
   const canales = normalizarCanales(s && s.canales, s && s.tipo);
+  const comboItems = Array.isArray(s && s.combo_items)
+    ? s.combo_items.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
   const base = {
     ...s,
     canales,
+    es_combo: Boolean(s && s.es_combo),
+    combo_items: comboItems,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
     tiene_oferta: tieneOferta(s),
     oferta_combo: s && (s.oferta_combo === true || s.oferta_combo === "si" || (s.oferta_combo == null && (s.complementos || []).length > 0)),
@@ -869,6 +918,7 @@ function servicioAgotado(s) {
 }
 
 function servicioSinStock(s) {
+  if (s && s.es_combo && comboItemsDe(s).length) return comboSinStockMiembros(s);
   if (servicioAgotado(s)) return true;
   const r = stockRestanteDe(s);
   return r != null && r <= 0;

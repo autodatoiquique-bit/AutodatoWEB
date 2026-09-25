@@ -1204,6 +1204,57 @@ function idsComboPara(id) {
   return state.carrito.filter((x) => x.tipo === "oferta" && x.id !== id).map((x) => x.id);
 }
 
+function comboEnCarrito(s) {
+  if (typeof esServicioCombo !== "function" || !esServicioCombo(s)) return false;
+  const ids = idsMiembrosCombo(s);
+  if (!ids.length) return false;
+  return ids.every((mid) => state.carrito.some((x) => x.id === mid));
+}
+
+function precioVistaCombo(s) {
+  const pack = preciosPackCombo(s);
+  return {
+    lista: pack.lista,
+    pagado: pack.pagado,
+    ahorro: pack.ahorro,
+    regla: pack.ahorro > 0 ? { etiqueta: "Precio combo" } : null,
+  };
+}
+
+function htmlDetalleComboInclusiones(s) {
+  if (typeof esServicioCombo !== "function" || !esServicioCombo(s)) return "";
+  const pack = preciosPackCombo(s);
+  if (!pack.lineas.length) return "";
+  return `
+    <section class="combo-inclusiones">
+      <h3>Incluye estos servicios</h3>
+      <ul class="combo-inclusiones-lista">
+        ${pack.lineas
+          .map((l) => {
+            const m = oferta(l.id);
+            const agot = m && typeof servicioSinStock === "function" && servicioSinStock(m);
+            const reglaTxt = l.regla && l.regla.etiqueta ? l.regla.etiqueta : "";
+            return `<li class="combo-incl-item${agot ? " combo-incl-agotado" : ""}">
+              <div class="combo-incl-nom"><strong>${escapeHtml(l.nombre)}</strong>${agot ? ` <span class="tag tag-agotado">Sin stock</span>` : ""}</div>
+              <div class="combo-incl-precios">
+                <span class="precio-lista tachado">${clp(l.lista)}</span>
+                <span class="precio-oferta">${clp(l.pagado)}</span>
+                ${l.ahorro > 0 ? `<span class="ahorro-tag">Ahorras ${clp(l.ahorro)}</span>` : ""}
+              </div>
+              ${reglaTxt ? `<p class="muted combo-incl-regla">${escapeHtml(reglaTxt)}</p>` : ""}
+            </li>`;
+          })
+          .join("")}
+      </ul>
+      <div class="combo-inclusiones-total">
+        <div><span>Total por separado</span><strong class="tachado">${clp(pack.lista)}</strong></div>
+        <div><span>Total combo</span><strong>${clp(pack.pagado)}</strong></div>
+        <div><span>Ahorras</span><strong class="ahorro-tag">${clp(pack.ahorro)}</strong></div>
+      </div>
+    </section>
+  `;
+}
+
 function htmlHintCombo(s, pagado) {
   const mejor = mejorComboEntrante(s, pagado);
   if (!mejor) return "";
@@ -1276,17 +1327,20 @@ function htmlIconoCarro() {
 }
 
 function htmlTarjetaOferta(s) {
-  const enCarro = state.carrito.some((x) => x.id === s.id);
+  const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
+  const enCarro = esCombo ? comboEnCarrito(s) : state.carrito.some((x) => x.id === s.id);
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
-  const avisoStock = !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
-  const p = precioPagado(s, idsComboPara(s.id));
+  const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
+  const p = esCombo ? precioVistaCombo(s) : precioPagado(s, idsComboPara(s.id));
   const hayDesc = p.ahorro > 0;
+  const precioLista = esCombo ? p.lista : s.precio;
   return `
     <article class="card ${enCarro ? "card-en-carro" : agotado ? "card-agotado" : "card-con-add"}">
       <button class="card-abrir" type="button" data-abrir-oferta="${s.id}">
         <div class="card-photo">
           ${s.foto ? `<img class="card-photo-img" src="${s.foto}" alt="" loading="lazy" decoding="async" />` : ""}
           <div class="card-tags">
+            ${esCombo ? `<span class="tag tag-combo">Combo</span>` : ""}
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
             ${enCarro ? `<span class="tag tag-carrito">En ticket</span>` : ""}
@@ -1295,17 +1349,17 @@ function htmlTarjetaOferta(s) {
         </div>
         <div class="card-body">
           <h3>${s.nombre}</h3>
-          <p>${s.resumen}</p>
-          ${normalizarVehiculos(s.vehiculos).length ? `<p class="card-veh">${etiquetaVehiculos(s)}</p>` : ""}
+          ${s.resumen ? `<p class="card-resumen">${s.resumen}</p>` : ""}
+          ${!esCombo && normalizarVehiculos(s.vehiculos).length ? `<p class="card-veh">${etiquetaVehiculos(s)}</p>` : ""}
           ${
             hayDesc
-              ? `<div class="precio-lista tachado">${clp(s.precio)}</div>
+              ? `<div class="precio-lista tachado">${clp(precioLista)}</div>
                  <div class="precio-card-oferta">${clp(p.pagado)}</div>
                  <div class="ahorro-tag">Ahorras ${clp(p.ahorro)}</div>
                  ${p.regla && p.regla.si ? `<p class="card-combo">${p.regla.etiqueta}</p>` : ""}`
-              : `<div class="precio">${clp(s.precio)}</div>`
+              : `<div class="precio">${clp(p.pagado != null ? p.pagado : s.precio)}</div>`
           }
-          ${htmlHintCombo(s, p.pagado)}
+          ${esCombo ? "" : htmlHintCombo(s, p.pagado)}
         </div>
       </button>
       ${
@@ -1402,31 +1456,35 @@ function renderDetalleOferta() {
       });
     return;
   }
-  const enCarro = state.carrito.some((x) => x.id === s.id);
+  const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
+  const enCarro = esCombo ? comboEnCarrito(s) : state.carrito.some((x) => x.id === s.id);
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
-  const avisoStock = !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
+  const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
   const ids = state.carrito.map((x) => x.id);
-  const p = precioPagado(s, ids.filter((id) => id !== s.id));
+  const p = esCombo ? precioVistaCombo(s) : precioPagado(s, ids.filter((id) => id !== s.id));
   const mostrarDesc = p.ahorro > 0;
+  const precioLista = esCombo ? p.lista : s.precio;
 
   $("stage").innerHTML = `
     <article class="detalle-full">
       <div class="detalle-hero">
         ${htmlCarruselServicio(s)}
         <div class="detalle-copy">
-          <h2>${s.nombre}</h2>
+          <h2>${s.nombre}${esCombo ? ` <span class="tag tag-combo">Combo</span>` : ""}</h2>
           ${avisoStock ? `<p class="detalle-stock"><span class="tag tag-stock">${avisoStock}</span></p>` : ""}
+          ${agotado && esCombo ? `<p class="detalle-stock"><span class="tag tag-agotado">Agotado — falta stock en algún servicio incluido</span></p>` : ""}
           ${s.resumen ? `<p class="detalle-resumen">${s.resumen}</p>` : ""}
           <p class="lead">${s.detalle}</p>
+          ${htmlDetalleComboInclusiones(s)}
           <div class="precio-fila">
             <div class="precio-col">
-              <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(s.precio)}</div>
+              <div class="precio-lista ${mostrarDesc ? "tachado" : ""}">${clp(precioLista)}</div>
               ${
                 mostrarDesc
-                  ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla && p.regla.si ? p.regla.etiqueta : ""}</div>`
+                  ? `<div class="precio-oferta">${clp(p.pagado)}</div><div class="ahorro-tag">Ahorras ${clp(p.ahorro)} ${p.regla && p.regla.etiqueta ? p.regla.etiqueta : ""}</div>`
                   : ""
               }
-              ${htmlHintCombo(s, p.pagado)}
+              ${esCombo ? "" : htmlHintCombo(s, p.pagado)}
             </div>
             ${
               enCarro
@@ -1436,7 +1494,7 @@ function renderDetalleOferta() {
                   : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al ticket</button>`
             }
           </div>
-          ${htmlSumaRelacionados(s, enCarro)}
+          ${esCombo ? "" : htmlSumaRelacionados(s, enCarro)}
           <button class="btn-line btn-block btn-volver-catalogo" type="button" data-volver-catalogo>Volver al catálogo</button>
         </div>
       </div>
@@ -2419,7 +2477,15 @@ function agregarOferta(id) {
     return;
   }
   if (avisarServicioAgotado(id)) return;
-  if (!state.carrito.some((x) => x.id === id)) {
+  const s = oferta(id);
+  const esCombo = s && typeof esServicioCombo === "function" && esServicioCombo(s);
+  if (esCombo) {
+    idsMiembrosCombo(s).forEach((sid) => {
+      if (!state.carrito.some((x) => x.id === sid)) state.carrito.push({ tipo: "oferta", id: sid });
+    });
+    persistir();
+    renderTotales(true);
+  } else if (!state.carrito.some((x) => x.id === id)) {
     state.carrito.push({ tipo: "oferta", id });
     persistir();
     renderTotales(true);
@@ -2542,6 +2608,16 @@ function quitarItem(id) {
 }
 
 function quitarOferta(id) {
+  const s = oferta(id);
+  if (s && typeof esServicioCombo === "function" && esServicioCombo(s)) {
+    const ids = new Set(idsMiembrosCombo(s));
+    state.carrito = state.carrito.filter((x) => !ids.has(x.id));
+    persistir();
+    renderTotales(true);
+    refrescarListasCotizacion();
+    if (state.vista === "carrito-agenda" || state.vista === "agendamiento") renderVista();
+    return;
+  }
   quitarItem(id);
 }
 

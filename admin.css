@@ -1726,6 +1726,32 @@ button { font-family: inherit; cursor: pointer; }
   .portada-layout { grid-template-columns: 1fr; }
 }
 
+.tag-combo { background: #111; color: var(--yellow); }
+.combo-pick-wrap { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; }
+.combo-pick-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.combo-pick-table th,
+.combo-pick-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.combo-pick-table thead th { background: #fafafa; position: sticky; top: 0; z-index: 1; }
+.combo-pick-on { background: #fffce8; }
+.combo-pick-agotado { opacity: 0.85; }
+.combo-pick-check { margin: 0; }
+.combo-pick-regla { max-width: 160px; font-size: 0.75rem; }
+.combo-admin-totales {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: #fff;
+  border: 2px solid var(--yellow);
+  border-radius: 12px;
+  margin-top: 12px;
+}
+.combo-admin-totales div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.combo-admin-totales strong { font-size: 1.05rem; }
+.combo-total-pagado { color: var(--green); }
+.combo-total-ahorro { color: var(--red); }
+.combo-admin-sin-stock { border-color: var(--red); }
+.combo-stock-aviso { margin: 8px 0 0; }
+
 @media (max-width: 860px) {
   .split { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
