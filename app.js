@@ -45,6 +45,7 @@ const state = {
 };
 
 let quitarPendiente = null;
+let sustituirAceitePendiente = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -1245,20 +1246,58 @@ function idsContextoCombo(s) {
   return typeof idsMiembrosCombo === "function" ? idsMiembrosCombo(s) : [];
 }
 
+function esAceiteMotorServicio(s) {
+  if (!s) return false;
+  return String(s.nombre || "")
+    .toLowerCase()
+    .includes("aceite de motor");
+}
+
+function comboIncluyeAceiteMotor(comboServicio) {
+  return idsContextoCombo(comboServicio).some((id) => esAceiteMotorServicio(oferta(id)));
+}
+
+function aceitesMotorEnCarrito() {
+  return state.carrito
+    .filter((x) => x.tipo === "oferta")
+    .map((x) => oferta(x.id))
+    .filter((s) => s && esAceiteMotorServicio(s));
+}
+
+function quitarAceitesMotorDelCarrito(exceptoId) {
+  state.carrito = state.carrito.filter((x) => {
+    if (x.tipo !== "oferta") return true;
+    if (exceptoId && x.id === exceptoId) return true;
+    const m = oferta(x.id);
+    return !m || !esAceiteMotorServicio(m);
+  });
+}
+
 function catalogoExtrasConDescuentoCombo(comboServicio) {
   const ctx = idsContextoCombo(comboServicio);
   if (!ctx.length) return [];
   const miembros = new Set(ctx);
-  const out = [];
-  (catalogo || []).forEach((serv) => {
+  const byId = new Map();
+  const incluir = (serv) => {
     if (!serv || miembros.has(serv.id)) return;
     if (serv.es_combo) return;
     if (serv.activo === false) return;
     if (typeof servicioAplicaAVehiculo === "function" && !servicioAplicaAVehiculo(serv, state.vehiculo)) return;
+    byId.set(serv.id, serv);
+  };
+  (catalogo || []).forEach((serv) => {
+    if (!serv || miembros.has(serv.id)) return;
+    if (serv.es_combo || serv.activo === false) return;
+    if (typeof servicioAplicaAVehiculo === "function" && !servicioAplicaAVehiculo(serv, state.vehiculo)) return;
     const p = precioPagado(serv, ctx);
-    if (!p.ahorro || p.ahorro <= 0) return;
-    out.push(serv);
+    if (p.ahorro && p.ahorro > 0) incluir(serv);
   });
+  if (comboIncluyeAceiteMotor(comboServicio)) {
+    (catalogo || []).forEach((serv) => {
+      if (esAceiteMotorServicio(serv)) incluir(serv);
+    });
+  }
+  const out = [...byId.values()];
   out.sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || ""), "es"));
   return out;
 }
@@ -2548,8 +2587,21 @@ function agregarOferta(id) {
   }
   if (avisarServicioAgotado(id)) return;
   const s = oferta(id);
+  if (s && esAceiteMotorServicio(s)) {
+    const otros = aceitesMotorEnCarrito().filter((m) => m.id !== id);
+    if (otros.length) {
+      pedirSustituirAceite(id, otros);
+      return;
+    }
+  }
+  agregarOfertaDirecto(id);
+}
+
+function agregarOfertaDirecto(id) {
+  const s = oferta(id);
   const esCombo = s && typeof esServicioCombo === "function" && esServicioCombo(s);
   if (esCombo) {
+    quitarAceitesMotorDelCarrito();
     idsMiembrosCombo(s).forEach((sid) => {
       if (!state.carrito.some((x) => x.id === sid)) state.carrito.push({ tipo: "oferta", id: sid });
     });
@@ -2569,6 +2621,39 @@ function agregarOferta(id) {
   if (!state.ofertaAbierta) state.ofertaAbierta = id;
   state.origenAgenda = "ofertas";
   refrescarListasCotizacion();
+}
+
+function pedirSustituirAceite(nuevoId, reemplazar) {
+  const nuevo = oferta(nuevoId);
+  if (!nuevo) return;
+  sustituirAceitePendiente = nuevoId;
+  const lista = (reemplazar || [])
+    .map((m) => `<li><strong>${escapeHtml(m.nombre)}</strong></li>`)
+    .join("");
+  $("sustituir-aceite-cuerpo").innerHTML = `
+    <p class="muted">Solo puede haber <strong>un cambio de aceite de motor</strong> en el ticket.</p>
+    <p>Al agregar <strong>${escapeHtml(nuevo.nombre)}</strong>, se sustituirá el aceite que ya tienes:</p>
+    <ul class="muted">${lista}</ul>
+    <p>No podrás llevar dos tipos de aceite al mismo tiempo.</p>
+  `;
+  $("modal-sustituir-aceite").hidden = false;
+  $("overlay").hidden = false;
+}
+
+function cerrarModalSustituirAceite() {
+  $("modal-sustituir-aceite").hidden = true;
+  sustituirAceitePendiente = null;
+  if (overlayLibre()) $("overlay").hidden = true;
+}
+
+function confirmarSustituirAceite() {
+  const nuevoId = sustituirAceitePendiente;
+  if (!nuevoId) return;
+  sustituirAceitePendiente = null;
+  $("modal-sustituir-aceite").hidden = true;
+  if (overlayLibre()) $("overlay").hidden = true;
+  quitarAceitesMotorDelCarrito();
+  agregarOfertaDirecto(nuevoId);
 }
 
 function refrescarListasCotizacion() {
@@ -2608,6 +2693,7 @@ function overlayLibre() {
     $("modal-kpi").hidden &&
     $("modal-horas").hidden &&
     $("modal-quitar").hidden &&
+    ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden) &&
     $("modal-informe").hidden
   );
 }
@@ -3099,10 +3185,12 @@ function cerrar() {
   $("modal-horas").hidden = true;
   $("modal-kpi").hidden = true;
   $("modal-quitar").hidden = true;
+  if ($("modal-sustituir-aceite")) $("modal-sustituir-aceite").hidden = true;
   $("modal-informe").hidden = true;
   if ($("modal-auto")) $("modal-auto").hidden = true;
   cerrarModalContacto();
   quitarPendiente = null;
+  sustituirAceitePendiente = null;
   marcarMenu();
   syncSeguirKpi();
   pintarChipAuto();
@@ -3215,6 +3303,8 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
+  if (t.hasAttribute("data-cerrar-sustituir-aceite")) cerrarModalSustituirAceite();
+  if (t.hasAttribute("data-confirmar-sustituir-aceite")) confirmarSustituirAceite();
   if (t.dataset.pedirQuitar) pedirQuitar(t.dataset.pedirQuitar);
   if (t.hasAttribute("data-volver-catalogo")) volverAlCatalogoDesdeDetalle();
   if (t.dataset.abrirOferta) {
