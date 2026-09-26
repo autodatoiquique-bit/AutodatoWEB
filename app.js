@@ -64,6 +64,25 @@ function textoTotalNetoFlota(n) {
   return `${clp(n)} + iva`;
 }
 
+function idsServiciosOfertaDesdeCarrito(carrito, excluirServicioId) {
+  const ids = [];
+  const push = (id) => {
+    const sid = String(id || "");
+    if (!sid || sid === String(excluirServicioId || "")) return;
+    if (!ids.includes(sid)) ids.push(sid);
+  };
+  (carrito || []).forEach((linea) => {
+    if (linea.tipo !== "oferta") return;
+    if (linea.esComboLinea) {
+      const combo = oferta(linea.id);
+      if (combo && esServicioCombo(combo)) idsMiembrosComboParaCarrito(combo).forEach(push);
+      return;
+    }
+    push(linea.id);
+  });
+  return ids;
+}
+
 function calcular(carrito = state.carrito) {
   const items = [];
   let subtotal = 0;
@@ -73,9 +92,26 @@ function calcular(carrito = state.carrito) {
 
   carrito.forEach((linea) => {
     if (linea.tipo === "oferta") {
+      if (linea.esComboLinea) {
+        const combo = oferta(linea.id);
+        if (!combo || !esServicioCombo(combo)) return;
+        const pack = preciosPackCombo(combo);
+        items.push({
+          ...combo,
+          tipo: "oferta",
+          lista: pack.lista,
+          pagado: pack.pagado,
+          ahorro: pack.ahorro,
+          esComboLinea: true,
+        });
+        subtotal += pack.lista;
+        total += pack.pagado;
+        ahorro += pack.ahorro;
+        return;
+      }
       const s = oferta(linea.id);
-      if (!s) return;
-      const otros = carrito.filter((x) => x.id !== linea.id).map((x) => x.id);
+      if (!s || esServicioCombo(s)) return;
+      const otros = idsServiciosOfertaDesdeCarrito(carrito, linea.id);
       const p = precioPagado(s, otros);
       items.push({ ...s, tipo: "oferta", ...p });
       subtotal += p.lista;
@@ -1082,6 +1118,8 @@ function hidratar() {
     if (raw.cita) state.cita = { ...state.cita, ...raw.cita };
     reconciliarAreaTrasCarrito();
     hidratarNavFlota();
+    if (typeof hidratarCatalogoClienteLocal === "function") hidratarCatalogoClienteLocal();
+    normalizarLineasComboEnCarrito();
   } catch (e) {
     /* ignore */
   }
@@ -1407,12 +1445,11 @@ function renderPortada() {
 }
 
 function idsComboPara(id) {
-  return state.carrito.filter((x) => x.tipo === "oferta" && x.id !== id).map((x) => x.id);
+  return idsServiciosOfertaDesdeCarrito(state.carrito, id);
 }
 
-function comboEnCarrito(s) {
-  if (typeof esServicioCombo !== "function" || !esServicioCombo(s)) return false;
-  const ids = idsMiembrosCombo(s);
+function comboEnCarritoPorMiembros(s) {
+  const ids = idsMiembrosComboParaCarrito(s);
   if (!ids.length) return false;
   const cartIds = new Set(state.carrito.filter((x) => x.tipo === "oferta").map((x) => x.id));
   const aceitesMiembro = ids.filter((mid) => esAceiteMotorServicio(oferta(mid)));
@@ -1423,6 +1460,109 @@ function comboEnCarrito(s) {
     if (x.tipo !== "oferta") return false;
     const m = oferta(x.id);
     return m && esAceiteMotorServicio(m);
+  });
+}
+
+function comboEnCarrito(s) {
+  if (typeof esServicioCombo !== "function" || !esServicioCombo(s)) return false;
+  if (state.carrito.some((x) => x.tipo === "oferta" && x.id === s.id && x.esComboLinea)) return true;
+  if (state.carrito.some((x) => x.tipo === "oferta" && x.esComboLinea)) return false;
+  return comboEnCarritoPorMiembros(s);
+}
+
+/** Solo para pintar tarjetas: no marcar otro combo por miembros sueltos compartidos. */
+function comboMarcadoEnInterfaz(s) {
+  if (!esServicioCombo(s)) return false;
+  return state.carrito.some((x) => x.tipo === "oferta" && x.id === s.id && x.esComboLinea);
+}
+
+function servicioCuentaComoEnTicket(s) {
+  if (!s) return false;
+  if (esServicioCombo(s)) return comboMarcadoEnInterfaz(s);
+  return ofertaEnTicketDirecta(s.id);
+}
+
+function ofertaEnTicketDirecta(id) {
+  const s = oferta(id);
+  if (s && esServicioCombo(s)) {
+    return state.carrito.some((x) => x.tipo === "oferta" && x.id === id && x.esComboLinea);
+  }
+  return state.carrito.some((x) => x.tipo === "oferta" && x.id === id && !x.esComboLinea);
+}
+
+function servicioIncluidoEnComboEnCarrito(id) {
+  if (ofertaEnTicketDirecta(id)) return false;
+  return state.carrito.some((linea) => {
+    if (linea.tipo !== "oferta" || !linea.esComboLinea) return false;
+    const combo = oferta(linea.id);
+    if (!combo || !esServicioCombo(combo)) return false;
+    return idsMiembrosComboParaCarrito(combo).includes(String(id));
+  });
+}
+
+function normalizarLineasComboEnCarrito() {
+  if (typeof catalogoEstaListo !== "function" || !catalogoEstaListo()) return;
+  let cambio = false;
+  const lineasCombo = state.carrito.filter((x) => x.tipo === "oferta" && x.esComboLinea);
+  (catalogo || []).filter((c) => esServicioCombo(c)).forEach((combo) => {
+    if (state.carrito.some((x) => x.tipo === "oferta" && x.id === combo.id && x.esComboLinea)) return;
+    if (lineasCombo.length && !lineasCombo.some((x) => x.id === combo.id)) return;
+    if (!comboEnCarritoPorMiembros(combo)) return;
+    const miembros = new Set(idsMiembrosComboParaCarrito(combo));
+    state.carrito = state.carrito.filter(
+      (x) => !(x.tipo === "oferta" && miembros.has(x.id) && !x.esComboLinea)
+    );
+    state.carrito.push({ tipo: "oferta", id: combo.id, esComboLinea: true });
+    cambio = true;
+  });
+  if (limpiarMiembrosSueltosDeCombosEnCarrito()) cambio = true;
+  if (limpiarCombosSueltosSinLineaEnCarrito()) cambio = true;
+  if (cambio) persistir();
+}
+
+/** Quita líneas de otros combos sin esComboLinea (no suman al total pero marcaban «En ticket»). */
+function limpiarCombosSueltosSinLineaEnCarrito() {
+  const hayLinea = state.carrito.some((x) => x.tipo === "oferta" && x.esComboLinea);
+  if (!hayLinea) return false;
+  const antes = state.carrito.length;
+  state.carrito = state.carrito.filter((x) => {
+    if (x.tipo !== "oferta" || x.esComboLinea) return true;
+    const s = oferta(x.id);
+    return !(s && esServicioCombo(s));
+  });
+  return state.carrito.length !== antes;
+}
+
+/** Si el combo ya está como una línea, quita servicios sueltos duplicados (evita 2 tarjetas «En ticket»). */
+function limpiarMiembrosSueltosDeCombosEnCarrito() {
+  const combosLinea = state.carrito.filter((x) => x.tipo === "oferta" && x.esComboLinea);
+  if (!combosLinea.length) return false;
+  const miembros = new Set();
+  combosLinea.forEach((linea) => {
+    const combo = oferta(linea.id);
+    if (combo && esServicioCombo(combo)) {
+      idsMiembrosComboParaCarrito(combo).forEach((id) => miembros.add(String(id)));
+    }
+  });
+  const antes = state.carrito.length;
+  state.carrito = state.carrito.filter((x) => {
+    if (x.tipo !== "oferta" || x.esComboLinea) return true;
+    return !miembros.has(String(x.id));
+  });
+  return state.carrito.length !== antes;
+}
+
+/** Al agregar un combo, no duplicar variantes de aceite de motor si el admin marcó más de una. */
+function idsMiembrosComboParaCarrito(comboServicio) {
+  const ids = idsMiembrosCombo(comboServicio);
+  let aceiteIncluido = false;
+  return ids.filter((id) => {
+    const m = oferta(id);
+    if (m && esAceiteMotorServicio(m)) {
+      if (aceiteIncluido) return false;
+      aceiteIncluido = true;
+    }
+    return true;
   });
 }
 
@@ -1543,7 +1683,7 @@ function htmlHintCombo(s, pagado) {
 }
 
 function complementosDesdeTicket() {
-  const idsCarrito = state.carrito.filter((x) => x.tipo === "oferta").map((x) => x.id);
+  const idsCarrito = idsServiciosOfertaDesdeCarrito(state.carrito);
   const out = [];
   const vistos = new Set();
   idsCarrito.forEach((pid) => {
@@ -1609,7 +1749,9 @@ function htmlIconoCarro() {
 
 function htmlTarjetaOferta(s) {
   const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
-  const enCarro = esCombo ? comboEnCarrito(s) : state.carrito.some((x) => x.id === s.id);
+  const incluidoEnCombo = !esCombo && servicioIncluidoEnComboEnCarrito(s.id);
+  const enCarro = servicioCuentaComoEnTicket(s);
+  const ocultarAdd = incluidoEnCombo;
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
   const p = esCombo ? precioVistaCombo(s) : precioPagado(s, idsComboPara(s.id));
@@ -1625,7 +1767,7 @@ function htmlTarjetaOferta(s) {
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
             ${enCarro ? `<span class="tag tag-carrito">En ticket</span>` : ""}
-            ${!enCarro && !agotado && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
+            ${!enCarro && !ocultarAdd && !agotado && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
           </div>
         </div>
         <div class="card-body">
@@ -1644,7 +1786,7 @@ function htmlTarjetaOferta(s) {
         </div>
       </button>
       ${
-        enCarro || agotado
+        enCarro || ocultarAdd || agotado
           ? ""
           : `<button class="card-add" type="button" data-add-oferta="${s.id}" title="Agregar al ticket" aria-label="Agregar al ticket">
               <span class="kpi-cart">${htmlIconoCarro()}</span>
@@ -1712,20 +1854,33 @@ function htmlListaCotizacion(titulo, lead, lista, opts = {}) {
   `;
 }
 
+function pintarStageCatalogo(html) {
+  const stage = $("stage");
+  if (!stage) return;
+  const scroll = stage.scrollTop;
+  stage.innerHTML = html;
+  stage.scrollTop = scroll;
+}
+
 function renderOfertas() {
-  $("stage").innerHTML = htmlListaCotizacion(
-    "Promociones",
-    "Promociones de ocasión. Las mantenciones regulares están en Mantención preventiva.",
-    serviciosParaVehiculo(serviciosOferta(), "ofertas")
+  normalizarLineasComboEnCarrito();
+  pintarStageCatalogo(
+    htmlListaCotizacion(
+      "Promociones",
+      "Promociones de ocasión. Las mantenciones regulares están en Mantención preventiva.",
+      serviciosParaVehiculo(serviciosOferta(), "ofertas")
+    )
   );
 }
 
 function renderMantencion() {
-  $("stage").innerHTML = htmlListaCotizacion(
-    "Mantención preventiva",
-    "¡Arma tu combo y ahorra en mano de obra! Al realizar varios servicios en una misma visita optimizamos los tiempos de taller y desarme, permitiéndonos ofrecerte un descuento especial en cada mantención adicional que sumes a tu ticket.",
-    serviciosParaVehiculo(serviciosMantencion(), "mantencion"),
-    { fijo: true }
+  pintarStageCatalogo(
+    htmlListaCotizacion(
+      "Mantención preventiva",
+      "¡Arma tu combo y ahorra en mano de obra! Al realizar varios servicios en una misma visita optimizamos los tiempos de taller y desarme, permitiéndonos ofrecerte un descuento especial en cada mantención adicional que sumes a tu ticket.",
+      serviciosParaVehiculo(serviciosMantencion(), "mantencion"),
+      { fijo: true }
+    )
   );
 }
 
@@ -1757,10 +1912,10 @@ function renderDetalleOferta() {
     return;
   }
   const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
-  const enCarro = esCombo ? comboEnCarrito(s) : state.carrito.some((x) => x.id === s.id);
+  const enCarro = servicioCuentaComoEnTicket(s);
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
-  const ids = state.carrito.map((x) => x.id);
+  const ids = idsServiciosOfertaDesdeCarrito(state.carrito);
   const p = esCombo ? precioVistaCombo(s) : precioPagado(s, ids.filter((id) => id !== s.id));
   const mostrarDesc = p.ahorro > 0;
   const precioLista = esCombo ? p.lista : s.precio;
@@ -1859,9 +2014,9 @@ function armarCarruselDetalle() {
 }
 
 function htmlMini(s, combo, ctxOfertas) {
-  const enCarro = state.carrito.some((x) => x.id === s.id);
+  const enCarro = servicioCuentaComoEnTicket(s);
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
-  const baseIds = ctxOfertas || state.carrito.filter((x) => x.tipo === "oferta").map((x) => x.id);
+  const baseIds = ctxOfertas || idsServiciosOfertaDesdeCarrito(state.carrito);
   const p = precioPagado(s, baseIds.filter((id) => id !== s.id));
   const precioCombo = combo && Number(combo.precioCombo) > 0 ? Number(combo.precioCombo) : null;
   const pagadoCombo = precioCombo != null && precioCombo < (p.pagado == null ? Infinity : p.pagado) ? precioCombo : p.pagado;
@@ -1931,11 +2086,13 @@ function renderAgendamiento() {
 }
 
 function renderDiagnostico() {
-  $("stage").innerHTML = htmlListaCotizacion(
-    "Diagnóstico automotriz",
-    "Revisión enfocada en tu problema real. Para garantizar un diagnóstico certero, cada sistema se analiza por separado: escáner electrónico, ruidos mecánicos o inspección de fugas. Selecciona el servicio correspondiente según la falla que notes en tu vehículo.",
-    serviciosParaVehiculo(serviciosDiagnostico(), "diagnostico"),
-    { fijo: true }
+  pintarStageCatalogo(
+    htmlListaCotizacion(
+      "Diagnóstico automotriz",
+      "Revisión enfocada en tu problema real. Para garantizar un diagnóstico certero, cada sistema se analiza por separado: escáner electrónico, ruidos mecánicos o inspección de fugas. Selecciona el servicio correspondiente según la falla que notes en tu vehículo.",
+      serviciosParaVehiculo(serviciosDiagnostico(), "diagnostico"),
+      { fijo: true }
+    )
   );
 }
 
@@ -2792,7 +2949,13 @@ async function consumirStockParaTicket(items) {
   }
 }
 
+let ultimoAgregarOfertaMs = 0;
+
 function agregarOferta(id) {
+  const ahora = Date.now();
+  if (ahora - ultimoAgregarOfertaMs < 450) return;
+  ultimoAgregarOfertaMs = ahora;
+  normalizarLineasComboEnCarrito();
   if (state.areaFlotas || carritoTieneFlota()) {
     alert("No puedes mezclar servicios particulares con un ticket de flota. Sal del área Flotas primero.");
     return;
@@ -2823,12 +2986,20 @@ function agregarOfertaDirecto(id) {
       return;
     }
     quitarAceitesMotorDelCarrito();
-    idsMiembrosCombo(s).forEach((sid) => {
-      if (!state.carrito.some((x) => x.id === sid)) state.carrito.push({ tipo: "oferta", id: sid });
+    const miembros = new Set(idsMiembrosComboParaCarrito(s));
+    state.carrito = state.carrito.filter((x) => {
+      if (x.tipo !== "oferta") return true;
+      if (x.esComboLinea && x.id === s.id) return false;
+      if (x.viaCombo === s.id) return false;
+      if (miembros.has(x.id)) return false;
+      return true;
     });
+    state.carrito.push({ tipo: "oferta", id: s.id, esComboLinea: true });
+    limpiarMiembrosSueltosDeCombosEnCarrito();
+    limpiarCombosSueltosSinLineaEnCarrito();
     persistir();
     renderTotales(true);
-  } else if (!state.carrito.some((x) => x.id === id)) {
+  } else if (!ofertaEnTicketDirecta(id) && !servicioIncluidoEnComboEnCarrito(id)) {
     state.carrito.push({ tipo: "oferta", id });
     persistir();
     renderTotales(true);
@@ -2922,11 +3093,16 @@ function confirmarSustituirAceite() {
   }
 }
 
-function refrescarListasCotizacion() {
-  if (state.vista === "oferta-detalle") renderDetalleOferta();
-  if (state.vista === "ofertas") renderOfertas();
-  if (state.vista === "mantencion") renderMantencion();
-  if (state.vista === "diagnostico") renderDiagnostico();
+function refrescarListasCotizacion(opts) {
+  const sync = Boolean(opts && opts.sync);
+  const run = () => {
+    if (state.vista === "oferta-detalle") renderDetalleOferta();
+    if (state.vista === "ofertas") renderOfertas();
+    if (state.vista === "mantencion") renderMantencion();
+    if (state.vista === "diagnostico") renderDiagnostico();
+  };
+  if (sync) run();
+  else requestAnimationFrame(run);
 }
 
 function agregarDiagnostico(id) {
@@ -3031,10 +3207,12 @@ function quitarItem(id) {
 function quitarOferta(id) {
   const s = oferta(id);
   if (s && typeof esServicioCombo === "function" && esServicioCombo(s)) {
-    const ids = new Set(idsMiembrosCombo(s));
+    const ids = new Set(idsMiembrosComboParaCarrito(s));
     const quitaAceiteSustituto = comboIncluyeAceiteMotor(s);
     state.carrito = state.carrito.filter((x) => {
       if (x.tipo !== "oferta") return true;
+      if (x.esComboLinea && x.id === id) return false;
+      if (x.viaCombo === id) return false;
       if (ids.has(x.id)) return false;
       if (quitaAceiteSustituto) {
         const m = oferta(x.id);
@@ -3500,6 +3678,14 @@ function guardarClienteDesdeForma() {
   persistir();
 }
 
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.target.closest("[data-add-oferta]")) e.stopPropagation();
+  },
+  true
+);
+
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
@@ -3608,6 +3794,8 @@ document.addEventListener("click", (e) => {
     }
   }
   if (t.dataset.addOferta) {
+    e.stopPropagation();
+    e.preventDefault();
     if (typeof hidratarCatalogoClienteLocal === "function") hidratarCatalogoClienteLocal();
     if (typeof catalogoEstaListo === "function" && catalogoEstaListo()) {
       agregarOferta(t.dataset.addOferta);

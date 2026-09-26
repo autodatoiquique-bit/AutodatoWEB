@@ -669,7 +669,8 @@ body.hay-perfil .panel { padding-top: 88px; }
   position: absolute;
   right: 8px;
   bottom: 8px;
-  z-index: 2;
+  z-index: 5;
+  touch-action: manipulation;
   display: flex;
   align-items: center;
   border: 2px solid var(--yellow);
@@ -713,6 +714,7 @@ body.hay-perfil .panel { padding-top: 88px; }
 }
 .tag-carrito { background: var(--yellow); color: var(--ink); }
 .tag-combo { background: #111; color: var(--yellow); }
+.tag-combo-inc { background: #e8e8e8; color: #444; font-size: 0.72rem; }
 .tag-dto { background: var(--green); color: #042; }
 .tag-agotado { background: #dfe1e6; color: #42526e; }
 .tag-stock { background: #fff0b3; color: #172b4d; }
