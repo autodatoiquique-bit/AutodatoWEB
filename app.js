@@ -1912,6 +1912,7 @@ function renderDetalleOferta() {
     return;
   }
   const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
+  const incluidoEnCombo = !esCombo && servicioIncluidoEnComboEnCarrito(s.id);
   const enCarro = servicioCuentaComoEnTicket(s);
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
@@ -1944,9 +1945,11 @@ function renderDetalleOferta() {
             ${
               enCarro
                 ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En ticket</button>`
-                : agotado
-                  ? `<span class="tag tag-agotado tag-agotado-detalle">Agotado</span>`
-                  : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al ticket</button>`
+                : incluidoEnCombo
+                  ? ""
+                  : agotado
+                    ? `<span class="tag tag-agotado tag-agotado-detalle">Agotado</span>`
+                    : `<button class="btn-add-precio" type="button" data-add-oferta="${s.id}">Agregar al ticket</button>`
             }
           </div>
           ${esCombo && enCarro ? htmlComboExtrasEnDetalle(s) : ""}
@@ -2014,6 +2017,8 @@ function armarCarruselDetalle() {
 }
 
 function htmlMini(s, combo, ctxOfertas) {
+  const esComboMini = typeof esServicioCombo === "function" && esServicioCombo(s);
+  const incluidoEnCombo = !esComboMini && servicioIncluidoEnComboEnCarrito(s.id);
   const enCarro = servicioCuentaComoEnTicket(s);
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const baseIds = ctxOfertas || idsServiciosOfertaDesdeCarrito(state.carrito);
@@ -2041,9 +2046,11 @@ function htmlMini(s, combo, ctxOfertas) {
           ${
             enCarro
               ? `<button class="btn-soft" type="button" data-quitar-oferta="${s.id}">Quitar</button>`
-              : agotado
-                ? `<span class="muted mini-agotado">Agotado</span>`
-                : `<button class="btn-green" type="button" data-add-oferta="${s.id}">Añadir</button>`
+              : incluidoEnCombo
+                ? ""
+                : agotado
+                  ? `<span class="muted mini-agotado">Agotado</span>`
+                  : `<button class="btn-green" type="button" data-add-oferta="${s.id}">Añadir</button>`
           }
         </div>
       </div>
