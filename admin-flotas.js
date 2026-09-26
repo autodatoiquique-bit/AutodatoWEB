@@ -839,11 +839,6 @@ function armarDragFlotaKanban() {
       abrirModalFlotaCol(cfg.dataset.flotaConfig || "");
       return;
     }
-    const busqSrv = e.target.closest("[data-flota-busq-srv]");
-    if (busqSrv) {
-      abrirEditorServicioFlota(busqSrv.dataset.flotaBusqSrv || "");
-      return;
-    }
     const addSrv = e.target.closest("[data-flota-add-srv]");
     if (addSrv) {
       flotaSrvEdit = { flotaId: flotaKanbanId, colId: addSrv.dataset.flotaAddSrv, servicioId: "" };
@@ -887,6 +882,11 @@ function initFlotasAdmin() {
       pintarClaveFlotaEnModal();
       pintarLinkAccesoFlotaEnModal();
       $("modal-flota-clave").hidden = false;
+      return;
+    }
+    const busqSrv = e.target.closest("[data-flota-busq-srv]");
+    if (busqSrv && flotaKanbanId) {
+      abrirEditorServicioFlota(busqSrv.dataset.flotaBusqSrv || "");
       return;
     }
     if (e.target.id === "btn-flota-col-add") {

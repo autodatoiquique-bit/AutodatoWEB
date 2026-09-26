@@ -1094,7 +1094,6 @@ async function ensureDetalleServicio(id) {
   if (typeof nubeActiva !== "function" || !nubeActiva() || typeof nubeLeerServicioDetalle !== "function") {
     return s;
   }
-  if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
   const remoto = await nubeLeerServicioDetalle(sid);
   if (!remoto) return s;
   const full = normalizarServicio(remoto);
@@ -1180,7 +1179,7 @@ function hidratarCatalogoClienteLocal() {
   const raw = hidratarCatalogo();
   if (!Array.isArray(raw) || !raw.length) return catalogo;
   catalogo = raw.map((s) => normalizarServicioLista(s));
-  if (typeof nubeActiva !== "function" || !nubeActiva()) catalogoListo = true;
+  if (catalogo.length) catalogoListo = true;
   return catalogo;
 }
 
@@ -1196,8 +1195,10 @@ async function asegurarCatalogoParaPortada() {
 }
 
 async function ensureCatalogoCargado(opts) {
-  if (catalogoEstaListo() && !(opts && opts.completo)) return catalogo;
-  if (opts && opts.completo) catalogoListo = false;
+  const forzar = Boolean(opts && opts.forzar);
+  const completo = Boolean(opts && opts.completo);
+  if (catalogoEstaListo() && !completo && !forzar) return catalogo;
+  if (completo) catalogoListo = false;
   if (catalogoPromesa) return catalogoPromesa;
   catalogoPromesa = cargarCatalogo(opts)
     .then((lista) => {
@@ -1798,11 +1799,8 @@ async function refrescarPortadaRemota() {
 
 async function refrescarCatalogoRemoto() {
   if (typeof nubeActiva === "function" && nubeActiva()) {
-    if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
-    catalogoListo = false;
-    catalogoPromesa = null;
     try {
-      return await ensureCatalogoCargado();
+      return await ensureCatalogoCargado({ forzar: true });
     } catch (e) {
       console.warn("No se pudo refrescar el catálogo.", e);
       if (catalogo.length) catalogoListo = true;

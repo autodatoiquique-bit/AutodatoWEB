@@ -283,7 +283,7 @@ async function nubeLeerServicioDetalle(id) {
   const { data: row, error } = await sb.from("servicios").select("*").eq("id", sid).maybeSingle();
   if (error) throw error;
   if (!row) return null;
-  const { data: comps, error: errorC } = await sb.from("complementos").select("*");
+  const { data: comps, error: errorC } = await sb.from("complementos").select("*").eq("servicio_id", sid);
   if (errorC) throw errorC;
   let extra = null;
   try {
