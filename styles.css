@@ -1,6 +1,13 @@
 :root {
   color-scheme: only light;
-  --yellow: #ffd000;
+  /* Amarillo AutoDato (referencia póster: oro cálido + brillo superior) */
+  --yellow: #ffc400;
+  --yellow-deep: #d9a000;
+  --yellow-bright: #ffe566;
+  --yellow-muted: #e8c84a;
+  --yellow-glow: rgba(255, 196, 0, 0.42);
+  --yellow-tint: rgba(255, 196, 0, 0.16);
+  --yellow-surface: linear-gradient(165deg, #ffe873 0%, #ffc400 46%, #d9a000 100%);
   --ink: #111;
   --black: #0a0a0a;
   --sidebar: #2f2f2f;
@@ -54,7 +61,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .logo-btn {
   border: 0;
-  background: var(--yellow);
+  background: var(--yellow-surface);
   border-radius: 16px;
   padding: 10px 12px;
   overflow: hidden;
@@ -104,7 +111,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .menu button:hover { background: #484848; }
 .menu button.is-on {
-  background: var(--yellow);
+  background: var(--yellow-surface);
   color: var(--ink);
 }
 .menu button.is-on .ico {
@@ -150,7 +157,7 @@ button { font-family: inherit; cursor: pointer; }
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: var(--yellow);
+  background: var(--yellow-surface);
   display: grid;
   place-items: center;
   flex: 0 0 36px;
@@ -684,7 +691,7 @@ body.hay-perfil .panel { padding-top: 88px; }
   height: 32px;
   border-radius: 10px;
 }
-.card-en-carro { box-shadow: 0 0 0 2px var(--yellow), 0 8px 24px rgba(255, 208, 0, 0.22); }
+.card-en-carro { box-shadow: 0 0 0 2px var(--yellow), 0 8px 24px var(--yellow-glow); }
 .card-photo { position: relative; height: 170px; background: #222 center/cover no-repeat; overflow: hidden; }
 .card-photo-img {
   width: 100%;
@@ -1052,7 +1059,7 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
   line-height: 1.35;
   margin: 0 0 12px;
   padding: 8px 10px;
-  background: rgba(255, 208, 0, 0.14);
+  background: var(--yellow-tint);
   border-left: 3px solid var(--yellow);
   color: #2a2a2a;
 }
@@ -1190,7 +1197,7 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 .dd-list button.is-on,
 .dd-list button:hover { background: var(--yellow); color: #111; }
 
-.aviso { color: #8a7418; font-size: 0.85rem; }
+.aviso { color: #9a7810; font-size: 0.85rem; }
 
 .btn-primary, .btn-ghost, .btn-line, .btn-green, .btn-soft {
   border: 0;
@@ -1285,8 +1292,9 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
   forced-color-adjust: none;
 }
 .btn-add-precio {
-  background: var(--yellow);
+  background: var(--yellow-surface);
   color: #111;
+  box-shadow: 0 4px 14px var(--yellow-glow);
 }
 .btn-en-carro {
   background: var(--green);
@@ -1766,14 +1774,15 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
     right: 0;
     bottom: 0;
     z-index: 60;
-    background: rgba(47, 47, 47, 0.55);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(8, 8, 8, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 196, 0, 0.22);
     padding: 6px 0 calc(8px + env(safe-area-inset-bottom, 0px));
     gap: 0;
   }
   body:not(.en-portada) .sidebar {
-    background: rgba(47, 47, 47, 0.88);
+    background: rgba(8, 8, 8, 0.94);
   }
   body.teclado-abierto .sidebar,
   body.en-agenda-datos .sidebar { display: none !important; }
@@ -1813,7 +1822,7 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
     flex-direction: column;
     gap: 5px;
     background: transparent;
-    color: var(--yellow);
+    color: var(--yellow-muted);
     text-align: center;
     padding: 6px 4px 4px;
     font-size: 0.62rem;
@@ -1827,21 +1836,22 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
   .menu button:hover,
   .menu button.is-on {
     background: transparent;
-    color: var(--yellow);
+    color: var(--yellow-bright);
   }
   .menu-txt { display: block; }
   .ico {
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    background: var(--yellow);
+    background: var(--yellow-surface);
     margin: 0 auto;
+    box-shadow: 0 2px 12px var(--yellow-glow);
     color-scheme: only light;
     forced-color-adjust: none;
   }
   .menu button.is-on .ico {
     background: #111;
-    box-shadow: 0 0 0 2px var(--yellow);
+    box-shadow: 0 0 0 2px var(--yellow), 0 0 14px var(--yellow-glow);
   }
   .menu button.is-on .ico svg {
     stroke: var(--yellow);
@@ -1866,7 +1876,7 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
     height: var(--banner-h, 72px);
     padding: 0;
     overflow: hidden;
-    background: var(--yellow);
+    background: var(--yellow-surface);
     color-scheme: only light;
     forced-color-adjust: none;
   }
