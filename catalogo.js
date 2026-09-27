@@ -962,6 +962,25 @@ function comboSinStockMiembros(s) {
   });
 }
 
+/** Servicios incluidos en cada combo, por si la nube pierde es_combo/combo_items. */
+const COMBOS_RESPALDO = {
+  "pack-descarbonizacion-integral-3-en-1": ["descarb", "ckp", "refrigerante"],
+  "combo-primera-mantencion": [
+    "aceite-valvoline",
+    "filtro-aire",
+    "cambio-de-correa-de-accesorios",
+    "cambio-de-filtro-de-combustible-diesel",
+  ],
+};
+
+function aplicarComboRespaldo(base) {
+  const respaldo = COMBOS_RESPALDO[String(base.id || "")];
+  if (!respaldo || base.combo_items.length >= 2) return base;
+  base.es_combo = true;
+  base.combo_items = respaldo.slice();
+  return base;
+}
+
 function normalizarServicio(s) {
   const canales = normalizarCanales(s && s.canales, s && s.tipo);
   const comboItems = Array.isArray(s && s.combo_items)
@@ -986,6 +1005,7 @@ function normalizarServicio(s) {
     ultima_unidad: Boolean(s && s.ultima_unidad),
     stock_restante: stockRestanteDe(s),
   };
+  aplicarComboRespaldo(base);
   if (base.stock_restante != null && base.stock_restante <= 0) base.agotado = true;
   const out = aplicarMediaServicio(base, mediaServicio(base));
   out.detalleListo = true;
@@ -1020,6 +1040,7 @@ function normalizarServicioLista(s) {
     ultima_unidad: Boolean(s && s.ultima_unidad),
     stock_restante: stockRestanteDe(s),
   };
+  aplicarComboRespaldo(base);
   if (base.stock_restante != null && base.stock_restante <= 0) base.agotado = true;
   base.foto = String(base.foto || "").trim();
   base.detalleListo = false;

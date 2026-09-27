@@ -125,9 +125,20 @@ async function nubeGuardarFlotasTarifario() {
 }
 
 async function nubeGuardarCatalogoCanales(lista) {
+  let previo = null;
+  try {
+    previo = await nubeLeerJsonStorage(NUBE_JSON_CANALES);
+  } catch (e) {
+    previo = null;
+  }
   const mapa = {};
   (lista || []).forEach((s) => {
     const canales = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
+    const itemsLocal = Array.isArray(s.combo_items) ? s.combo_items : [];
+    const prev = previo && previo[s.id];
+    // Un catálogo en memoria sin datos de combo no debe borrar un combo ya guardado en la nube.
+    const conservarCombo =
+      !itemsLocal.length && prev && prev.es_combo && Array.isArray(prev.combo_items) && prev.combo_items.length >= 2;
     mapa[s.id] = {
       ...canales,
       tiene_oferta: Boolean(s.tiene_oferta) && Number(s.precio_oferta) > 0,
@@ -143,8 +154,8 @@ async function nubeGuardarCatalogoCanales(lista) {
       agotado: Boolean(s.agotado),
       ultima_unidad: Boolean(s.ultima_unidad),
       stock_restante: stockRestanteDe(s),
-      es_combo: Boolean(s.es_combo),
-      combo_items: Array.isArray(s.combo_items) ? s.combo_items : [],
+      es_combo: conservarCombo ? true : Boolean(s.es_combo),
+      combo_items: conservarCombo ? prev.combo_items : itemsLocal,
     };
   });
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};

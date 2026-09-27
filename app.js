@@ -1503,6 +1503,12 @@ function servicioIncluidoEnComboEnCarrito(id) {
 function normalizarLineasComboEnCarrito() {
   if (typeof catalogoEstaListo !== "function" || !catalogoEstaListo()) return;
   let cambio = false;
+  state.carrito.forEach((x) => {
+    if (x.tipo !== "oferta" || x.esComboLinea) return;
+    if (!esServicioCombo(oferta(x.id))) return;
+    x.esComboLinea = true;
+    cambio = true;
+  });
   const lineasCombo = state.carrito.filter((x) => x.tipo === "oferta" && x.esComboLinea);
   (catalogo || []).filter((c) => esServicioCombo(c)).forEach((combo) => {
     if (state.carrito.some((x) => x.tipo === "oferta" && x.id === combo.id && x.esComboLinea)) return;
