@@ -144,6 +144,7 @@ function renderEditorCombo() {
               <label class="check"><input id="e-canal-mantencion" type="checkbox" ${s.canales && s.canales.mantencion ? "checked" : ""} /> Mantención preventiva</label>
               <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
             </fieldset>
+            ${htmlPortadaServicioAdmin(s, "combo")}
             <label class="field"><span>Nombre del combo</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
             ${htmlEnlaceServicioAdmin(s)}
             <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
@@ -335,6 +336,7 @@ async function guardarCombo() {
   if (idx >= 0) catalogo[idx] = copia;
   else catalogo.push(copia);
   try {
+    await sincronizarPortadaDeServicio(copia);
     await guardarCatalogo(catalogo);
     editando = copia;
     renderEditorCombo();
@@ -348,6 +350,7 @@ async function borrarCombo() {
   if (!confirm(`¿Eliminar el combo ${editando.nombre}?`)) return;
   catalogo = catalogo.filter((s) => s.id !== editando.id);
   try {
+    await quitarPortadaDeServicio(editando.id);
     await guardarCatalogo(catalogo);
     editando = null;
     renderListadoCombos();

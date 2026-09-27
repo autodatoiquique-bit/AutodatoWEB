@@ -2908,13 +2908,9 @@ function aplicarFiltroTrasPortada() {
     alert(`Esta oferta no aplica para ${textoVehiculo()}.`);
     return;
   }
-  if (s && !state.carrito.some((x) => x.id === id)) {
-    state.carrito.push({ tipo: "oferta", id });
-    persistir();
-    renderTotales(true);
-  }
   state.ofertaAbierta = id;
   state.vista = "oferta-detalle";
+  if (s) agregarOfertaDirecto(id);
   renderVista();
 }
 

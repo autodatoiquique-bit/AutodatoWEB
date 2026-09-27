@@ -1966,6 +1966,7 @@ function renderEditor() {
               <label class="check"><input id="e-canal-mantencion" type="checkbox" ${s.canales && s.canales.mantencion ? "checked" : ""} /> Mantención preventiva</label>
               <label class="check"><input id="e-canal-diagnostico" type="checkbox" ${s.canales && s.canales.diagnostico ? "checked" : ""} /> Diagnóstico automotriz</label>
             </fieldset>
+            ${htmlPortadaServicioAdmin(s, "servicio")}
             <label class="field"><span>Nombre</span><input id="e-nombre" type="text" value="${escapeAttr(s.nombre)}" /></label>
             ${htmlEnlaceServicioAdmin(s)}
             <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
@@ -2066,6 +2067,87 @@ function fotoPortadaServicioAdmin(s) {
   if (s && s.foto) return s.foto;
   const m = Array.isArray(s && s.media) ? s.media.find((x) => x && x.tipo === "foto" && x.src) : null;
   return (m && m.src) || "";
+}
+
+let portadaServicioDraft = null;
+
+function idPortadaDeServicio(servicioId) {
+  return `portada-srv-${servicioId}`;
+}
+
+function portadaDeServicio(servicioId) {
+  if (!servicioId) return null;
+  const pid = idPortadaDeServicio(servicioId);
+  return (portadaSlides || []).find((x) => x.id === pid) || null;
+}
+
+function estadoPortadaServicio(s) {
+  if (portadaServicioDraft && portadaServicioDraft.ref === s) return portadaServicioDraft;
+  const slide = portadaDeServicio(s && s.id);
+  return { ref: s, on: Boolean(slide), boton: slide ? Boolean(slide.mostrar_boton) : true };
+}
+
+function htmlPortadaServicioAdmin(s, tipo) {
+  const st = estadoPortadaServicio(s);
+  return `
+    <fieldset class="canales">
+      <legend>Portada de inicio</legend>
+      <label class="check"><input id="e-portada" type="checkbox" ${st.on ? "checked" : ""} /> Usar como portada en inicio</label>
+      <div id="e-portada-boton-wrap" ${st.on ? "" : "hidden"}>
+        <label class="check"><input id="e-portada-boton" type="checkbox" ${st.boton ? "checked" : ""} /> Mostrar botón Agregar al ticket</label>
+      </div>
+      <p class="hint">Usa la foto 1 de este ${tipo} y sus mismos vehículos. El recorte y la posición del botón se ajustan en Configurar portada.</p>
+    </fieldset>`;
+}
+
+function leerPortadaServicioDraft() {
+  if (!$("e-portada")) return;
+  portadaServicioDraft = {
+    ref: editando,
+    on: $("e-portada").checked,
+    boton: Boolean($("e-portada-boton") && $("e-portada-boton").checked),
+  };
+  const wrap = $("e-portada-boton-wrap");
+  if (wrap) wrap.hidden = !portadaServicioDraft.on;
+}
+
+/** Crea, actualiza o quita el flyer de inicio ligado a este servicio o combo. */
+async function sincronizarPortadaDeServicio(s) {
+  if (!s || !s.id || !$("e-portada")) return;
+  leerPortadaServicioDraft();
+  const { on, boton } = portadaServicioDraft;
+  const pid = idPortadaDeServicio(s.id);
+  const lista = (portadaSlides || []).slice();
+  const i = lista.findIndex((x) => x.id === pid);
+  if (!on) {
+    if (i < 0) return;
+    lista.splice(i, 1);
+  } else {
+    const foto = fotoPortadaServicioAdmin(s);
+    if (!foto) {
+      alert("Para usarlo como portada de inicio, primero sube una foto.");
+      return;
+    }
+    const previo = i >= 0 ? lista[i] : slideVacio(lista.length);
+    const slide = {
+      ...previo,
+      id: pid,
+      foto,
+      servicio_id: s.id,
+      mostrar_boton: boton,
+      btn_texto: (i >= 0 && previo.btn_texto) || "Agregar al ticket",
+      vehiculos: normalizarVehiculos(s.vehiculos),
+    };
+    if (i >= 0) lista[i] = slide;
+    else lista.push(slide);
+  }
+  await guardarPortada(lista);
+}
+
+async function quitarPortadaDeServicio(servicioId) {
+  const pid = idPortadaDeServicio(servicioId);
+  if (!(portadaSlides || []).some((x) => x.id === pid)) return;
+  await guardarPortada(portadaSlides.filter((x) => x.id !== pid));
 }
 
 function htmlTarjetaServicioAdmin(s) {
@@ -2172,6 +2254,7 @@ async function guardarServicio() {
     servicioColumnaOrigen = "";
   }
   try {
+    await sincronizarPortadaDeServicio(copia);
     await guardarCatalogo(catalogo);
     editando = copia;
     renderLista();
@@ -2191,6 +2274,7 @@ async function borrarServicio() {
   quitarItemDeColumnas(editando.id);
   persistirTablero();
   try {
+    await quitarPortadaDeServicio(editando.id);
     await guardarCatalogo(catalogo);
     editando = null;
     await mostrarPanel();
@@ -3232,6 +3316,10 @@ $("stage").addEventListener("input", (e) => {
 });
 
 $("stage").addEventListener("change", async (e) => {
+  if (e.target.id === "e-portada" || e.target.id === "e-portada-boton") {
+    leerPortadaServicioDraft();
+    return;
+  }
   if (e.target.dataset.mediaOrden != null) {
     leerEditor();
     const from = Number(e.target.dataset.mediaOrden);
