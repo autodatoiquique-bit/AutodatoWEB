@@ -117,7 +117,7 @@ function renderEditorCombo() {
       <div class="editor-board">
         <div class="portada-phone editor-phone-sticky">
           <div class="home-screen portada-preview servicio-preview" id="servicio-preview">
-            <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}</div>
+            <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}${htmlPreviewBotonPortadaServicio(s)}</div>
             ${htmlDotsMedia(lista.length, mediaEditIndex, s)}
             <div class="servicio-copy">
               <p class="tag tag-combo editor-tag-combo">Combo</p>

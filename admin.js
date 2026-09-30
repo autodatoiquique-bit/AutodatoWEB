@@ -1937,7 +1937,7 @@ function renderEditor() {
       <div class="editor-board">
         <div class="portada-phone editor-phone-sticky">
           <div class="home-screen portada-preview servicio-preview" id="servicio-preview">
-            <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}</div>
+            <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}${htmlPreviewBotonPortadaServicio(s)}</div>
             ${htmlDotsMedia(lista.length, mediaEditIndex, s)}
             <div class="servicio-copy">
               <h2 id="pv-nombre">${escapeText(s.nombre || "Nombre del servicio")}</h2>
@@ -2085,6 +2085,32 @@ function estadoPortadaServicio(s) {
   if (portadaServicioDraft && portadaServicioDraft.ref === s) return portadaServicioDraft;
   const slide = portadaDeServicio(s && s.id);
   return { ref: s, on: Boolean(slide), boton: slide ? Boolean(slide.mostrar_boton) : true };
+}
+
+function posBotonFlyerPortadaServicio(s) {
+  const slide = portadaDeServicio(s && s.id);
+  return {
+    x: typeof clampNum === "function" ? clampNum(slide && slide.btn_x, 8, 92, 50) : 50,
+    y: typeof clampNum === "function" ? clampNum(slide && slide.btn_y, 8, 92, 55) : 55,
+    texto: (slide && slide.btn_texto) || "Agregar al ticket",
+  };
+}
+
+function htmlPreviewBotonPortadaServicio(s) {
+  const st = estadoPortadaServicio(s);
+  if (!st.on || !st.boton) return "";
+  const { x, y, texto } = posBotonFlyerPortadaServicio(s);
+  return `<button class="home-add servicio-portada-btn" type="button" tabindex="-1" style="left:${x}%;top:${y}%">${escapeText(texto)}</button>`;
+}
+
+function refrescarPreviewBotonPortadaServicio() {
+  leerPortadaServicioDraft();
+  const preview = $("servicio-preview");
+  const lienzo = $("e-lienzo");
+  if (!preview || !lienzo) return;
+  preview.querySelectorAll(".servicio-portada-btn").forEach((el) => el.remove());
+  const html = editando ? htmlPreviewBotonPortadaServicio(editando) : "";
+  if (html) lienzo.insertAdjacentHTML("beforeend", html);
 }
 
 function htmlPortadaServicioAdmin(s, tipo) {
@@ -3317,7 +3343,7 @@ $("stage").addEventListener("input", (e) => {
 
 $("stage").addEventListener("change", async (e) => {
   if (e.target.id === "e-portada" || e.target.id === "e-portada-boton") {
-    leerPortadaServicioDraft();
+    refrescarPreviewBotonPortadaServicio();
     return;
   }
   if (e.target.dataset.mediaOrden != null) {

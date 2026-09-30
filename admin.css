@@ -1637,6 +1637,11 @@ button { font-family: inherit; cursor: pointer; }
   z-index: 6;
   pointer-events: auto;
 }
+.servicio-preview .servicio-portada-btn {
+  z-index: 7;
+  pointer-events: none;
+  cursor: default;
+}
 @media (max-height: 860px) {
   .portada-preview.home-screen {
     height: calc(100vh - 110px);
