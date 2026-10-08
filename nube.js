@@ -156,6 +156,7 @@ async function nubeGuardarCatalogoCanales(lista) {
       stock_restante: stockRestanteDe(s),
       es_combo: conservarCombo ? true : Boolean(s.es_combo),
       combo_items: conservarCombo ? prev.combo_items : itemsLocal,
+      numero_serie: Number(s.numero_serie) > 0 ? Math.floor(Number(s.numero_serie)) : null,
     };
   });
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
@@ -245,6 +246,7 @@ function fusionarExtraEnServicio(s, extra, opts) {
   }
   if (ex.es_combo != null) s.es_combo = Boolean(ex.es_combo);
   if (Array.isArray(ex.combo_items)) s.combo_items = ex.combo_items;
+  if (Number(ex.numero_serie) > 0) s.numero_serie = Math.floor(Number(ex.numero_serie));
   if (lite) {
     if (Array.isArray(ex.media) && ex.media.length) {
       const portada = ex.media.find((m) => m && m.src) || ex.media[0];

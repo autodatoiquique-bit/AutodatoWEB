@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const asistentePrecios = require("./asistente-precios");
 
 const app = express();
 const puerto = process.env.PORT || 5173;
@@ -685,6 +686,27 @@ app.post("/api/autonexus-ticket", async (req, res) => {
     console.warn("AutoNexus webhook error", e.message || e);
     return res.status(502).json({ ok: false, error: "No se pudo avisar a AutoNexus" });
   }
+});
+
+app.post("/api/asistente/consultar-precios", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({ ok: false, error: "No autorizado" });
+  }
+  try {
+    const out = await asistentePrecios.consultarPrecios(req.body || {});
+    if (!out.ok) return res.status(400).json(out);
+    return res.json(out);
+  } catch (e) {
+    console.warn("consultar-precios", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error: "No pudimos consultar precios en este momento. Intenta de nuevo en unos minutos.",
+    });
+  }
+});
+
+app.get("/api/asistente/consultar-precios", (_req, res) => {
+  res.status(405).json({ ok: false, error: "Usa POST con JSON" });
 });
 
 app.get("/admin", (_req, res) => {

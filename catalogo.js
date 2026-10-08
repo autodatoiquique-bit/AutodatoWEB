@@ -981,6 +981,82 @@ function aplicarComboRespaldo(base) {
   return base;
 }
 
+function numeroSerieDe(s) {
+  const n = Number(s && s.numero_serie);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.floor(n);
+}
+
+function formatoNumeroSerie(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return "0000";
+  return String(Math.floor(v)).padStart(4, "0");
+}
+
+function serviciosCatalogoConSerie(lista) {
+  return (lista || catalogo || []).filter((s) => s && s.id && !s.es_combo);
+}
+
+/** Servicios y combos con número para el asistente WhatsApp. */
+function itemsCatalogoAsistente(lista) {
+  return (lista || catalogo || []).filter((s) => s && s.id);
+}
+
+function serviciosOrdenadosPorSerie(lista) {
+  return itemsCatalogoAsistente(lista)
+    .slice()
+    .sort((a, b) => {
+      const na = numeroSerieDe(a) || 99999;
+      const nb = numeroSerieDe(b) || 99999;
+      if (na !== nb) return na - nb;
+      return String(a.nombre || "").localeCompare(String(b.nombre || ""), "es");
+    });
+}
+
+/** Asigna numero_serie consecutivo a servicios que no lo tienen. Devuelve true si hubo cambios. */
+function asignarNumerosSerieCatalogo(lista) {
+  const items = itemsCatalogoAsistente(lista);
+  const used = new Set();
+  items.forEach((s) => {
+    const n = numeroSerieDe(s);
+    if (n != null) used.add(n);
+  });
+  let next = 1;
+  const takeNext = () => {
+    while (used.has(next)) next += 1;
+    const n = next;
+    used.add(n);
+    next += 1;
+    return n;
+  };
+  let changed = false;
+  items.forEach((s) => {
+    if (numeroSerieDe(s) != null) return;
+    s.numero_serie = takeNext();
+    changed = true;
+  });
+  return changed;
+}
+
+function asignarNumeroSerieServicio(s, lista) {
+  if (!s || numeroSerieDe(s) != null) return false;
+  const used = new Set();
+  itemsCatalogoAsistente(lista).forEach((x) => {
+    const n = numeroSerieDe(x);
+    if (n != null) used.add(n);
+  });
+  let next = 1;
+  while (used.has(next)) next += 1;
+  s.numero_serie = next;
+  return true;
+}
+
+function servicioPorNumeroSerie(cod) {
+  const n = parseInt(String(cod || "").replace(/\D/g, ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return itemsCatalogoAsistente().find((s) => numeroSerieDe(s) === n) || null;
+}
+
 function normalizarServicio(s) {
   const canales = normalizarCanales(s && s.canales, s && s.tipo);
   const comboItems = Array.isArray(s && s.combo_items)
@@ -1008,6 +1084,8 @@ function normalizarServicio(s) {
   aplicarComboRespaldo(base);
   if (base.stock_restante != null && base.stock_restante <= 0) base.agotado = true;
   const out = aplicarMediaServicio(base, mediaServicio(base));
+  const ns = numeroSerieDe(out);
+  out.numero_serie = ns != null ? ns : null;
   out.detalleListo = true;
   return out;
 }
@@ -1248,6 +1326,16 @@ async function cargarCatalogo(opts) {
           lista = await nubeFusionarStockCatalogo(lista);
         }
         catalogo = lista.map(normalizar);
+        if (completo && asignarNumerosSerieCatalogo(catalogo)) {
+          persistirCatalogoLocal(catalogo);
+          if (typeof nubeGuardarCatalogoCanales === "function") {
+            try {
+              await nubeGuardarCatalogoCanales(catalogo);
+            } catch (e) {
+              console.warn("No se pudieron guardar numeros de serie en la nube.", e);
+            }
+          }
+        }
         recolectarModelosExtra(catalogo);
         persistirModelosExtra();
         persistirFotosModelos();
@@ -1261,6 +1349,9 @@ async function cargarCatalogo(opts) {
     }
   }
   catalogo = hidratarCatalogo().map((s) => (completo ? normalizarServicio(s) : normalizarServicioLista(s)));
+  if (completo && asignarNumerosSerieCatalogo(catalogo)) {
+    persistirCatalogoLocal(catalogo);
+  }
   recolectarModelosExtra(catalogo);
   persistirModelosExtra();
   persistirFotosModelos();
@@ -2046,5 +2137,27 @@ function precioPagado(item, idsCarrito) {
     }
   });
   return { lista: item.precio, pagado, ahorro: item.precio - pagado, regla };
+}
+
+function normalizarTextoServicio(n) {
+  return String(n || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+const PALABRAS_CLAVE_CANTIDAD = ["neumatic", "pinchazo", "balanceo", "rotacion"];
+
+/** Servicios cuyo nombre contiene alguna palabra clave: el cliente elige cantidad (×1, ×2, …). */
+function servicioPermiteCantidad(s) {
+  if (!s) return false;
+  if (s.permite_cantidad === true || s.permite_cantidad === "si") return true;
+  const n = normalizarTextoServicio(s.nombre);
+  return PALABRAS_CLAVE_CANTIDAD.some((kw) => n.includes(kw));
+}
+
+function cantidadMaximaServicio() {
+  return 12;
 }
 

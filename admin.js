@@ -24,6 +24,8 @@ let tableroOmitirSnapshot = false;
 let adminConfirmResolver = null;
 let adminGuardadoDepth = 0;
 let adminGuardadoOkTimer = null;
+let listadoServiciosAbierto = false;
+let listadoAsistenteTextos = { solo: "", full: "" };
 
 function adminTextoGuardado(txt) {
   const el = $("admin-guardando-texto");
@@ -199,9 +201,97 @@ function renderDatosTaller() {
   pintarTaller();
 }
 
+function preciosListadoAsistente(s) {
+  if (s && s.es_combo && typeof preciosPackCombo === "function") {
+    const pack = preciosPackCombo(s);
+    const normal = Number(pack.lista) || 0;
+    const pagado = Number(pack.pagado) || normal;
+    const hayDescuento = pack.ahorro > 0 && pagado < normal;
+    return { normal, descuento: pagado, hayDescuento };
+  }
+  const normal =
+    typeof valorNormalDe === "function" ? valorNormalDe(s) : Number(s && s.precio) || 0;
+  const oferta = typeof precioOfertaDe === "function" ? precioOfertaDe(s) : null;
+  const hayDescuento = oferta != null && normal > 0 && oferta < normal;
+  return {
+    normal,
+    descuento: hayDescuento ? oferta : normal,
+    hayDescuento,
+  };
+}
+
+function textoDescuentoListadoAsistente(s) {
+  const { descuento, hayDescuento } = preciosListadoAsistente(s);
+  const partes = [];
+  if (hayDescuento) partes.push(clp(descuento));
+  const reglas =
+    s && s.id && !s.es_combo && typeof combosEntrantesDe === "function" ? combosEntrantesDe(s.id) : [];
+  if (reglas.length) {
+    reglas
+      .slice()
+      .sort((a, b) => Number(a.precio) - Number(b.precio))
+      .forEach((r) => {
+        const otro =
+          typeof nombreServicioDe === "function" ? nombreServicioDe(r.si) : String(r.si || "");
+        partes.push(`Incluye descuento al realizar servicio de ${otro} ${clp(r.precio)}`);
+      });
+  }
+  if (!partes.length) return "Sin descuento";
+  return partes.join(" · ");
+}
+
+function nombreListadoAsistente(s) {
+  let nom = String(s.nombre || "Sin nombre").trim();
+  if (s.es_combo && !/^combo/i.test(nom)) nom = `[Combo] ${nom}`;
+  return nom;
+}
+
+function htmlEditorNumeroSerie(s) {
+  if (!s) return "";
+  if (s.id && typeof formatoNumeroSerie === "function" && typeof numeroSerieDe === "function") {
+    const n = numeroSerieDe(s);
+    if (n != null) {
+      return `<p class="editor-preview-serie">N.º asistente WhatsApp: <strong>#${escapeText(formatoNumeroSerie(n))}</strong></p>`;
+    }
+  }
+  return `<p class="editor-preview-serie muted">Al guardar se asignará un número de 4 dígitos para el asistente.</p>`;
+}
+
+function construirListadoAsistenteTextos() {
+  const items = typeof serviciosOrdenadosPorSerie === "function" ? serviciosOrdenadosPorSerie() : [];
+  const solo = [];
+  const full = [];
+  items.forEach((s) => {
+    if (s.activo === false) return;
+    const cod = typeof formatoNumeroSerie === "function" ? formatoNumeroSerie(numeroSerieDe(s)) : "0000";
+    const nom = nombreListadoAsistente(s);
+    const { normal } = preciosListadoAsistente(s);
+    const descTxt = textoDescuentoListadoAsistente(s);
+    solo.push(`${cod} ${nom}`);
+    full.push(`${cod} — ${nom} | Normal: ${clp(normal)} | Descuento: ${descTxt}`);
+  });
+  listadoAsistenteTextos = { solo: solo.join("\n"), full: full.join("\n") };
+  return listadoAsistenteTextos;
+}
+
+function htmlPanelListadoAsistente() {
+  if (!listadoServiciosAbierto) return "";
+  const textos = construirListadoAsistenteTextos();
+  return `
+    <div class="listado-asistente-panel" id="listado-asistente-panel">
+      <p class="hint">Servicios, promociones y combos activos. Incluye ofertas fijas y descuentos por llevar otro servicio.</p>
+      <textarea class="listado-asistente-text" id="listado-asistente-text" readonly rows="14">${escapeText(textos.full)}</textarea>
+      <div class="btn-row listado-asistente-acciones">
+        <button class="btn-line" type="button" id="btn-copiar-listado-solo">Copiar solo nombres</button>
+        <button class="btn-line" type="button" id="btn-copiar-listado-full">Copiar nombres y valores</button>
+      </div>
+    </div>`;
+}
+
 function renderListadoServicios() {
   editando = null;
   $("stage").classList.remove("stage-board");
+  if (typeof asignarNumerosSerieCatalogo === "function") asignarNumerosSerieCatalogo(catalogo);
   $("stage").innerHTML = `
     <div class="admin-panel admin-panel-servicios">
       <div class="admin-panel-top">
@@ -209,8 +299,12 @@ function renderListadoServicios() {
           <h2>Servicios</h2>
           <p class="muted">Misma vista que ve el cliente en el catálogo.</p>
         </div>
-        <button class="btn-primary" type="button" id="btn-nuevo">+ Nuevo servicio</button>
+        <div class="admin-panel-top-acciones">
+          <button class="btn-line" type="button" id="btn-ver-listado-servicios">${listadoServiciosAbierto ? "Ocultar listado" : "Ver listado"}</button>
+          <button class="btn-primary" type="button" id="btn-nuevo">+ Nuevo servicio</button>
+        </div>
       </div>
+      ${htmlPanelListadoAsistente()}
       <div id="lista-servicios-panel" class="lista-servicios-panel">
         ${
           catalogo.length
@@ -1956,6 +2050,7 @@ function renderEditor() {
             </div>
             ${htmlNavPortadaFalsa()}
           </div>
+          ${htmlEditorNumeroSerie(s)}
         </div>
         <div class="editor-fields">
           <div class="editor-col">
@@ -2187,12 +2282,17 @@ function htmlTarjetaServicioAdmin(s) {
   const foto = fotoPortadaServicioAdmin(s);
   const resumen = (s.resumen || "").trim();
   const veh = normalizarVehiculos(s.vehiculos).length ? etiquetaVehiculos(s) : "";
+  const serie =
+    typeof formatoNumeroSerie === "function" && typeof numeroSerieDe === "function"
+      ? formatoNumeroSerie(numeroSerieDe(s))
+      : "";
   return `
     <article class="card admin-serv-card ${on ? "is-on" : ""} ${agotado ? "card-agotado" : ""}">
       <button class="card-abrir" type="button" data-abrir="${escapeAttr(s.id)}">
         <div class="card-photo">
           ${foto ? `<img class="card-photo-img" src="${escapeAttr(foto)}" alt="" loading="lazy" decoding="async" />` : ""}
           <div class="card-tags">
+            ${serie ? `<span class="tag tag-serie">#${escapeText(serie)}</span>` : ""}
             <span class="tag tag-canal">${escapeText(etiquetaCanales(s))}</span>
             ${agotado ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
@@ -2269,6 +2369,11 @@ async function guardarServicio() {
   else if (!editando.agotado) aplicarDisponibleDesdeEditor();
   if (editando.agotado) editando.ultima_unidad = false;
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
+  if (typeof asignarNumerosSerieCatalogo === "function") asignarNumerosSerieCatalogo(catalogo);
+  if (typeof asignarNumeroSerieServicio === "function") {
+    const otros = catalogo.filter((x) => x.id !== editando.id);
+    asignarNumeroSerieServicio(editando, [...otros, editando]);
+  }
   const copia = JSON.parse(JSON.stringify(editando));
   const idx = catalogo.findIndex((s) => s.id === copia.id);
   if (idx >= 0) catalogo[idx] = copia;
@@ -2989,6 +3094,11 @@ $("stage").addEventListener("click", (e) => {
     nuevoServicio();
     return;
   }
+  if (e.target.id === "btn-ver-listado-servicios") {
+    listadoServiciosAbierto = !listadoServiciosAbierto;
+    renderListadoServicios();
+    return;
+  }
   const abrirSrv = e.target.closest("#lista-servicios-panel [data-abrir]");
   if (abrirSrv) {
     abrirServicio(abrirSrv.dataset.abrir);
@@ -3001,6 +3111,16 @@ $("stage").addEventListener("click", (e) => {
   const t = e.target.closest("button");
   if (!t || t.id === "portada-btn-drag") return;
   if (t.id === "btn-guardar") guardarServicio();
+  if (t.id === "btn-copiar-listado-solo") {
+    construirListadoAsistenteTextos();
+    copiarTextoAdmin(listadoAsistenteTextos.solo, t);
+    return;
+  }
+  if (t.id === "btn-copiar-listado-full") {
+    construirListadoAsistenteTextos();
+    copiarTextoAdmin(listadoAsistenteTextos.full, t);
+    return;
+  }
   if (t.id === "btn-copiar-url-plantilla") {
     const el = $("e-url-plantilla");
     if (el) copiarTextoAdmin(el.value, t);

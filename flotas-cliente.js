@@ -58,10 +58,26 @@ function servicioFlotaEnCarrito(flotaId, servicioId) {
   return state.carrito.some((x) => x.tipo === "flota" && x.id === id);
 }
 
+function cantidadFlotaEnCarrito(flotaId, servicioId) {
+  const id = lineaFlotaCarritoId(flotaId, servicioId);
+  const linea = state.carrito.find((x) => x.tipo === "flota" && x.id === id);
+  if (!linea) return 0;
+  const max = typeof cantidadMaximaServicio === "function" ? cantidadMaximaServicio() : 12;
+  return Math.max(1, Math.min(max, Number(linea.cantidad) || 1));
+}
+
+function flotaServicioRequiereCantidad(srv) {
+  return typeof servicioRequiereCantidad === "function" && servicioRequiereCantidad(srv);
+}
+
 function htmlBotonCarritoFlotaTarjeta(flotaId, srv) {
   const fid = escFlota(flotaId);
   const sid = escFlota(srv.id);
   if (servicioFlotaEnCarrito(flotaId, srv.id)) {
+    const qty = cantidadFlotaEnCarrito(flotaId, srv.id);
+    if (flotaServicioRequiereCantidad(srv)) {
+      return `<button class="card-add card-quitar-flota" type="button" data-edit-cantidad-flota="${fid}|${sid}" title="Cambiar cantidad">En ticket${qty > 1 ? ` ×${qty}` : ""}</button>`;
+    }
     return `<button class="card-add card-quitar-flota" type="button" data-quitar-flota="${fid}|${sid}" title="Quitar del ticket">Quitar del ticket</button>`;
   }
   return `<button class="card-add" type="button" data-add-flota="${fid}|${sid}" title="Agregar al ticket" aria-label="Agregar al ticket">
@@ -73,6 +89,15 @@ function htmlBotonCarritoFlotaBusqueda(flotaId, srv) {
   const fid = escFlota(flotaId);
   const sid = escFlota(srv.id);
   if (servicioFlotaEnCarrito(flotaId, srv.id)) {
+    const qty = cantidadFlotaEnCarrito(flotaId, srv.id);
+    const tagQty = qty > 1 ? ` ×${qty}` : "";
+    if (flotaServicioRequiereCantidad(srv)) {
+      return `<div class="flota-busq-acciones">
+        <span class="tag tag-carrito">En ticket${tagQty}</span>
+        <button type="button" class="btn-soft flota-busq-quitar" data-edit-cantidad-flota="${fid}|${sid}">Cambiar cantidad</button>
+        <button type="button" class="btn-soft flota-busq-quitar" data-quitar-flota="${fid}|${sid}">Quitar</button>
+      </div>`;
+    }
     return `<div class="flota-busq-acciones">
       <span class="tag tag-carrito">En ticket</span>
       <button type="button" class="btn-soft flota-busq-quitar" data-quitar-flota="${fid}|${sid}">Quitar del ticket</button>
@@ -209,6 +234,7 @@ function htmlTarjetaCategoriaFlota(col) {
 
 function htmlTarjetaServicioFlota(srv, flotaId) {
   const enCarro = servicioFlotaEnCarrito(flotaId, srv.id);
+  const qty = enCarro ? cantidadFlotaEnCarrito(flotaId, srv.id) : 0;
   const precioTxt = typeof clpNetoMasIva === "function" ? clpNetoMasIva(srv.precio) : clp(srv.precio);
   return `
     <article class="card card-flota-serv card-con-add ${enCarro ? "card-en-carro" : ""}">
@@ -216,7 +242,7 @@ function htmlTarjetaServicioFlota(srv, flotaId) {
         <div class="card-photo card-photo-flota">
           ${srv.foto ? `<img class="card-photo-img" src="${escFlota(srv.foto)}" alt="" loading="lazy" />` : ""}
           <div class="card-tags">
-            ${enCarro ? `<span class="tag tag-carrito">En ticket</span>` : ""}
+            ${enCarro ? `<span class="tag tag-carrito">En ticket${qty > 1 ? ` ×${qty}` : ""}</span>` : ""}
           </div>
         </div>
         <div class="card-body card-body-flota">
@@ -368,10 +394,20 @@ function renderFlotaServicioDetalle() {
       <div class="precio flota-precio-iva flota-det-precio">${escFlota(precioTxt)}</div>
       ${
         enCarro
-          ? `<div class="flota-det-acciones">
+          ? (() => {
+              const qty = cantidadFlotaEnCarrito(f.id, srv.id);
+              const tagQty = qty > 1 ? ` ×${qty}` : "";
+              if (flotaServicioRequiereCantidad(srv)) {
+                return `<div class="flota-det-acciones">
+              <button class="btn-primary btn-block" type="button" data-edit-cantidad-flota="${escFlota(f.id)}|${escFlota(srv.id)}">En ticket${tagQty} — cambiar cantidad</button>
+              <button class="btn-soft btn-block" type="button" data-quitar-flota="${escFlota(f.id)}|${escFlota(srv.id)}">Quitar del ticket</button>
+            </div>`;
+              }
+              return `<div class="flota-det-acciones">
               <span class="tag tag-carrito">En ticket</span>
               <button class="btn-soft btn-block" type="button" data-quitar-flota="${escFlota(f.id)}|${escFlota(srv.id)}">Quitar del ticket</button>
-            </div>`
+            </div>`;
+            })()
           : `<button class="btn-primary btn-block" type="button" data-add-flota="${escFlota(f.id)}|${escFlota(srv.id)}">Agregar al ticket</button>`
       }
     </section>
@@ -531,27 +567,40 @@ async function entrarFlotaPorLinkAcceso(token) {
   return true;
 }
 
-function agregarServicioFlotaAlCarrito(flotaId, servicioId) {
+function agregarServicioFlotaAlCarrito(flotaId, servicioId, cantidad) {
   if (typeof carritoTieneParticular === "function" && carritoTieneParticular()) {
     alert("No puedes mezclar servicios de flota con particulares. Sal del área Flotas y vacía el carrito.");
     return;
   }
   const srv = buscarServicioFlota(flotaId, servicioId);
   if (!srv) return;
+  const requiereQty = flotaServicioRequiereCantidad(srv);
+  if (requiereQty && (cantidad == null || cantidad === "")) {
+    if (typeof abrirModalCantidadFlota === "function") abrirModalCantidadFlota(flotaId, servicioId);
+    return;
+  }
+  const max = typeof cantidadMaximaServicio === "function" ? cantidadMaximaServicio() : 12;
+  const qty = requiereQty ? Math.max(1, Math.min(max, Number(cantidad) || 1)) : 1;
   const id = lineaFlotaCarritoId(flotaId, servicioId);
-  if (state.carrito.some((x) => x.id === id)) return;
+  const idx = state.carrito.findIndex((x) => x.id === id);
   if (carritoTieneFlota() && !state.carrito.every((x) => x.flotaId === flotaId)) {
     alert("Solo puedes armar un ticket de una empresa de flota a la vez.");
     return;
   }
   state.areaFlotas = true;
   if (typeof syncAreaFlotasUi === "function") syncAreaFlotasUi();
-  state.carrito.push({ tipo: "flota", id, flotaId, servicioId });
+  if (idx >= 0) {
+    if (requiereQty) state.carrito[idx].cantidad = qty;
+    else return;
+  } else {
+    const linea = { tipo: "flota", id, flotaId, servicioId };
+    if (requiereQty) linea.cantidad = qty;
+    state.carrito.push(linea);
+  }
   if (typeof persistir === "function") persistir();
   if (typeof renderTotales === "function") renderTotales(true);
   if (state.vista === "flotas-servicio-detalle") {
-    state.flotaServicioDetalleId = "";
-    state.vista = "flotas-servicios";
+    state.flotaServicioDetalleId = servicioId;
     if (typeof renderVista === "function") renderVista();
     return;
   }

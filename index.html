@@ -121,6 +121,17 @@
       </div>
     </div>
   </div>
+  <div id="modal-cantidad-servicio" class="modal-horas" hidden>
+    <div class="modal-card ancho">
+      <button class="drawer-close" type="button" data-cerrar-cantidad-servicio>×</button>
+      <h3 id="cantidad-servicio-titulo">Cantidad</h3>
+      <div id="cantidad-servicio-cuerpo"></div>
+      <div class="kpi-acciones">
+        <button class="btn-primary btn-block" type="button" data-confirmar-cantidad-servicio>Agregar al ticket</button>
+        <button class="btn-soft btn-block" type="button" data-cerrar-cantidad-servicio>Cancelar</button>
+      </div>
+    </div>
+  </div>
   <div id="modal-sustituir-aceite" class="modal-horas" hidden>
     <div class="modal-card ancho">
       <button class="drawer-close" type="button" data-cerrar-sustituir-aceite>×</button>
@@ -182,9 +193,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script src="nube.js?v=combo-guard1"></script>
-  <script src="catalogo.js?v=combo-respaldo1"></script>
+  <script src="catalogo.js?v=cantidad-ticket1"></script>
   <script src="flotas.js?v=flota-exigir-veh1"></script>
-  <script src="flotas-cliente.js?v=flota-exigir-veh1"></script>
-  <script src="app.js?v=portada-servicio1"></script>
+  <script src="flotas-cliente.js?v=cantidad-ticket2"></script>
+  <script src="app.js?v=cantidad-ticket2"></script>
 </body>
 </html>

@@ -135,6 +135,7 @@ function renderEditorCombo() {
             </div>
             ${htmlNavPortadaFalsa()}
           </div>
+          ${htmlEditorNumeroSerie(s)}
         </div>
         <div class="editor-fields">
           <div class="editor-col">
@@ -331,6 +332,11 @@ async function guardarCombo() {
   editando.ultima_unidad = false;
   editando.stock_restante = null;
   if (!editando.id) editando.id = nuevoIdServicio(editando.nombre);
+  if (typeof asignarNumerosSerieCatalogo === "function") asignarNumerosSerieCatalogo(catalogo);
+  if (typeof asignarNumeroSerieServicio === "function") {
+    const otros = catalogo.filter((x) => x.id !== editando.id);
+    asignarNumeroSerieServicio(editando, [...otros, editando]);
+  }
   const copia = JSON.parse(JSON.stringify(editando));
   const idx = catalogo.findIndex((s) => s.id === copia.id);
   if (idx >= 0) catalogo[idx] = copia;

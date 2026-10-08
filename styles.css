@@ -1404,8 +1404,37 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 
 .modal-horas[hidden] { display: none; }
 
-#modal-sustituir-aceite:not([hidden]) {
+#modal-sustituir-aceite:not([hidden]),
+#modal-cantidad-servicio:not([hidden]) {
   z-index: 100;
+}
+
+.cantidad-servicio-field {
+  margin: 14px 0 8px;
+}
+
+.cantidad-servicio-field select {
+  width: 100%;
+  font-size: 1.05rem;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+}
+
+.cantidad-servicio-total {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #f6f6f6;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.cantidad-servicio-total strong {
+  font-size: 1.1rem;
+  color: var(--blue, #1a5fb4);
 }
 
 .modal-card {

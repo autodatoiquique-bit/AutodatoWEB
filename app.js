@@ -46,6 +46,38 @@ const state = {
 
 let quitarPendiente = null;
 let sustituirAceitePendiente = null;
+/** @type {{ tipo: "oferta", id: string } | { tipo: "flota", flotaId: string, servicioId: string } | null} */
+let cantidadModalPendiente = null;
+
+const PALABRAS_CLAVE_CANTIDAD_TICKET = ["neumatic", "pinchazo", "balanceo", "rotacion"];
+
+function normalizarTextoCantidadTicket(n) {
+  return String(n || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function textoServicioParaCantidad(s) {
+  if (!s) return "";
+  return [s.nombre, s.resumen, s.detalle, s.descripcion].filter(Boolean).join(" ");
+}
+
+/** Siempre disponible en app.js (no depende de caché de catalogo.js). */
+function servicioRequiereCantidad(s) {
+  if (!s) return false;
+  if (s.permite_cantidad === true || s.permite_cantidad === "si") return true;
+  const n = normalizarTextoCantidadTicket(textoServicioParaCantidad(s));
+  return PALABRAS_CLAVE_CANTIDAD_TICKET.some((kw) => n.includes(kw));
+}
+
+function servicioRequiereCantidadPorId(id) {
+  const s =
+    (typeof oferta === "function" && oferta(id)) ||
+    (typeof servicioPorId === "function" && servicioPorId(id)) ||
+    null;
+  return servicioRequiereCantidad(s);
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -111,18 +143,36 @@ function calcular(carrito = state.carrito) {
       }
       const s = oferta(linea.id);
       if (!s || esServicioCombo(s)) return;
+      const qty = Math.max(1, Math.min(cantidadMaximaServicio(), Number(linea.cantidad) || 1));
       const otros = idsServiciosOfertaDesdeCarrito(carrito, linea.id);
       const p = precioPagado(s, otros);
-      items.push({ ...s, tipo: "oferta", ...p });
-      subtotal += p.lista;
-      total += p.pagado;
-      ahorro += p.ahorro;
+      items.push({
+        ...s,
+        tipo: "oferta",
+        ...p,
+        cantidad: qty,
+        lista: p.lista != null ? p.lista * qty : null,
+        pagado: p.pagado != null ? p.pagado * qty : null,
+        ahorro: (p.ahorro || 0) * qty,
+        pagado_unitario: p.pagado,
+        lista_unitario: p.lista,
+      });
+      subtotal += p.lista != null ? p.lista * qty : 0;
+      total += p.pagado != null ? p.pagado * qty : 0;
+      ahorro += (p.ahorro || 0) * qty;
     } else if (linea.tipo === "flota") {
       const srv =
         typeof buscarServicioFlota === "function"
           ? buscarServicioFlota(linea.flotaId, linea.servicioId)
           : null;
       if (!srv) return;
+      const qty = Math.max(
+        1,
+        Math.min(
+          typeof cantidadMaximaServicio === "function" ? cantidadMaximaServicio() : 12,
+          Number(linea.cantidad) || 1
+        )
+      );
       const pagado = typeof precioFlotaConIva === "function" ? precioFlotaConIva(srv.precio) : Number(srv.precio);
       if (pagado == null) return;
       const neto = Number(srv.precio) || 0;
@@ -130,16 +180,18 @@ function calcular(carrito = state.carrito) {
         id: linea.id,
         nombre: srv.nombre,
         tipo: "flota",
-        lista: pagado,
-        pagado,
-        neto,
+        cantidad: qty,
+        lista: pagado * qty,
+        pagado: pagado * qty,
+        neto: neto * qty,
+        neto_unitario: neto,
         ahorro: 0,
         flotaId: linea.flotaId,
         servicioId: linea.servicioId,
       });
-      subtotal += pagado;
-      total += pagado;
-      netoTotal += neto;
+      subtotal += pagado * qty;
+      total += pagado * qty;
+      netoTotal += neto * qty;
     } else {
       const s = servicioAgenda(linea.id);
       if (!s) return;
@@ -1482,6 +1534,17 @@ function servicioCuentaComoEnTicket(s) {
   return ofertaEnTicketDirecta(s.id);
 }
 
+function cantidadEnCarritoOferta(id) {
+  const linea = state.carrito.find((x) => x.tipo === "oferta" && x.id === id && !x.esComboLinea);
+  if (!linea) return 0;
+  return Math.max(1, Math.min(cantidadMaximaServicio(), Number(linea.cantidad) || 1));
+}
+
+function etiquetaCantidadTicket(qty) {
+  const n = Number(qty) || 1;
+  return n > 1 ? ` (×${n})` : "";
+}
+
 function ofertaEnTicketDirecta(id) {
   const s = oferta(id);
   if (s && esServicioCombo(s)) {
@@ -1757,6 +1820,10 @@ function htmlTarjetaOferta(s) {
   const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
   const incluidoEnCombo = !esCombo && servicioIncluidoEnComboEnCarrito(s.id);
   const enCarro = servicioCuentaComoEnTicket(s);
+  const qtyTicket =
+    enCarro && servicioRequiereCantidad(s)
+      ? cantidadEnCarritoOferta(s.id)
+      : 0;
   const ocultarAdd = incluidoEnCombo;
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
@@ -1772,7 +1839,7 @@ function htmlTarjetaOferta(s) {
             ${esCombo ? `<span class="tag tag-combo">Combo</span>` : ""}
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
-            ${enCarro ? `<span class="tag tag-carrito">En ticket</span>` : ""}
+            ${enCarro ? `<span class="tag tag-carrito">En ticket${qtyTicket > 1 ? ` ×${qtyTicket}` : ""}</span>` : ""}
             ${!enCarro && !ocultarAdd && !agotado && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
           </div>
         </div>
@@ -1920,6 +1987,8 @@ function renderDetalleOferta() {
   const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
   const incluidoEnCombo = !esCombo && servicioIncluidoEnComboEnCarrito(s.id);
   const enCarro = servicioCuentaComoEnTicket(s);
+  const permiteCantidad = !esCombo && servicioRequiereCantidad(s);
+  const qtyTicket = permiteCantidad ? cantidadEnCarritoOferta(s.id) : 0;
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
   const ids = idsServiciosOfertaDesdeCarrito(state.carrito);
@@ -1950,7 +2019,9 @@ function renderDetalleOferta() {
             </div>
             ${
               enCarro
-                ? `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En ticket</button>`
+                ? permiteCantidad
+                  ? `<button class="btn-en-carro" type="button" data-edit-cantidad-oferta="${s.id}">En ticket${qtyTicket > 1 ? ` ×${qtyTicket}` : ""}</button>`
+                  : `<button class="btn-en-carro" type="button" data-quitar-oferta="${s.id}">En ticket</button>`
                 : incluidoEnCombo
                   ? ""
                   : agotado
@@ -2631,7 +2702,7 @@ function htmlPanelDatosAgenda() {
               !soloFlota && s.ahorro > 0
                 ? `<span class="ahorro-tag">− ${clp(s.ahorro)}</span> <s>${clp(s.lista)}</s> `
                 : "";
-            return `<li class="resumen-item"><span class="resumen-nom">${s.nombre}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>`;
+            return `<li class="resumen-item"><span class="resumen-nom">${s.nombre}${etiquetaCantidadTicket(s.cantidad)}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>`;
           })
           .join("")}
         ${
@@ -2834,9 +2905,7 @@ async function aplicarFiltro(contexto) {
       } else if (s && !servicioAplicaAVehiculo(s, state.vehiculo)) {
         alert(`Esta oferta no aplica para ${textoVehiculo()}.`);
       } else if (s && !state.carrito.some((x) => x.id === id)) {
-        state.carrito.push({ tipo: "oferta", id });
-        persistir();
-        renderTotales(true);
+        agregarOferta(id);
       }
     }
     renderVista();
@@ -2910,7 +2979,7 @@ function aplicarFiltroTrasPortada() {
   }
   state.ofertaAbierta = id;
   state.vista = "oferta-detalle";
-  if (s) agregarOfertaDirecto(id);
+  if (s) agregarOferta(id);
   renderVista();
 }
 
@@ -2927,7 +2996,8 @@ async function consumirStockParaTicket(items) {
   const cuenta = {};
   (items || []).forEach((s) => {
     if (!s || !s.id || s.tipo === "flota") return;
-    cuenta[s.id] = (cuenta[s.id] || 0) + 1;
+    const qty = Math.max(1, Number(s.cantidad) || 1);
+    cuenta[s.id] = (cuenta[s.id] || 0) + qty;
   });
   const lineas = Object.entries(cuenta).map(([id, qty]) => ({ id, qty }));
   if (!lineas.length) return { ok: true };
@@ -2971,6 +3041,10 @@ function agregarOferta(id) {
   }
   if (avisarServicioAgotado(id)) return;
   const s = oferta(id);
+  if (servicioRequiereCantidadPorId(id)) {
+    abrirModalCantidadServicio(id);
+    return;
+  }
   if (s && esAceiteMotorServicio(s)) {
     const otros = aceitesMotorEnCarrito().filter((m) => m.id !== id);
     if (otros.length) {
@@ -2981,8 +3055,14 @@ function agregarOferta(id) {
   agregarOfertaDirecto(id);
 }
 
-function agregarOfertaDirecto(id) {
+function agregarOfertaDirecto(id, cantidad) {
+  normalizarLineasComboEnCarrito();
   const s = oferta(id);
+  const requiereQty = servicioRequiereCantidad(s);
+  if (requiereQty && (cantidad == null || cantidad === "") && !ofertaEnTicketDirecta(id)) {
+    abrirModalCantidadServicio(id);
+    return;
+  }
   const esCombo = s && typeof esServicioCombo === "function" && esServicioCombo(s);
   if (esCombo) {
     if (comboEnCarrito(s)) {
@@ -3008,8 +3088,19 @@ function agregarOfertaDirecto(id) {
     limpiarCombosSueltosSinLineaEnCarrito();
     persistir();
     renderTotales(true);
-  } else if (!ofertaEnTicketDirecta(id) && !servicioIncluidoEnComboEnCarrito(id)) {
-    state.carrito.push({ tipo: "oferta", id });
+  } else if (!servicioIncluidoEnComboEnCarrito(id)) {
+    const permiteQty = servicioRequiereCantidad(s);
+    const qty = permiteQty
+      ? Math.max(1, Math.min(cantidadMaximaServicio(), Number(cantidad) || 1))
+      : 1;
+    const idx = state.carrito.findIndex((x) => x.tipo === "oferta" && x.id === id && !x.esComboLinea);
+    if (idx >= 0) {
+      if (permiteQty) state.carrito[idx].cantidad = qty;
+    } else if (!ofertaEnTicketDirecta(id)) {
+      const linea = { tipo: "oferta", id };
+      if (permiteQty) linea.cantidad = qty;
+      state.carrito.push(linea);
+    }
     persistir();
     renderTotales(true);
   }
@@ -3081,6 +3172,178 @@ function cerrarModalSustituirAceite() {
   if (overlayLibre()) $("overlay").hidden = true;
 }
 
+function precioUnitarioOfertaParaCantidad(id) {
+  const s = oferta(id);
+  if (!s) return { pagado: null, lista: null, ahorro: 0 };
+  const otros = idsServiciosOfertaDesdeCarrito(state.carrito).filter((x) => x !== String(id));
+  return precioPagado(s, otros);
+}
+
+function precioUnitarioFlotaParaCantidad(flotaId, servicioId) {
+  const srv =
+    typeof buscarServicioFlota === "function" ? buscarServicioFlota(flotaId, servicioId) : null;
+  if (!srv) return { neto: null, conIva: null };
+  const neto = Number(srv.precio);
+  const conIva =
+    typeof precioFlotaConIva === "function" ? precioFlotaConIva(srv.precio) : Number(srv.precio);
+  return {
+    neto: Number.isFinite(neto) ? neto : null,
+    conIva: conIva != null && Number.isFinite(conIva) ? conIva : null,
+  };
+}
+
+function cantidadInicialModalPendiente(p) {
+  if (!p) return 1;
+  if (p.tipo === "oferta") return cantidadEnCarritoOferta(p.id) || 1;
+  if (typeof cantidadFlotaEnCarrito === "function") {
+    return cantidadFlotaEnCarrito(p.flotaId, p.servicioId) || 1;
+  }
+  return 1;
+}
+
+function servicioYaEnTicketModal(p) {
+  if (!p) return false;
+  if (p.tipo === "oferta") return ofertaEnTicketDirecta(p.id);
+  if (typeof servicioFlotaEnCarrito === "function") {
+    return servicioFlotaEnCarrito(p.flotaId, p.servicioId);
+  }
+  return false;
+}
+
+function pintarModalCantidadServicio() {
+  const p = cantidadModalPendiente;
+  if (!p) return;
+  const max = typeof cantidadMaximaServicio === "function" ? cantidadMaximaServicio() : 12;
+  const qtyInicial = cantidadInicialModalPendiente(p);
+  let titulo = "Cantidad";
+  let unitTxt = "A confirmar";
+  let totalEsNeto = false;
+
+  if (p.tipo === "oferta") {
+    const s = oferta(p.id);
+    if (!s) return;
+    titulo = s.nombre;
+    const pr = precioUnitarioOfertaParaCantidad(p.id);
+    unitTxt = pr.pagado != null ? clp(pr.pagado) : "A confirmar";
+  } else {
+    const srv =
+      typeof buscarServicioFlota === "function" ? buscarServicioFlota(p.flotaId, p.servicioId) : null;
+    if (!srv) return;
+    titulo = srv.nombre;
+    const pr = precioUnitarioFlotaParaCantidad(p.flotaId, p.servicioId);
+    totalEsNeto = true;
+    unitTxt =
+      pr.neto != null && typeof clpNetoMasIva === "function"
+        ? clpNetoMasIva(pr.neto)
+        : pr.conIva != null
+          ? clp(pr.conIva)
+          : "A confirmar";
+  }
+
+  const yaEnTicket = servicioYaEnTicketModal(p);
+  const btn = document.querySelector("[data-confirmar-cantidad-servicio]");
+  if (btn) btn.textContent = yaEnTicket ? "Guardar cantidad" : "Agregar al ticket";
+  $("cantidad-servicio-titulo").textContent = titulo;
+  $("cantidad-servicio-cuerpo").innerHTML = `
+    <p class="muted">Precio unitario: <strong>${escapeHtml(unitTxt)}</strong></p>
+    <label class="field cantidad-servicio-field">
+      <span>Cantidad</span>
+      <select id="cantidad-servicio-select" aria-label="Cantidad">
+        ${Array.from({ length: max }, (_, i) => {
+          const n = i + 1;
+          return `<option value="${n}"${n === qtyInicial ? " selected" : ""}>×${n}</option>`;
+        }).join("")}
+      </select>
+    </label>
+    <div class="cantidad-servicio-total">
+      <span>Total en ticket</span>
+      <strong id="cantidad-servicio-total-valor">—</strong>
+    </div>
+  `;
+  $("cantidad-servicio-select")?.addEventListener("change", actualizarTotalModalCantidad);
+  $("cantidad-servicio-cuerpo").dataset.cantidadModalNeto = totalEsNeto ? "1" : "";
+  const modal = $("modal-cantidad-servicio");
+  if (!modal) {
+    console.warn("AutoDato: falta #modal-cantidad-servicio en index.html");
+    return;
+  }
+  modal.hidden = false;
+  actualizarTotalModalCantidad();
+}
+
+function actualizarTotalModalCantidad() {
+  const p = cantidadModalPendiente;
+  const sel = $("cantidad-servicio-select");
+  const totalEl = $("cantidad-servicio-total-valor");
+  const cuerpo = $("cantidad-servicio-cuerpo");
+  if (!p || !sel || !totalEl) return;
+  const qty = Math.max(1, Number(sel.value) || 1);
+  if (p.tipo === "oferta") {
+    const pr = precioUnitarioOfertaParaCantidad(p.id);
+    if (pr.pagado == null) {
+      totalEl.textContent = "A confirmar";
+      return;
+    }
+    totalEl.textContent = clp(pr.pagado * qty);
+    return;
+  }
+  const pr = precioUnitarioFlotaParaCantidad(p.flotaId, p.servicioId);
+  if (cuerpo && cuerpo.dataset.cantidadModalNeto === "1") {
+    if (pr.neto == null) {
+      totalEl.textContent = "A confirmar";
+      return;
+    }
+    totalEl.textContent =
+      typeof clpNetoMasIva === "function" ? clpNetoMasIva(pr.neto * qty) : clp(pr.neto * qty);
+    return;
+  }
+  if (pr.conIva == null) {
+    totalEl.textContent = "A confirmar";
+    return;
+  }
+  totalEl.textContent = clp(pr.conIva * qty);
+}
+
+function abrirModalCantidadServicio(id) {
+  if (!oferta(id)) return;
+  cantidadModalPendiente = { tipo: "oferta", id: String(id) };
+  pintarModalCantidadServicio();
+}
+
+function abrirModalCantidadFlota(flotaId, servicioId) {
+  if (typeof buscarServicioFlota !== "function" || !buscarServicioFlota(flotaId, servicioId)) return;
+  cantidadModalPendiente = { tipo: "flota", flotaId: String(flotaId), servicioId: String(servicioId) };
+  pintarModalCantidadServicio();
+}
+
+function cerrarModalCantidadServicio() {
+  cantidadModalPendiente = null;
+  if ($("modal-cantidad-servicio")) $("modal-cantidad-servicio").hidden = true;
+  if (overlayLibre()) $("overlay").hidden = true;
+}
+
+function confirmarCantidadServicio() {
+  const p = cantidadModalPendiente;
+  if (!p) return;
+  const sel = $("cantidad-servicio-select");
+  const qty = sel ? Number(sel.value) : 1;
+  cantidadModalPendiente = null;
+  if ($("modal-cantidad-servicio")) $("modal-cantidad-servicio").hidden = true;
+  if (overlayLibre()) $("overlay").hidden = true;
+  if (p.tipo === "flota") {
+    if (typeof agregarServicioFlotaAlCarrito === "function") {
+      agregarServicioFlotaAlCarrito(p.flotaId, p.servicioId, qty);
+    }
+    return;
+  }
+  if (state.areaFlotas || carritoTieneFlota()) {
+    alert("No puedes mezclar servicios particulares con un ticket de flota. Sal del área Flotas primero.");
+    return;
+  }
+  if (avisarServicioAgotado(p.id)) return;
+  agregarOfertaDirecto(p.id, qty);
+}
+
 function confirmarSustituirAceite() {
   const nuevoId = sustituirAceitePendiente;
   if (!nuevoId) return;
@@ -3144,7 +3407,9 @@ function overlayLibre() {
     $("modal-kpi").hidden &&
     $("modal-horas").hidden &&
     $("modal-quitar").hidden &&
-    $("modal-informe").hidden
+    $("modal-informe").hidden &&
+    ($("modal-cantidad-servicio") == null || $("modal-cantidad-servicio").hidden) &&
+    ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden)
   );
 }
 
@@ -3334,7 +3599,8 @@ async function generarTicket() {
     hora: state.cita.hora,
     servicios: items.map((s) => ({
       id: s.id,
-      nombre: s.nombre,
+      nombre: s.nombre + etiquetaCantidadTicket(s.cantidad),
+      cantidad: Math.max(1, Number(s.cantidad) || 1),
       precio_lista: s.lista,
       precio: s.pagado,
       neto: s.neto,
@@ -3663,11 +3929,13 @@ function cerrar() {
   $("modal-kpi").hidden = true;
   $("modal-quitar").hidden = true;
   if ($("modal-sustituir-aceite")) $("modal-sustituir-aceite").hidden = true;
+  if ($("modal-cantidad-servicio")) $("modal-cantidad-servicio").hidden = true;
   $("modal-informe").hidden = true;
   if ($("modal-auto")) $("modal-auto").hidden = true;
   cerrarModalContacto();
   quitarPendiente = null;
   sustituirAceitePendiente = null;
+  cantidadModalPendiente = null;
   marcarMenu();
   syncSeguirKpi();
   pintarChipAuto();
@@ -3698,7 +3966,7 @@ document.addEventListener(
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -3789,6 +4057,13 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
   if (t.hasAttribute("data-cerrar-sustituir-aceite")) cerrarModalSustituirAceite();
+  if (t.hasAttribute("data-confirmar-cantidad-servicio")) confirmarCantidadServicio();
+  if (t.hasAttribute("data-cerrar-cantidad-servicio")) cerrarModalCantidadServicio();
+  if (t.dataset.editCantidadOferta) abrirModalCantidadServicio(t.dataset.editCantidadOferta);
+  if (t.dataset.editCantidadFlota) {
+    const [fid, sid] = String(t.dataset.editCantidadFlota || "").split("|");
+    if (fid && sid) abrirModalCantidadFlota(fid, sid);
+  }
   if (t.hasAttribute("data-confirmar-sustituir-aceite")) confirmarSustituirAceite();
   if (t.dataset.pedirQuitar) pedirQuitar(t.dataset.pedirQuitar);
   if (t.hasAttribute("data-volver-catalogo")) volverAlCatalogoDesdeDetalle();
@@ -3864,6 +4139,10 @@ document.addEventListener("click", (e) => {
 });
 
 $("overlay").addEventListener("click", () => {
+  if ($("modal-cantidad-servicio") && !$("modal-cantidad-servicio").hidden) {
+    cerrarModalCantidadServicio();
+    return;
+  }
   if ($("modal-sustituir-aceite") && !$("modal-sustituir-aceite").hidden) {
     cerrarModalSustituirAceite();
     return;
