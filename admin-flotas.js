@@ -412,6 +412,7 @@ function renderFlotaKanban(flotaId) {
             <h2>${escapeText(flota.nombre)}</h2>
             <p>Precios netos (se muestran con «+ IVA»). Arrastra ⋮⋮ para mover columnas; arrastra tarjetas para reordenar o moverlas a otra categoría.</p>
           </div>
+          <button type="button" class="btn-soft" id="btn-flota-sync-autonexus" title="Enviar tarifario a AutoNexus">Sincronizar con AutoNexus</button>
           <button type="button" class="btn-soft" id="btn-flota-config">Configuración</button>
           <button type="button" class="btn-soft" id="btn-flota-clave-cliente">Clave cliente</button>
         </div>
@@ -440,6 +441,143 @@ async function guardarOrdenFlotaKanban() {
     await guardarFlotasNube();
   } catch (e) {
     alert((e && e.message) || "No se pudo guardar el tablero de flota.");
+  }
+}
+
+function contarServiciosFlotaKanban(flota) {
+  return (flota.columnas || []).reduce((n, c) => n + (c.servicios || []).length, 0);
+}
+
+function htmlErrorSyncAutonexus(j, httpStatus) {
+  const data = j && typeof j === "object" ? j : {};
+  const bloques = [];
+  const msg = String(data.error || data.message || "").trim();
+  if (msg) bloques.push(`<p><strong>Mensaje:</strong> ${escapeText(msg)}</p>`);
+  if (data.codigo) {
+    bloques.push(`<p><strong>Código:</strong> <code>${escapeText(String(data.codigo))}</code></p>`);
+  }
+  const st = data.http_status != null ? data.http_status : httpStatus;
+  if (st) bloques.push(`<p><strong>HTTP:</strong> ${escapeText(String(st))}</p>`);
+  if (data.accion) {
+    bloques.push(`<p><strong>Acción enviada:</strong> <code>${escapeText(String(data.accion))}</code></p>`);
+  }
+  if (data.id_flota) {
+    bloques.push(`<p><strong>Flota AutoNexus:</strong> <code>${escapeText(String(data.id_flota))}</code></p>`);
+  }
+  if (data.items_intentados != null) {
+    bloques.push(`<p><strong>Ítems en el envío:</strong> ${escapeText(String(data.items_intentados))}</p>`);
+  }
+  if (data.webhook_destino) {
+    bloques.push(
+      `<p><strong>Webhook:</strong> <code class="sync-error-url">${escapeText(String(data.webhook_destino))}</code></p>`
+    );
+  }
+  const nx = data.respuesta_autonexus;
+  if (nx && typeof nx === "object" && Object.keys(nx).length) {
+    bloques.push(
+      `<details class="sync-error-details"><summary>Respuesta JSON de AutoNexus</summary><pre>${escapeText(JSON.stringify(nx, null, 2))}</pre></details>`
+    );
+  } else if (data.respuesta_raw) {
+    bloques.push(
+      `<details class="sync-error-details"><summary>Respuesta cruda del servidor</summary><pre>${escapeText(String(data.respuesta_raw))}</pre></details>`
+    );
+  }
+  if (!bloques.length) {
+    bloques.push(`<p>No hubo detalle en la respuesta. Revisa la consola del servidor (Render).</p>`);
+  }
+  bloques.push(
+    `<p class="muted sync-error-hint">Si el mensaje indica acción desconocida o 404, falta implementar <code>sincronizar_lista_precios_flota</code> en AutoNexus.</p>`
+  );
+  return bloques.join("");
+}
+
+async function mostrarErrorSyncAutonexus(j, httpStatus) {
+  const html = htmlErrorSyncAutonexus(j, httpStatus);
+  if (typeof pedirConfirmacionAdmin === "function") {
+    await pedirConfirmacionAdmin("Error al sincronizar con AutoNexus", html);
+    return;
+  }
+  alert(
+    [j && j.error, j && j.codigo && `Código: ${j.codigo}`, httpStatus && `HTTP: ${httpStatus}`]
+      .filter(Boolean)
+      .join("\n\n") || "AutoNexus no aceptó la sincronización."
+  );
+}
+
+async function sincronizarCatalogoFlotaAutonexus(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  if (!flotaKanbanId) return;
+  const flota = flotaPorId(flotaKanbanId);
+  if (!flota) return;
+  const total = contarServiciosFlotaKanban(flota);
+  if (!total) {
+    alert("No hay servicios en este catálogo para sincronizar.");
+    return;
+  }
+  if (!o.skipConfirm && o.preview !== true) {
+    const ok = window.confirm(
+      `¿Enviar ${total} servicios de «${flota.nombre}» a AutoNexus?\n\n` +
+        "Modo reemplazar: el listado en AutoNexus quedará igual que este tablero."
+    );
+    if (!ok) return;
+  }
+  persistirFlotas();
+  try {
+    await guardarFlotasNube();
+  } catch (e) {
+    alert((e && e.message) || "Primero guarda el catálogo en la nube e inténtalo de nuevo.");
+    return;
+  }
+  const btn = $("btn-flota-sync-autonexus");
+  const textoBtn = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = o.preview ? "Vista previa…" : "Sincronizando…";
+  }
+  try {
+    const r = await fetch("/api/autonexus-sync-precios-flota", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        flota_id: flotaKanbanId,
+        confirmar: o.preview ? "no" : "si",
+        version_catalogo: new Date().toISOString(),
+      }),
+    });
+    const raw = await r.text();
+    let j = {};
+    try {
+      j = raw ? JSON.parse(raw) : {};
+    } catch (_e) {
+      j = {
+        ok: false,
+        error: "La respuesta del servidor no es JSON válido.",
+        respuesta_raw: raw.length <= 1500 ? raw : `${raw.slice(0, 1500)}…`,
+        http_status: r.status,
+      };
+    }
+    if (!r.ok || !j.ok) {
+      if (!j.error && raw && !raw.trim().startsWith("{")) {
+        j.error = j.error || "Error del servidor sin JSON.";
+        j.respuesta_raw = j.respuesta_raw || raw.slice(0, 1500);
+      }
+      j.http_status = j.http_status != null ? j.http_status : r.status;
+      await mostrarErrorSyncAutonexus(j, r.status);
+      return;
+    }
+    const n = j.items_enviados != null ? j.items_enviados : total;
+    if (j.preview) {
+      alert(`Vista previa OK (${n} ítems). AutoNexus no guardó cambios (confirmar=no).`);
+    } else {
+      alert(`Catálogo sincronizado con AutoNexus (${n} servicios).`);
+    }
+  } catch (_e) {
+    alert("No se pudo conectar con el servidor. ¿Estás en Render con webhook configurado?");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = textoBtn || "Sincronizar con AutoNexus";
+    }
   }
 }
 
@@ -871,6 +1009,10 @@ function initFlotasAdmin() {
     }
     if (e.target.id === "btn-volver-flotas") {
       renderListadoFlotas();
+      return;
+    }
+    if (e.target.id === "btn-flota-sync-autonexus") {
+      void sincronizarCatalogoFlotaAutonexus();
       return;
     }
     if (e.target.id === "btn-flota-config") {

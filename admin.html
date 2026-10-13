@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=serie-asistente2" />
+  <link rel="stylesheet" href="admin.css?v=sync-error1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -55,6 +55,7 @@
         <button class="btn-yellow" type="button" id="btn-datos-taller">Datos taller</button>
         <button class="btn-yellow" type="button" id="btn-servicios">Servicios</button>
         <button class="btn-yellow" type="button" id="btn-combos">Crear combos</button>
+        <button class="btn-yellow" type="button" id="btn-tickets-creados">TICKETS CREADOS</button>
       </nav>
       <input id="foto-modelo-file" type="file" accept="image/*" hidden />
       <input id="col-foto-file" type="file" accept="image/*" hidden />
@@ -65,6 +66,22 @@
     <main class="stage" id="stage">
       <p class="vacio">Elige un servicio o crea uno nuevo.</p>
     </main>
+  </div>
+
+  <div id="modal-ticket-edit" class="modal" hidden>
+    <div class="modal-card modal-ticket-edit-card">
+      <button class="x" type="button" id="cerrar-ticket-edit">×</button>
+      <h3>Editar ticket</h3>
+      <p class="muted" id="ticket-edit-creado"></p>
+      <div id="ticket-edit-form" class="ticket-edit-form"></div>
+      <div class="btn-row ticket-edit-acciones">
+        <button class="btn-soft btn-ticket-eliminar" type="button" id="btn-ticket-edit-eliminar">Eliminar ticket</button>
+        <div class="ticket-edit-acciones-derecha">
+          <button class="btn-soft" type="button" id="btn-ticket-edit-cancel">Cancelar</button>
+          <button class="btn-primary" type="button" id="btn-ticket-edit-guardar">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="modal-admin-confirm" class="modal" hidden>
@@ -289,11 +306,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="nube.js?v=serie-asistente2"></script>
+  <script src="nube.js?v=tickets-delete1"></script>
   <script src="catalogo.js?v=serie-asistente2"></script>
   <script src="flotas.js?v=flota-kanban-busq1"></script>
   <script src="admin.js?v=serie-asistente2"></script>
   <script src="admin-combos.js?v=portada-preview-boton1"></script>
-  <script src="admin-flotas.js?v=flota-kanban-busq2"></script>
+  <script src="admin-flotas.js?v=autonexus-sync2"></script>
+  <script src="admin-tickets.js?v=7"></script>
 </body>
 </html>

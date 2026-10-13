@@ -41,6 +41,8 @@ drop policy if exists complementos_read on complementos;
 drop policy if exists complementos_write on complementos;
 drop policy if exists tickets_insert on tickets;
 drop policy if exists tickets_admin_read on tickets;
+drop policy if exists tickets_admin_update on tickets;
+drop policy if exists tickets_admin_delete on tickets;
 
 create policy servicios_read on servicios for select using (true);
 create policy servicios_write on servicios for all
@@ -54,6 +56,11 @@ create policy complementos_write on complementos for all
 
 create policy tickets_insert on tickets for insert with check (true);
 create policy tickets_admin_read on tickets for select
+  using (auth.role() = 'authenticated');
+create policy tickets_admin_update on tickets for update
+  using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
+create policy tickets_admin_delete on tickets for delete
   using (auth.role() = 'authenticated');
 
 create or replace function norm_patente(v text)

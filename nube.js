@@ -452,6 +452,47 @@ async function nubeBuscarTicket(patente, telefono) {
   return data || null;
 }
 
+/** Historial admin: requiere sesión Supabase (política tickets_admin_read). */
+async function nubeListarTickets(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const limite = Math.min(500, Math.max(1, Number(o.limite) || 300));
+  const sb = clienteNube();
+  const { data, error } = await sb
+    .from("tickets")
+    .select("id, code, patente, telefono, payload, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limite);
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
+async function nubeActualizarTicket(id, datos) {
+  const sb = clienteNube();
+  const rowId = String(id || "").trim();
+  if (!rowId) throw new Error("Falta id del ticket");
+  const patch = {};
+  if (datos && datos.code != null) patch.code = String(datos.code).trim();
+  if (datos && datos.payload != null) patch.payload = datos.payload;
+  if (datos && datos.patente !== undefined) {
+    patch.patente = datos.patente ? String(datos.patente).trim().toUpperCase() : null;
+  }
+  if (datos && datos.telefono !== undefined) {
+    patch.telefono = datos.telefono ? String(datos.telefono).trim() : null;
+  }
+  const { data, error } = await sb.from("tickets").update(patch).eq("id", rowId).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/** Admin: requiere sesión Supabase (política tickets_admin_delete). */
+async function nubeEliminarTicket(id) {
+  const sb = clienteNube();
+  const rowId = String(id || "").trim();
+  if (!rowId) throw new Error("Falta id del ticket");
+  const { error } = await sb.from("tickets").delete().eq("id", rowId);
+  if (error) throw error;
+}
+
 function extraPortada(s) {
   return {
     id: s.id,

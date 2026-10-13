@@ -42,8 +42,10 @@ function tokenAutonexus() {
   return String(process.env.AUTONEXUS_WEBHOOK_TOKEN || "").trim();
 }
 
+const ID_TALLER_AUTONEXUS_DEFAULT = "937db668-b9a4-4ccd-946c-1f2ed8569430";
+
 function idTallerAutonexus() {
-  return String(process.env.AUTONEXUS_ID_TALLER || "").trim();
+  return String(process.env.AUTONEXUS_ID_TALLER || ID_TALLER_AUTONEXUS_DEFAULT).trim();
 }
 
 async function postAutonexus(body) {
@@ -60,7 +62,52 @@ async function postAutonexus(body) {
   } catch (_e) {
     parsed = null;
   }
-  return { ok: r.ok, status: r.status, parsed, texto };
+  return { ok: r.ok, status: r.status, parsed, texto, url };
+}
+
+function mensajeErrorRespuestaAutonexus(parsed, texto, status) {
+  if (parsed && typeof parsed === "object") {
+    for (const k of [
+      "mensaje_para_asistente",
+      "error",
+      "mensaje",
+      "message",
+      "detalle",
+      "descripcion",
+      "motivo",
+    ]) {
+      const v = parsed[k];
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+  }
+  const t = String(texto || "").trim();
+  if (t) {
+    if (t.startsWith("{") || t.startsWith("[")) {
+      try {
+        return mensajeErrorRespuestaAutonexus(JSON.parse(t), "", status);
+      } catch (_e) {
+        /* texto no JSON */
+      }
+    }
+    return t.length <= 800 ? t : `${t.slice(0, 800)}…`;
+  }
+  if (status === 404) {
+    return "HTTP 404: el webhook no encontró la ruta o la acción sincronizar_lista_precios_flota.";
+  }
+  if (status === 401 || status === 403) {
+    return `HTTP ${status}: token o permisos rechazados por AutoNexus.`;
+  }
+  if (status >= 500) {
+    return `HTTP ${status}: error interno en AutoNexus o en el proxy.`;
+  }
+  return "AutoNexus no aceptó la sincronización (sin mensaje en la respuesta).";
+}
+
+function webhookAutonexusRechazo(parsed, httpOk) {
+  if (!httpOk) return true;
+  if (!parsed || typeof parsed !== "object") return true;
+  if (parsed.exito === false || parsed.ok === false || parsed.success === false) return true;
+  return false;
 }
 
 const TOKEN_SALFA_DEFAULT = "PORTAL_WH_PILOTO_7K3M";
@@ -113,6 +160,110 @@ function cuerpoAutonexusSalfa(payload, token) {
     telefono_canal: telefono,
     total_pactado: Number.isFinite(total) ? String(Math.round(total)) : "",
     traslado: String(payload.traslado || "").trim().toLowerCase() === "si" ? "si" : "no",
+  };
+}
+
+function esFlotaSalfaServidor(flota) {
+  if (!flota) return false;
+  if (String(flota.nombre || "").trim().toLowerCase() === "salfa") return true;
+  return String(flota.canal_webhook || "").trim().toUpperCase() === "SALFA";
+}
+
+function idsFlotaAutonexus(flota) {
+  if (esFlotaSalfaServidor(flota)) {
+    return { id_flota: "FLOTA_SALFA", flota: "SALFA" };
+  }
+  const nombre = String(flota.nombre || "").trim();
+  const slug = nombre.toUpperCase().replace(/\s+/g, "_");
+  return { id_flota: slug || String(flota.id || ""), flota: nombre || slug };
+}
+
+function textoPlanoServicioFlota(s) {
+  return String(s || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function netoEnteroFlota(precio) {
+  const n = Math.round(Number(precio));
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function ivaDesdeNetoFlota(neto) {
+  return Math.round(neto * 0.19);
+}
+
+/** Orden global igual al kanban AutoDato (columnas + tarjetas). */
+function itemsCatalogoFlotaParaAutonexus(flota) {
+  const columnas = Array.isArray(flota && flota.columnas) ? flota.columnas : [];
+  const items = [];
+  let orden = 0;
+  columnas.forEach((col, catIdx) => {
+    const categoria = String((col && col.titulo) || "").trim();
+    const ordenCategoria = (catIdx + 1) * 10;
+    const servicios = Array.isArray(col && col.servicios) ? col.servicios : [];
+    const tokens = Array.isArray(col && col.orden_tarjetas) ? col.orden_tarjetas : [];
+    const byId = {};
+    servicios.forEach((s) => {
+      if (s && s.id) byId[s.id] = s;
+    });
+    const ordenados = [];
+    if (tokens.length) {
+      tokens.forEach((tok) => {
+        const m = String(tok || "").match(/^f:(.+)$/);
+        const id = m ? m[1] : "";
+        if (id && byId[id]) ordenados.push(byId[id]);
+      });
+      servicios.forEach((s) => {
+        if (s && !ordenados.includes(s)) ordenados.push(s);
+      });
+    } else {
+      ordenados.push(...servicios);
+    }
+    ordenados.forEach((srv) => {
+      if (!srv || !String(srv.nombre || "").trim()) return;
+      orden += 10;
+      const neto = netoEnteroFlota(srv.precio);
+      const iva = ivaDesdeNetoFlota(neto);
+      items.push({
+        id: String(srv.id || "").trim(),
+        nombre: String(srv.nombre).trim(),
+        descripcion: textoPlanoServicioFlota(srv.descripcion || ""),
+        categoria,
+        orden_categoria: ordenCategoria,
+        orden,
+        neto,
+        iva,
+        total: neto + iva,
+        activo: srv.activo !== false,
+      });
+    });
+  });
+  return items;
+}
+
+function cuerpoSyncPreciosFlotaAutonexus(flota, opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const esSalfa = esFlotaSalfaServidor(flota);
+  const token = esSalfa ? tokenSalfaAutonexus() : tokenAutonexus();
+  const ids = idsFlotaAutonexus(flota);
+  const confirmar = String(o.confirmar || "si").trim().toLowerCase() === "no" ? "no" : "si";
+  const version =
+    String(o.version_catalogo || "").trim() || new Date().toISOString();
+  return {
+    accion: "sincronizar_lista_precios_flota",
+    token,
+    id_taller: idTallerAutonexus(),
+    id_flota: ids.id_flota,
+    flota: ids.flota,
+    modo: "reemplazar",
+    confirmar,
+    origen: "autodato.cl",
+    version_catalogo: version,
+    cliente_autodato: String(flota.nombre || flota.id || "").trim(),
+    asistente: esSalfa ? "salfa" : "clientes",
+    items: itemsCatalogoFlotaParaAutonexus(flota),
   };
 }
 
@@ -643,6 +794,86 @@ app.post("/api/flota-sembrar-solicitantes-salfa", async (req, res) => {
   } catch (e) {
     console.warn("flota-sembrar-solicitantes-salfa", e.message || e);
     return res.status(502).json({ ok: false, error: "No se pudo sembrar solicitantes." });
+  }
+});
+
+app.post("/api/autonexus-sync-precios-flota", async (req, res) => {
+  const body = req.body || {};
+  const flotaId = String(body.flota_id || "").trim();
+  if (!flotaId) {
+    return res.status(400).json({ ok: false, error: "Falta flota_id." });
+  }
+  const flotas = await leerFlotasServidor();
+  if (!flotas) {
+    return res.status(502).json({ ok: false, error: "No se pudo leer el catálogo de flotas." });
+  }
+  const flota = flotas.find((f) => String(f.id) === flotaId);
+  if (!flota) {
+    return res.status(404).json({ ok: false, error: "Flota no encontrada en el catálogo." });
+  }
+  const esSalfa = esFlotaSalfaServidor(flota);
+  const token = esSalfa ? tokenSalfaAutonexus() : tokenAutonexus();
+  if (!token) {
+    return res.status(501).json({
+      ok: false,
+      error: esSalfa ? "Webhook SALFA no configurado." : "Webhook AutoNexus no configurado.",
+    });
+  }
+  const payload = cuerpoSyncPreciosFlotaAutonexus(flota, {
+    confirmar: body.confirmar,
+    version_catalogo: body.version_catalogo,
+  });
+  if (!payload.items.length) {
+    return res.status(400).json({ ok: false, error: "La flota no tiene servicios para sincronizar." });
+  }
+  const nombres = new Set();
+  for (const it of payload.items) {
+    const key = String(it.nombre || "")
+      .trim()
+      .toLowerCase();
+    if (nombres.has(key)) {
+      return res.status(400).json({
+        ok: false,
+        error: `Hay nombres duplicados en el catálogo: «${it.nombre}». Corrígelos antes de sincronizar.`,
+      });
+    }
+    nombres.add(key);
+  }
+  try {
+    const { ok, status, parsed, texto, url } = await postAutonexus(payload);
+    if (webhookAutonexusRechazo(parsed, ok)) {
+      const msg = mensajeErrorRespuestaAutonexus(parsed, texto, status);
+      console.warn("sync precios flota falló", status, msg, parsed || texto?.slice(0, 200));
+      const httpOut = !ok && status >= 400 ? status : 502;
+      return res.status(httpOut).json({
+        ok: false,
+        error: msg,
+        codigo: (parsed && (parsed.codigo || parsed.error_code || parsed.code)) || "",
+        http_status: status,
+        accion: payload.accion,
+        id_flota: payload.id_flota,
+        items_intentados: payload.items.length,
+        webhook_destino: url || urlWebhookAutonexus(),
+        respuesta_autonexus: parsed || null,
+        respuesta_raw: !parsed && texto ? (texto.length <= 1500 ? texto : `${texto.slice(0, 1500)}…`) : "",
+      });
+    }
+    return res.json({
+      ok: true,
+      preview: payload.confirmar === "no",
+      items_enviados: payload.items.length,
+      version_catalogo: payload.version_catalogo,
+      id_flota: payload.id_flota,
+      data: parsed,
+    });
+  } catch (e) {
+    const msg = e && e.message ? String(e.message) : "Error de red";
+    console.warn("sync precios flota error", msg);
+    return res.status(502).json({
+      ok: false,
+      error: `No se pudo conectar con AutoNexus: ${msg}`,
+      http_status: 502,
+    });
   }
 });
 
