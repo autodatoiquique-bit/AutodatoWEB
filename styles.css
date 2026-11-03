@@ -1640,6 +1640,35 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
   margin: 0;
   font-weight: 800;
 }
+
+.modal-ticket-error-cuerpo {
+  margin: 12px 0 4px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.modal-ticket-error-cuerpo p {
+  margin: 0 0 10px;
+}
+.modal-ticket-error-cuerpo code {
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+.modal-ticket-error-cuerpo .ticket-error-json {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f4f4f5;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  overflow: auto;
+  max-height: 160px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.modal-ticket-error-cuerpo .muted {
+  color: #666;
+  font-size: 0.85rem;
+}
 .spinner {
   display: block;
   width: 40px;

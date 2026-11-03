@@ -3515,21 +3515,82 @@ async function enviarTicketAutonexus(payload) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const j = await r.json().catch(() => ({}));
+    const raw = await r.text();
+    let j = {};
+    try {
+      j = raw ? JSON.parse(raw) : {};
+    } catch (_e) {
+      j = {
+        ok: false,
+        error: "Respuesta del servidor no válida.",
+        respuesta_raw: raw.length <= 1200 ? raw : `${raw.slice(0, 1200)}…`,
+      };
+    }
     if (r.ok && j.ok) {
       return { ok: true, code: j.code || "", ticket_whatsapp_enviado: Boolean(j.ticket_whatsapp_enviado) };
     }
-    console.warn("AutoNexus no recibió el ticket.", r.status, j.error || j.codigo || "");
+    console.warn("AutoNexus no recibió el ticket.", r.status, j.error || j.codigo || "", j);
     return {
       ok: false,
       error: j.error || "AutoNexus no aceptó el ticket.",
       codigo: j.codigo || "",
-      http_status: j.http_status,
+      http_status: j.http_status != null ? j.http_status : r.status,
+      respuesta_autonexus: j.respuesta_autonexus,
+      respuesta_raw: j.respuesta_raw,
+      webhook_destino: j.webhook_destino,
     };
   } catch (e) {
     console.warn("No se pudo avisar a AutoNexus.", e);
     return { ok: false, error: "No se pudo conectar con la agenda del taller." };
   }
+}
+
+function htmlDetalleErrorTicket(info) {
+  const d = info && typeof info === "object" ? info : {};
+  const partes = [];
+  const msg = String(d.error || d.message || "").trim();
+  if (msg) partes.push(`<p><strong>Detalle:</strong> ${escapeHtml(msg)}</p>`);
+  if (d.codigo) partes.push(`<p><strong>Código:</strong> <code>${escapeHtml(String(d.codigo))}</code></p>`);
+  if (d.http_status) partes.push(`<p><strong>HTTP:</strong> ${escapeHtml(String(d.http_status))}</p>`);
+  if (d.webhook_destino) {
+    partes.push(`<p class="muted"><strong>Servidor:</strong> <code>${escapeHtml(String(d.webhook_destino))}</code></p>`);
+  }
+  const nx = d.respuesta_autonexus;
+  if (nx && typeof nx === "object" && Object.keys(nx).length) {
+    partes.push(
+      `<details open><summary class="muted">Respuesta técnica</summary><pre class="ticket-error-json">${escapeHtml(JSON.stringify(nx, null, 2))}</pre></details>`
+    );
+  } else if (d.respuesta_raw) {
+    partes.push(
+      `<details><summary class="muted">Respuesta cruda</summary><pre class="ticket-error-json">${escapeHtml(String(d.respuesta_raw))}</pre></details>`
+    );
+  }
+  if (!partes.length) {
+    partes.push(`<p>No hubo más información. Intenta de nuevo en unos minutos.</p>`);
+  }
+  partes.push(
+    `<p class="muted">Si el problema continúa, envía una captura de esta pantalla al taller.</p>`
+  );
+  return partes.join("");
+}
+
+function abrirModalErrorTicket(info, titulo) {
+  const modal = $("modal-ticket-error");
+  const cuerpo = $("modal-ticket-error-cuerpo");
+  const h = $("modal-ticket-error-titulo");
+  if (!modal || !cuerpo) {
+    alert((info && info.error) || "No se pudo generar el ticket.");
+    return;
+  }
+  if (h) h.textContent = titulo || "No se pudo generar el ticket";
+  cuerpo.innerHTML = htmlDetalleErrorTicket(info);
+  modal.hidden = false;
+  mostrarCargaTicket(false);
+}
+
+function cerrarModalErrorTicket() {
+  const modal = $("modal-ticket-error");
+  if (modal) modal.hidden = true;
 }
 
 function mostrarCargaTicket(on) {
@@ -3624,10 +3685,7 @@ async function generarTicket() {
       state.cita.hora = "";
       await renderDatosAgenda({ forceAgenda: true });
     }
-    const detalle = [autonexus.error, autonexus.codigo && `Código: ${autonexus.codigo}`]
-      .filter(Boolean)
-      .join("\n\n");
-    alert(detalle || "No se pudo agendar en AutoNexus. Elige otra fecha u hora.");
+    abrirModalErrorTicket(autonexus, "No se pudo agendar en el taller");
     return;
   }
 
@@ -3970,7 +4028,7 @@ document.addEventListener(
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -4059,6 +4117,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.portadaOferta) void iniciarOfertaDesdePortada(t.dataset.portadaOferta);
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
+  if (t.hasAttribute("data-cerrar-ticket-error")) cerrarModalErrorTicket();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
   if (t.hasAttribute("data-cerrar-sustituir-aceite")) cerrarModalSustituirAceite();
   if (t.hasAttribute("data-confirmar-cantidad-servicio")) confirmarCantidadServicio();
@@ -4181,6 +4240,11 @@ if ($("modal-auto")) {
 if ($("modal-sustituir-aceite")) {
   $("modal-sustituir-aceite").addEventListener("click", (e) => {
     if (e.target.id === "modal-sustituir-aceite") cerrarModalSustituirAceite();
+  });
+}
+if ($("modal-ticket-error")) {
+  $("modal-ticket-error").addEventListener("click", (e) => {
+    if (e.target.id === "modal-ticket-error") cerrarModalErrorTicket();
   });
 }
 

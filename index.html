@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=amarillo-oro1" />
+  <link rel="stylesheet" href="styles.css?v=ticket-error-modal1" />
 </head>
 <body>
   <div class="split">
@@ -179,6 +179,16 @@
       </div>
     </div>
   </div>
+  <div id="modal-ticket-error" class="modal-horas" hidden>
+    <div class="modal-card ancho modal-ticket-error-card">
+      <button class="drawer-close" type="button" data-cerrar-ticket-error>×</button>
+      <h3 id="modal-ticket-error-titulo">No se pudo generar el ticket</h3>
+      <div id="modal-ticket-error-cuerpo" class="modal-ticket-error-cuerpo"></div>
+      <div class="kpi-acciones">
+        <button class="btn-primary btn-block" type="button" data-cerrar-ticket-error>Entendido</button>
+      </div>
+    </div>
+  </div>
   <div id="carga-ticket" class="carga-ticket" hidden>
     <div class="carga-ticket-box">
       <span class="spinner" aria-hidden="true"></span>
@@ -196,6 +206,6 @@
   <script src="catalogo.js?v=cantidad-ticket1"></script>
   <script src="flotas.js?v=flota-exigir-veh1"></script>
   <script src="flotas-cliente.js?v=cantidad-ticket2"></script>
-  <script src="app.js?v=salfa-ticket-fix1"></script>
+  <script src="app.js?v=ticket-error-modal1"></script>
 </body>
 </html>
