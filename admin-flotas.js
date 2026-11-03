@@ -412,6 +412,7 @@ function renderFlotaKanban(flotaId) {
             <h2>${escapeText(flota.nombre)}</h2>
             <p>Precios netos (se muestran con «+ IVA»). Arrastra ⋮⋮ para mover columnas; arrastra tarjetas para reordenar o moverlas a otra categoría.</p>
           </div>
+          <button type="button" class="btn-soft" id="btn-flota-buscar-duplicados" title="Nombres repetidos en el catálogo">Buscar duplicados</button>
           <button type="button" class="btn-soft" id="btn-flota-sync-autonexus" title="Enviar tarifario a AutoNexus">Sincronizar con AutoNexus</button>
           <button type="button" class="btn-soft" id="btn-flota-config">Configuración</button>
           <button type="button" class="btn-soft" id="btn-flota-clave-cliente">Clave cliente</button>
@@ -446,6 +447,123 @@ async function guardarOrdenFlotaKanban() {
 
 function contarServiciosFlotaKanban(flota) {
   return (flota.columnas || []).reduce((n, c) => n + (c.servicios || []).length, 0);
+}
+
+function claveNombreDuplicadoFlota(nombre) {
+  return String(nombre || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function filasServiciosFlotaKanban(flotaId) {
+  const flota = flotaPorId(flotaId);
+  if (!flota) return [];
+  const filas = [];
+  for (const col of flota.columnas || []) {
+    for (const srv of col.servicios || []) {
+      if (!srv || !String(srv.nombre || "").trim()) continue;
+      filas.push({
+        servicio: srv,
+        colId: col.id,
+        categoria: String(col.titulo || "").trim(),
+        token: typeof tokenFlotaServicio === "function" ? tokenFlotaServicio(srv.id) : `f:${srv.id}`,
+      });
+    }
+  }
+  return filas;
+}
+
+function gruposDuplicadosFlota(flotaId) {
+  const map = new Map();
+  for (const fila of filasServiciosFlotaKanban(flotaId)) {
+    const key = claveNombreDuplicadoFlota(fila.servicio.nombre);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(fila);
+  }
+  return [...map.values()]
+    .filter((items) => items.length > 1)
+    .sort((a, b) =>
+      String(a[0].servicio.nombre || "").localeCompare(String(b[0].servicio.nombre || ""), "es")
+    );
+}
+
+function htmlFilaDuplicadoFlota(fila) {
+  const srv = fila.servicio;
+  const precioTxt =
+    typeof clpNetoMasIva === "function" ? clpNetoMasIva(srv.precio) : typeof clp === "function" ? clp(srv.precio) : srv.precio;
+  const desc = String(srv.descripcion || "").trim();
+  return `<article class="flota-dup-fila" data-flota-dup-row="${escapeAttr(srv.id)}">
+    <div class="flota-dup-fila-meta">
+      <span class="flota-dup-cat">${escapeText(fila.categoria || "Sin categoría")}</span>
+      <span class="flota-dup-precio">${escapeText(precioTxt)}</span>
+    </div>
+    ${desc ? `<p class="flota-dup-desc">${escapeText(desc)}</p>` : `<p class="flota-dup-desc muted">Sin descripción</p>`}
+    <p class="flota-dup-id muted">ID: <code>${escapeText(srv.id)}</code></p>
+    <div class="flota-dup-acciones">
+      <button type="button" class="btn-soft btn-sm" data-flota-dup-ver="${escapeAttr(srv.id)}">Ver / editar</button>
+      <button type="button" class="btn-soft btn-sm flota-dup-quitar" data-flota-dup-quitar="${escapeAttr(fila.colId)}|${escapeAttr(fila.token)}" data-flota-dup-nombre="${escapeAttr(srv.nombre)}">Eliminar esta copia</button>
+    </div>
+  </article>`;
+}
+
+function htmlGrupoDuplicadosFlota(items) {
+  const nombre = items[0].servicio.nombre;
+  return `<section class="flota-dup-grupo">
+    <header class="flota-dup-grupo-head">
+      <h4>${escapeText(nombre)}</h4>
+      <span class="flota-dup-badge">${items.length} copias</span>
+    </header>
+    <div class="flota-dup-grupo-list">${items.map(htmlFilaDuplicadoFlota).join("")}</div>
+  </section>`;
+}
+
+function pintarModalDuplicadosFlota() {
+  const host = $("flota-duplicados-contenido");
+  const ayuda = $("flota-duplicados-ayuda");
+  if (!host || !flotaKanbanId) return;
+  hidratarFlotas();
+  const grupos = gruposDuplicadosFlota(flotaKanbanId);
+  if (!grupos.length) {
+    host.innerHTML = `<p class="flota-dup-vacio">No hay nombres duplicados en «${escapeText(flotaPorId(flotaKanbanId)?.nombre || "esta flota")}».</p>`;
+    if (ayuda) ayuda.hidden = false;
+    return;
+  }
+  const total = grupos.reduce((n, g) => n + g.length, 0);
+  if (ayuda) {
+    ayuda.textContent = `${grupos.length} nombre(s) repetido(s), ${total} tarjetas en total. Mismo criterio que la sync con AutoNexus.`;
+    ayuda.hidden = false;
+  }
+  host.innerHTML = grupos.map(htmlGrupoDuplicadosFlota).join("");
+}
+
+function abrirModalDuplicadosFlota() {
+  if (!flotaKanbanId) return;
+  pintarModalDuplicadosFlota();
+  const modal = $("modal-flota-duplicados");
+  if (modal) modal.hidden = false;
+}
+
+function cerrarModalDuplicadosFlota() {
+  const modal = $("modal-flota-duplicados");
+  if (modal) modal.hidden = true;
+}
+
+async function eliminarCopiaDuplicadoFlota(colId, token, nombre) {
+  if (!flotaKanbanId || !colId || !token) return;
+  const etiqueta = String(nombre || "este servicio").trim();
+  if (
+    !window.confirm(`¿Eliminar del catálogo la copia de «${etiqueta}»?\n\nNo se borran las otras tarjetas con el mismo nombre.`)
+  ) {
+    return;
+  }
+  if (typeof quitarServicioFlotaCol === "function") {
+    quitarServicioFlotaCol(flotaKanbanId, colId, token);
+  }
+  await guardarOrdenFlotaKanban();
+  pintarModalDuplicadosFlota();
+  renderFlotaKanban(flotaKanbanId);
 }
 
 function htmlErrorSyncAutonexus(j, httpStatus) {
@@ -1011,6 +1129,26 @@ function initFlotasAdmin() {
       renderListadoFlotas();
       return;
     }
+    if (e.target.id === "btn-flota-buscar-duplicados") {
+      abrirModalDuplicadosFlota();
+      return;
+    }
+    const dupVer = e.target.closest("[data-flota-dup-ver]");
+    if (dupVer) {
+      const sid = dupVer.getAttribute("data-flota-dup-ver") || "";
+      if (sid) abrirEditorServicioFlota(sid);
+      return;
+    }
+    const dupQuitar = e.target.closest("[data-flota-dup-quitar]");
+    if (dupQuitar) {
+      const raw = dupQuitar.getAttribute("data-flota-dup-quitar") || "";
+      const sep = raw.indexOf("|");
+      const colId = sep >= 0 ? raw.slice(0, sep) : "";
+      const token = sep >= 0 ? raw.slice(sep + 1) : "";
+      const nom = dupQuitar.getAttribute("data-flota-dup-nombre") || "";
+      void eliminarCopiaDuplicadoFlota(colId, token, nom);
+      return;
+    }
     if (e.target.id === "btn-flota-sync-autonexus") {
       void sincronizarCatalogoFlotaAutonexus();
       return;
@@ -1066,6 +1204,11 @@ function initFlotasAdmin() {
 
   $("cerrar-flota-clave").addEventListener("click", () => {
     $("modal-flota-clave").hidden = true;
+  });
+  $("cerrar-flota-duplicados")?.addEventListener("click", cerrarModalDuplicadosFlota);
+  $("btn-flota-duplicados-cerrar")?.addEventListener("click", cerrarModalDuplicadosFlota);
+  $("modal-flota-duplicados")?.addEventListener("click", (e) => {
+    if (e.target.id === "modal-flota-duplicados") cerrarModalDuplicadosFlota();
   });
   $("cerrar-flota-config").addEventListener("click", () => {
     $("modal-flota-config").hidden = true;

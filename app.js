@@ -3524,6 +3524,7 @@ async function enviarTicketAutonexus(payload) {
       ok: false,
       error: j.error || "AutoNexus no aceptó el ticket.",
       codigo: j.codigo || "",
+      http_status: j.http_status,
     };
   } catch (e) {
     console.warn("No se pudo avisar a AutoNexus.", e);
@@ -3623,7 +3624,10 @@ async function generarTicket() {
       state.cita.hora = "";
       await renderDatosAgenda({ forceAgenda: true });
     }
-    alert(autonexus.error || "No se pudo agendar en AutoNexus. Elige otra fecha u hora.");
+    const detalle = [autonexus.error, autonexus.codigo && `Código: ${autonexus.codigo}`]
+      .filter(Boolean)
+      .join("\n\n");
+    alert(detalle || "No se pudo agendar en AutoNexus. Elige otra fecha u hora.");
     return;
   }
 

@@ -2352,6 +2352,117 @@ body.admin-guardando-on .btn-yellow { pointer-events: none; opacity: 0.72; }
   font-size: 0.82rem;
 }
 
+.modal-flota-duplicados {
+  max-width: 560px;
+  max-height: min(90vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.flota-duplicados-contenido {
+  flex: 1;
+  overflow: auto;
+  margin: 12px 0 16px;
+  max-height: min(60vh, 480px);
+}
+
+.flota-dup-vacio {
+  padding: 20px 8px;
+  text-align: center;
+  color: var(--muted, #666);
+}
+
+.flota-dup-grupo {
+  border: 1px solid var(--line, #e5e5e5);
+  border-radius: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.flota-dup-grupo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid var(--line, #e5e5e5);
+}
+
+.flota-dup-grupo-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.flota-dup-badge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.flota-dup-grupo-list {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flota-dup-fila {
+  padding: 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #eee;
+}
+
+.flota-dup-fila-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.flota-dup-cat {
+  color: #444;
+}
+
+.flota-dup-precio {
+  color: #111;
+}
+
+.flota-dup-desc {
+  margin: 8px 0 4px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.flota-dup-id {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+}
+
+.flota-dup-id code {
+  font-size: 0.7rem;
+  word-break: break-all;
+}
+
+.flota-dup-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flota-dup-quitar {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
 @media (max-width: 640px) {
   .ticket-edit-grid { grid-template-columns: 1fr; }
   .ticket-srv-row {

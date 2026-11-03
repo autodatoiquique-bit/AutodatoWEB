@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=sync-error1" />
+  <link rel="stylesheet" href="admin.css?v=flota-duplicados1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -257,6 +257,16 @@
     </div>
   </div>
 
+  <div id="modal-flota-duplicados" class="modal" hidden>
+    <div class="modal-card modal-flota-duplicados">
+      <button class="x" type="button" id="cerrar-flota-duplicados">×</button>
+      <h3>Servicios duplicados</h3>
+      <p class="muted" id="flota-duplicados-ayuda">Mismo nombre (ignorando mayúsculas y espacios extra). Revisa y elimina los que sobren.</p>
+      <div id="flota-duplicados-contenido" class="flota-duplicados-contenido"></div>
+      <button class="btn-soft btn-block" type="button" id="btn-flota-duplicados-cerrar">Cerrar</button>
+    </div>
+  </div>
+
   <div id="modal-flota-servicio" class="modal" hidden>
     <div class="modal-card modal-tarjeta">
       <button class="x" type="button" id="cerrar-flota-servicio">×</button>
@@ -311,7 +321,7 @@
   <script src="flotas.js?v=flota-kanban-busq1"></script>
   <script src="admin.js?v=serie-asistente2"></script>
   <script src="admin-combos.js?v=portada-preview-boton1"></script>
-  <script src="admin-flotas.js?v=autonexus-sync2"></script>
+  <script src="admin-flotas.js?v=flota-duplicados1"></script>
   <script src="admin-tickets.js?v=7"></script>
 </body>
 </html>
