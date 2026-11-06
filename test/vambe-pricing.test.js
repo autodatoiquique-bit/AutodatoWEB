@@ -977,7 +977,7 @@ describe("Vambe pricing", () => {
     reloadAsistente();
   });
 
-  test("compatible-services familia sin coincidencias", async () => {
+  test("compatible-services familia desconocida en catálogo", async () => {
     const ap = reloadAsistente();
     const out = await ap.compatibleServicesVambe({
       scope: "hyundai_kia",
@@ -985,10 +985,45 @@ describe("Vambe pricing", () => {
       model: "Santa Fe",
       year: 2015,
       fuel: "diesel",
-      service_family: "mantencion_10k",
+      service_family: "familia_que_no_existe_en_datos",
     });
     assert.equal(out.ok, false);
     assert.equal(out.error_code, "UNKNOWN_SERVICE_FAMILY");
+  });
+
+  test("compatible-services mantencion_10k con familia en datos", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: [
+          {
+            id: "a1",
+            tipo: "oferta",
+            nombre: "Mantención 10.000 km test",
+            precio: 200000,
+            activo: true,
+            service_families: '["mantencion_10k"]',
+          },
+        ],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Kia",
+      model: "Sorento",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "mantencion_10k",
+      locale: "es-CL",
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.service_family, "mantencion_10k");
+    assert.ok(out.candidates.length >= 1);
+    assert.ok(out.candidates[0].service_code);
+    assert.ok(out.candidates[0].display_name);
+    assert.ok(out.candidates[0].price_list != null);
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
   });
 
   test("compatible-services oil_liters desde extra del servicio", async () => {

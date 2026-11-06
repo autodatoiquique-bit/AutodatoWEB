@@ -3,6 +3,42 @@ const SESION_KEY = "autodato_admin_ok";
 
 const $ = (id) => document.getElementById(id);
 
+const VAMBE_FAMILIAS_SUGERIDAS = [
+  "cambio_aceite",
+  "descarbonizacion",
+  "diagnostico",
+  "filtro_aire",
+  "filtro_combustible",
+  "correa_accesorios",
+  "mantencion_10k",
+];
+
+function slugFamiliaVambeAdmin(x) {
+  return String(x || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+function parseFamiliasVambeInput(str) {
+  return [
+    ...new Set(
+      String(str || "")
+        .split(/[,;\s]+/)
+        .map(slugFamiliaVambeAdmin)
+        .filter(Boolean)
+    ),
+  ];
+}
+
+function familiasVambeTextoDesdeServicio(s) {
+  const arr = Array.isArray(s && s.service_families)
+    ? s.service_families.map(slugFamiliaVambeAdmin).filter(Boolean)
+    : [];
+  return arr.join(" ");
+}
+
 let editando = null;
 let comboEditIndex = -1;
 let slideEditIndex = 0;
@@ -409,6 +445,10 @@ function servicioVacio() {
     tiempo_min: null,
     mano_obra: 0,
     insumos: [],
+    service_families: [],
+    tags: [],
+    priority: null,
+    oil_liters: null,
   };
 }
 
@@ -1622,6 +1662,7 @@ function leerEditor() {
   editando.tipo = tipoDesdeCanales(editando.canales);
   editando.resumen = $("e-resumen").value.trim();
   editando.detalle = $("e-detalle").value.trim();
+  editando.service_families = parseFamiliasVambeInput($("e-vambe-families") && $("e-vambe-families").value);
   leerCostosEditor();
   editando.tiene_oferta = Boolean($("e-oferta-fija") && $("e-oferta-fija").checked);
   editando.oferta_combo = Boolean($("e-oferta-combo") && $("e-oferta-combo").checked);
@@ -2066,6 +2107,9 @@ function renderEditor() {
             ${htmlEnlaceServicioAdmin(s)}
             <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
             <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
+            <label class="field"><span>Familias Vambe (slugs)</span><input id="e-vambe-families" type="text" value="${escapeAttr(familiasVambeTextoDesdeServicio(s))}" autocomplete="off" placeholder="ej: cambio_aceite mantencion_10k" list="dl-vambe-families" /></label>
+            <datalist id="dl-vambe-families">${VAMBE_FAMILIAS_SUGERIDAS.map((f) => `<option value="${escapeAttr(f)}"></option>`).join("")}</datalist>
+            <p class="hint">Opcional. Separá con espacio o coma. Usá slugs estables (coinciden con <code>service_family</code> en Vambe). Ej.: <code>mantencion_10k</code> para mantención a 10.000 km.</p>
             ${htmlVehiculosEditor(s)}
             <label class="field"><span>Valor normal</span><input id="e-precio" type="number" min="0" step="1000" value="${s.precio == null ? "" : s.precio}" /></label>
             <label class="field"><span>Unidades disponibles</span><input id="e-stock" type="number" min="0" step="1" placeholder="Ilimitado" value="${s.stock_restante == null ? "" : s.stock_restante}" /></label>

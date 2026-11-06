@@ -29,6 +29,9 @@ Ejecutar en Supabase (SQL Editor):
 
 - Archivo: `supabase/vambe_quotes_promociones.sql`
 - Familias Vambe / metadata opcional: `supabase/servicio_familias_vambe.sql` (`service_families`, `priority`, `oil_liters`, `tags` en `servicios`)
+- Opcional, población por patrones: `supabase/servicio_familias_vambe_datos_iniciales.sql` (ejecutar y **revisar** filas afectadas)
+
+**Mantenimiento desde el admin (recomendado):** en **Servicios → Editar servicio**, campo *Familias Vambe (slugs)*. Se guardan en Supabase (`servicios.service_families`) y en `catalogo-canales.json` al guardar el catálogo.
 
 Si la tabla `cotizaciones` ya existía sin `ticket_idempotency_key`:
 

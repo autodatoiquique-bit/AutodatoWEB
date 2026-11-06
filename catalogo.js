@@ -1057,11 +1057,53 @@ function servicioPorNumeroSerie(cod) {
   return itemsCatalogoAsistente().find((s) => numeroSerieDe(s) === n) || null;
 }
 
+function slugFamiliaVambe(x) {
+  return String(x || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+function normalizarServiceFamiliesVal(val) {
+  const slug = slugFamiliaVambe;
+  if (val == null) return [];
+  if (Array.isArray(val)) return [...new Set(val.map(slug).filter(Boolean))];
+  if (typeof val === "string") {
+    const t = val.trim();
+    if (!t) return [];
+    try {
+      const j = JSON.parse(t);
+      if (Array.isArray(j)) return normalizarServiceFamiliesVal(j);
+    } catch (_e) {
+      /* fall through */
+    }
+    return [
+      ...new Set(
+        t
+          .split(/[,;]/)
+          .map(slug)
+          .filter(Boolean)
+      ),
+    ];
+  }
+  return [];
+}
+
 function normalizarServicio(s) {
   const canales = normalizarCanales(s && s.canales, s && s.tipo);
   const comboItems = Array.isArray(s && s.combo_items)
     ? s.combo_items.map((id) => String(id || "").trim()).filter(Boolean)
     : [];
+  const familias = normalizarServiceFamiliesVal(s && s.service_families);
+  const tagFam = Array.isArray(s && s.tags)
+    ? s.tags
+        .map((t) => String(t || "").trim())
+        .filter((t) => /^family:/i.test(t))
+        .map((t) => slugFamiliaVambe(t.slice(7)))
+        .filter(Boolean)
+    : [];
+  const service_families = [...new Set([...familias, ...tagFam])];
   const base = {
     ...s,
     canales,
@@ -1077,6 +1119,10 @@ function normalizarServicio(s) {
     tiempo_min: Number(s && s.tiempo_min) > 0 ? Number(s.tiempo_min) : null,
     mano_obra: Number(s && s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
     insumos: normalizarInsumos(s && s.insumos),
+    service_families,
+    tags: Array.isArray(s && s.tags) ? s.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
+    priority: s && s.priority != null && Number.isFinite(Number(s.priority)) ? Number(s.priority) : null,
+    oil_liters: s && s.oil_liters != null && Number.isFinite(Number(s.oil_liters)) ? Number(s.oil_liters) : null,
     agotado: Boolean(s && s.agotado),
     ultima_unidad: Boolean(s && s.ultima_unidad),
     stock_restante: stockRestanteDe(s),

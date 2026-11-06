@@ -36,6 +36,47 @@ function clienteNube() {
   return window._sb;
 }
 
+function slugFamiliaVambeNube(x) {
+  return String(x || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+function serviceFamiliesDesdeRow(row) {
+  const v = row && row.service_families;
+  if (v == null) return [];
+  if (Array.isArray(v)) return [...new Set(v.map(slugFamiliaVambeNube).filter(Boolean))];
+  if (typeof v === "string") {
+    try {
+      const j = JSON.parse(v);
+      if (Array.isArray(j)) return serviceFamiliesDesdeRow({ service_families: j });
+    } catch (_e) {
+      return v
+        .split(/[,;]/)
+        .map(slugFamiliaVambeNube)
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function tagsDesdeRow(row) {
+  const t = row && row.tags;
+  if (t == null) return [];
+  if (Array.isArray(t)) return t.map((x) => String(x || "").trim()).filter(Boolean);
+  if (typeof t === "string") {
+    try {
+      const j = JSON.parse(t);
+      if (Array.isArray(j)) return j.map((x) => String(x || "").trim()).filter(Boolean);
+    } catch (_e) {
+      return [];
+    }
+  }
+  return [];
+}
+
 function filaAServicio(row, comps) {
   return {
     id: row.id,
@@ -50,6 +91,10 @@ function filaAServicio(row, comps) {
     precio_oferta: Number(row.precio_oferta) > 0 ? Number(row.precio_oferta) : null,
     activo: row.activo !== false,
     canales: row.canales || null,
+    service_families: serviceFamiliesDesdeRow(row),
+    tags: tagsDesdeRow(row),
+    priority: row.priority != null && Number.isFinite(Number(row.priority)) ? Number(row.priority) : null,
+    oil_liters: row.oil_liters != null && Number.isFinite(Number(row.oil_liters)) ? Number(row.oil_liters) : null,
     complementos: (comps || [])
       .filter((c) => c.servicio_id === row.id)
       .map((c) => ({
@@ -141,6 +186,10 @@ async function nubeGuardarCatalogoCanales(lista) {
       !itemsLocal.length && prev && prev.es_combo && Array.isArray(prev.combo_items) && prev.combo_items.length >= 2;
     mapa[s.id] = {
       ...canales,
+      service_families: Array.isArray(s.service_families) ? s.service_families.map(slugFamiliaVambeNube).filter(Boolean) : [],
+      tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
+      priority: s.priority != null && Number.isFinite(Number(s.priority)) ? Number(s.priority) : null,
+      oil_liters: s.oil_liters != null && Number.isFinite(Number(s.oil_liters)) ? Number(s.oil_liters) : null,
       tiene_oferta: Boolean(s.tiene_oferta) && Number(s.precio_oferta) > 0,
       oferta_combo: Boolean(s.oferta_combo),
       precio_oferta: s.tiene_oferta && Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null,
@@ -260,6 +309,32 @@ function fusionarExtraEnServicio(s, extra, opts) {
   if (ex.mano_obra != null) s.mano_obra = Number(ex.mano_obra) || 0;
   if (Array.isArray(ex.insumos)) s.insumos = ex.insumos;
   if (Array.isArray(ex.media) && ex.media.length) s.media = ex.media;
+  if (ex.service_families != null) {
+    const extra =
+      typeof ex.service_families === "string"
+        ? serviceFamiliesDesdeRow({ service_families: ex.service_families })
+        : Array.isArray(ex.service_families)
+          ? ex.service_families.map(slugFamiliaVambeNube).filter(Boolean)
+          : [];
+    const cur = Array.isArray(s.service_families) ? s.service_families.map(slugFamiliaVambeNube).filter(Boolean) : [];
+    s.service_families = [...new Set([...cur, ...extra])];
+  }
+  if (Array.isArray(ex.tags)) {
+    const cur = Array.isArray(s.tags) ? s.tags : [];
+    const merged = [...new Set([...cur, ...ex.tags.map((t) => String(t || "").trim()).filter(Boolean)])];
+    s.tags = merged;
+    ex.tags.forEach((t) => {
+      const x = String(t || "").trim();
+      if (/^family:/i.test(x)) {
+        const slug = slugFamiliaVambeNube(x.slice(7));
+        if (!slug) return;
+        const prev = Array.isArray(s.service_families) ? s.service_families.map(slugFamiliaVambeNube).filter(Boolean) : [];
+        s.service_families = [...new Set([...prev, slug])];
+      }
+    });
+  }
+  if (ex.priority != null && Number.isFinite(Number(ex.priority))) s.priority = Number(ex.priority);
+  if (ex.oil_liters != null && Number.isFinite(Number(ex.oil_liters))) s.oil_liters = Number(ex.oil_liters);
   return s;
 }
 
@@ -372,6 +447,10 @@ async function nubeGuardarCatalogo(lista) {
     videos: s.videos || [],
     precio: s.precio,
     activo: s.activo !== false,
+    service_families: Array.isArray(s.service_families) ? s.service_families.map(slugFamiliaVambeNube).filter(Boolean) : [],
+    tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
+    priority: s.priority != null && Number.isFinite(Number(s.priority)) ? Number(s.priority) : null,
+    oil_liters: s.oil_liters != null && Number.isFinite(Number(s.oil_liters)) ? Number(s.oil_liters) : null,
   }));
   const { error: errorU } = await sb.from("servicios").upsert(rows);
   if (errorU) throw errorU;
