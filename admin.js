@@ -5,6 +5,7 @@ const $ = (id) => document.getElementById(id);
 
 const VAMBE_FAMILIAS_SUGERIDAS = [
   "cambio_aceite",
+  "cambio_refrigerante",
   "descarbonizacion",
   "diagnostico",
   "filtro_aire",

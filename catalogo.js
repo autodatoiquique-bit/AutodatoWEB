@@ -729,6 +729,7 @@ const CATALOGO_SEMILLA = [
   {
     id: "refrigerante",
     tipo: "oferta",
+    service_families: ["cambio_refrigerante"],
     nombre: "Cambio de refrigerante ZEREX Valvoline",
     precio: 90000,
     resumen: "Recambio de refrigerante ZEREX Valvoline.",

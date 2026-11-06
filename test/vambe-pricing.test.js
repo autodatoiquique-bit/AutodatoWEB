@@ -58,6 +58,7 @@ function promosRows() {
 
 function buildExtras(opts) {
   const o = opts || {};
+  const serviciosTablero = o.serviciosEnColumna || ["a1", "a2", "a3", "a4", "a9", "a11"];
   return {
     _tablero_columnas: o.columnas || [
       {
@@ -66,7 +67,18 @@ function buildExtras(opts) {
         ano_desde: 2010,
         ano_hasta: 2026,
         combustible: "ambos",
-        servicios: o.serviciosEnColumna || ["a1", "a2", "a3", "a4", "a9"],
+        servicios: serviciosTablero,
+        ocultos: o.ocultos || [],
+        portadas: [],
+        orden_tarjetas: [],
+      },
+      {
+        marca: "Kia",
+        modelo: "Sorento",
+        ano_desde: 2010,
+        ano_hasta: 2026,
+        combustible: "ambos",
+        servicios: serviciosTablero,
         ocultos: o.ocultos || [],
         portadas: [],
         orden_tarjetas: [],
@@ -77,6 +89,7 @@ function buildExtras(opts) {
     a3: o.a3 || { numero_serie: 3 },
     a4: o.a4 || { numero_serie: 4, oil_liters: 6 },
     a9: o.a9 || { numero_serie: 9 },
+    a11: o.a11 || { numero_serie: 11 },
   };
 }
 
@@ -130,6 +143,15 @@ function mockCatalogFetch(extraOpts) {
         precio: 80000,
         activo: true,
         service_families: '["filtro_aire"]',
+      },
+      {
+        id: "a11",
+        tipo: "oferta",
+        nombre: "Cambio de refrigerante ZEREX Valvoline",
+        precio: 90000,
+        activo: true,
+        resumen: "Recambio de refrigerante ZEREX Valvoline.",
+        service_families: '["cambio_refrigerante"]',
       },
     ];
   const complementos = [
@@ -947,6 +969,78 @@ describe("Vambe pricing", () => {
     });
     assert.equal(out.ok, true);
     assert.ok(out.candidates.length >= 1);
+  });
+
+  test("compatible-services Kia Sorento 2015 diésel cambio_aceite no incluye refrigerante (0011)", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Kia",
+      model: "Sorento",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    assert.ok(out.candidates.length >= 1);
+    assert.ok(!out.candidates.some((c) => c.service_code === "0011"));
+    assert.ok(out.candidates.some((c) => c.service_code === "0003"));
+  });
+
+  test("compatible-services cambio_aceite excluye servicio de refrigerante aunque service_families esté mal", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: [
+          {
+            id: "a1",
+            tipo: "oferta",
+            nombre: "Aceite test",
+            precio: 100000,
+            activo: true,
+            service_families: '["cambio_aceite"]',
+          },
+          {
+            id: "a11",
+            tipo: "oferta",
+            nombre: "Cambio de refrigerante ZEREX Valvoline",
+            precio: 90000,
+            activo: true,
+            resumen: "Recambio de refrigerante ZEREX Valvoline.",
+            service_families: '["cambio_aceite"]',
+          },
+        ],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    assert.ok(out.candidates.every((c) => c.service_code !== "0011"));
+    assert.ok(out.candidates.some((c) => c.service_code === "0001"));
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("compatible-services cambio_refrigerante incluye ZEREX (0011)", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Kia",
+      model: "Sorento",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_refrigerante",
+    });
+    assert.equal(out.ok, true);
+    const z = out.candidates.find((c) => c.service_code === "0011");
+    assert.ok(z);
+    assert.match(z.display_name || z.canonical_service_name || "", /refrigerante/i);
   });
 
   test("compatible-services marca fuera de scope", async () => {

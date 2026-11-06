@@ -1813,6 +1813,19 @@ function catalogKnownServiceFamilies() {
   return fam;
 }
 
+/** Texto agregado para heurísticas de descubrimiento (sin depender solo de service_families erróneos). */
+function textoServicioDescubrimientoVambe(s) {
+  return `${String((s && s.nombre) || "").trim()} ${String((s && s.resumen) || "").trim()} ${String((s && s.detalle) || "").trim()}`.trim();
+}
+
+/** Refrigerante / coolant: no debe competir en familia cambio_aceite aunque la metadata lleve el slug por error. */
+function pareceServicioRefrigeranteVambe(s) {
+  const t = textoServicioDescubrimientoVambe(s).toLowerCase();
+  if (/(refrigerante|l[ií]quido\s+de\s+enfri|anticongelante|coolant|zerex)/.test(t)) return true;
+  if (/valvoline/.test(t) && !/(aceite|\b5w|\b10w|\b0w|w30|w40)/.test(t)) return true;
+  return false;
+}
+
 async function compatibleServicesVambe(body) {
   await asegurarCatalogo();
   const scope = parseScopeVambe(body || {});
@@ -1889,6 +1902,7 @@ async function compatibleServicesVambe(body) {
     if (!servicioElegibleDescubrimientoVambe(s)) return;
     const fams = servicioFamiliesEfectivas(s);
     if (!fams.includes(service_family)) return;
+    if (service_family === "cambio_aceite" && pareceServicioRefrigeranteVambe(s)) return;
     const ev = evalCompatibilidadServicioVehiculo(s, vehiculo);
     if (!ev.aplica) return;
     const { price_list, price_with_promotions, promotion_summary } = precioPreviewDescubrimiento(s, vehiculo);

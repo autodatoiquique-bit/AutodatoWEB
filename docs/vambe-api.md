@@ -213,7 +213,7 @@ Solo lectura: lista **candidatos** de servicios del catálogo que coinciden con 
 ```
 
 - `scope`: si es `"hyundai_kia"`, misma validación de marca que en cotización (otras marcas → `BRAND_OUT_OF_SCOPE`).
-- `service_family`: slug estable (`cambio_aceite`, `descarbonizacion`, etc.). Se normaliza a minúsculas y guiones bajos.
+- `service_family`: slug estable (`cambio_aceite`, `cambio_refrigerante`, `descarbonizacion`, etc.). Se normaliza a minúsculas y guiones bajos.
 - `locale`: opcional; se devuelve en la respuesta para trazabilidad (no altera la lógica).
 
 **Familias en el catálogo (datos, no código):**

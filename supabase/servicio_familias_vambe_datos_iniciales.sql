@@ -63,13 +63,30 @@ set service_families = public.merge_service_family_array(coalesce(s.service_fami
 where coalesce(s.activo, true) = true
   and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) ~ 'correa.*accesorio|poly\s*v';
 
--- Cambio de aceite (excluye transmisión)
+-- Cambio de aceite (excluye transmisión y líquido refrigerante; Valvoline solo si es aceite 5w/10w/etc.)
 update public.servicios s
 set service_families = public.merge_service_family_array(coalesce(s.service_families, '[]'::jsonb), 'cambio_aceite')
 where coalesce(s.activo, true) = true
   and s.tipo = 'oferta'
-  and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) ~ 'cambio.*aceite|aceite.*motor|valvoline|5w30|5w-30'
-  and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) !~ 'transmisi|cvt|caja';
+  and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) ~ 'cambio.*aceite|aceite.*motor|5w30|5w-30|5w-|10w-|0w-|w30|w40'
+  and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) !~ 'transmisi|cvt|caja'
+  and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '') || ' ' || coalesce(s.detalle, '')) !~ 'refrigerante|liquido\s+de\s+enfri|anticongelante|coolant|zerex'
+  and not (
+    lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) ~ 'valvoline'
+    and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) !~ 'aceite|5w|10w|w30|w40|0w'
+  );
+
+-- Cambio de refrigerante / líquido de enfriamiento
+update public.servicios s
+set service_families = public.merge_service_family_array(coalesce(s.service_families, '[]'::jsonb), 'cambio_refrigerante')
+where coalesce(s.activo, true) = true
+  and (
+    lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '') || ' ' || coalesce(s.detalle, '')) ~ 'refrigerante|liquido\s+de\s+enfri|anticongelante|coolant|zerex'
+    or (
+      lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) ~ 'valvoline'
+      and lower(coalesce(s.nombre, '') || ' ' || coalesce(s.resumen, '')) !~ 'aceite|5w|10w|w30|w40|0w'
+    )
+  );
 
 -- Mantención 10.000 km (solo texto explícito: 10.000, 10000 km, 10k km)
 update public.servicios s
