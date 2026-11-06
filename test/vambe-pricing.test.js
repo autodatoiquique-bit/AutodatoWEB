@@ -66,26 +66,72 @@ function buildExtras(opts) {
         ano_desde: 2010,
         ano_hasta: 2026,
         combustible: "ambos",
-        servicios: ["a1", "a2", "a3", "a9"],
+        servicios: o.serviciosEnColumna || ["a1", "a2", "a3", "a4", "a9"],
         ocultos: o.ocultos || [],
         portadas: [],
         orden_tarjetas: [],
       },
     ],
-    a1: o.a1 || { numero_serie: 1, tiene_oferta: false },
+    a1: o.a1 || { numero_serie: 1, tiene_oferta: false, oil_liters: 4 },
     a2: o.a2 || { numero_serie: 2, es_combo: true, combo_items: ["a1", "a9"] },
     a3: o.a3 || { numero_serie: 3 },
+    a4: o.a4 || { numero_serie: 4, oil_liters: 6 },
     a9: o.a9 || { numero_serie: 9 },
   };
 }
 
 function mockCatalogFetch(extraOpts) {
-  const servicios = [
-    { id: "a1", tipo: "oferta", nombre: "Servicio 0001", precio: 100000, activo: true },
-    { id: "a2", tipo: "oferta", nombre: "Combo 0002", precio: 450000, activo: true },
-    { id: "a3", tipo: "oferta", nombre: "Servicio 0003", precio: 150000, activo: true },
-    { id: "a9", tipo: "oferta", nombre: "Servicio 0009", precio: 80000, activo: true },
-  ];
+  const o = extraOpts || {};
+  const servicios =
+    o.serviciosRows ||
+    [
+      {
+        id: "a1",
+        tipo: "oferta",
+        nombre: "Aceite MST 4L",
+        precio: 100000,
+        activo: true,
+        resumen: "Valvoline MST",
+        service_families: '["cambio_aceite"]',
+        priority: 10,
+      },
+      {
+        id: "a2",
+        tipo: "oferta",
+        nombre: "Combo 0002",
+        precio: 450000,
+        activo: true,
+        service_families: '["combo_pack"]',
+      },
+      {
+        id: "a3",
+        tipo: "oferta",
+        nombre: "Aceite con regeneración DPF",
+        precio: 150000,
+        activo: true,
+        resumen: "Incluye regeneración DPF",
+        service_families: '["cambio_aceite"]',
+        priority: 10,
+      },
+      {
+        id: "a4",
+        tipo: "oferta",
+        nombre: "Aceite XLIII 6L",
+        precio: 120000,
+        activo: true,
+        resumen: "XLIII Premium",
+        service_families: '["cambio_aceite"]',
+        priority: 10,
+      },
+      {
+        id: "a9",
+        tipo: "oferta",
+        nombre: "Cambio filtro de aire",
+        precio: 80000,
+        activo: true,
+        service_families: '["filtro_aire"]',
+      },
+    ];
   const complementos = [
     { servicio_id: "a1", asociado_id: "a3", precio_combo: 120000, etiqueta: "con 0001" },
   ];
@@ -849,5 +895,319 @@ describe("Vambe pricing", () => {
     });
     assert.equal(b.warnings.some((w) => w.code === "IDEMPOTENCY_REPLAY"), true);
     assert.equal(b.items.length, 1);
+  });
+
+  test("compatible-services Hyundai: varios candidatos y disambiguation", async () => {
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+      channel: "vambe",
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.disambiguation_needed, true);
+    assert.ok(out.candidates.length >= 2 && out.candidates.length <= 5);
+    assert.ok(out.candidates.some((c) => c.service_code === "0003"));
+    assert.ok(out.candidates.every((c) => c.promotion_summary != null || c.price_list != null));
+  });
+
+  test("compatible-services Kia mismo catálogo", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Kia",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    assert.ok(out.candidates.length >= 1);
+  });
+
+  test("compatible-services marca fuera de scope", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Toyota",
+      model: "Corolla",
+      year: 2018,
+      fuel: "bencina",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.error_code, "BRAND_OUT_OF_SCOPE");
+  });
+
+  test("compatible-services vehículo incompatible con familia", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        columnas: [],
+        serviciosRows: [
+          {
+            id: "a1",
+            tipo: "oferta",
+            nombre: "Solo Tucson",
+            precio: 100000,
+            activo: true,
+            service_families: '["cambio_aceite"]',
+            vehiculos: [{ marca: "Hyundai", modelo: "Tucson", ano_desde: 2010, ano_hasta: 2026, combustible: "diesel" }],
+          },
+        ],
+        a1: { numero_serie: 1 },
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.error_code, "NO_COMPATIBLE_SERVICE_FOR_FAMILY");
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("compatible-services familia sin coincidencias", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "mantencion_10k",
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.error_code, "UNKNOWN_SERVICE_FAMILY");
+  });
+
+  test("compatible-services oil_liters desde extra del servicio", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    const c4 = out.candidates.find((c) => c.service_code === "0004");
+    const c1 = out.candidates.find((c) => c.service_code === "0001");
+    assert.ok(c4 && c4.oil_liters === 6);
+    assert.ok(c1 && c1.oil_liters === 4);
+  });
+
+  test("compatible-services oil_liters desde compatibilidad lista (sin columna tablero)", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        columnas: [],
+        serviciosRows: [
+          {
+            id: "a1",
+            tipo: "oferta",
+            nombre: "Aceite lista 5L",
+            precio: 110000,
+            activo: true,
+            service_families: '["cambio_aceite"]',
+          },
+        ],
+        a1: {
+          numero_serie: 1,
+          vehiculos: [
+            {
+              marca: "Hyundai",
+              modelo: "Santa Fe",
+              ano_desde: 2010,
+              ano_hasta: 2026,
+              combustible: "diesel",
+              oil_liters: 5,
+            },
+          ],
+        },
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.candidates[0].oil_liters, 5);
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("compatible-services aceite con y sin DPF en hints", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    const c3 = out.candidates.find((c) => c.service_code === "0003");
+    assert.ok(c3 && c3.variant_hints.some((h) => /DPF/i.test(h)));
+  });
+
+  test("compatible-services promoción temporal en precio", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    const c3 = out.candidates.find((c) => c.service_code === "0003");
+    assert.ok(c3);
+    assert.equal(c3.price_with_promotions, 99999);
+    assert.equal(c3.promotion_summary, "Promo test 0003");
+  });
+
+  test("compatible-services catálogo sin familias configuradas", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: [
+          { id: "a1", tipo: "oferta", nombre: "Sin familia", precio: 100000, activo: true },
+        ],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.error_code, "SERVICE_FAMILIES_NOT_CONFIGURED");
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("compatible-services datos vehículo incompletos (año)", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.error_code, "VEHICLE_YEAR_REQUIRED");
+  });
+
+  test("compatible-services catálogo vacío", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: [],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.error_code, "CATALOG_EMPTY");
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("compatible-services sin service_family", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+    });
+    assert.equal(out.error_code, "SERVICE_FAMILY_REQUIRED");
+  });
+
+  test("compatible-services no inserta cotización", async () => {
+    cotizacionesMem.clear();
+    quoteSeq = 0;
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    const ap = reloadAsistente();
+    const before = quoteSeq;
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    assert.equal(quoteSeq, before);
+  });
+
+  test("compatible-services familia solo en tag family:", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: [
+          {
+            id: "a1",
+            tipo: "oferta",
+            nombre: "S con tag",
+            precio: 100000,
+            activo: true,
+            tags: ["family:cambio_aceite", "MST"],
+          },
+        ],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.candidates[0].service_code, "0001");
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("quote-flat sigue igual con service_code tras cambios", async () => {
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    const ap = reloadAsistente();
+    const flat = ap.quoteFlatBodyToInternal({
+      action: "quote",
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_code: "0001",
+      channel: "vambe",
+    });
+    const out = await ap.cotizarVambeInterno(flat);
+    assert.equal(out.ok, true);
   });
 });

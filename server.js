@@ -960,11 +960,16 @@ function vambeQuoteErrorStatus(code) {
   const clientErr = new Set([
     "SERVICE_NOT_COMPATIBLE",
     "SERVICE_CODES_REQUIRED",
+    "SERVICE_FAMILY_REQUIRED",
     "VEHICLE_REQUIRED",
     "VEHICLE_YEAR_REQUIRED",
     "VEHICLE_BRAND_REQUIRED",
     "VEHICLE_MODEL_REQUIRED",
     "BRAND_OUT_OF_SCOPE",
+    "CATALOG_EMPTY",
+    "SERVICE_FAMILIES_NOT_CONFIGURED",
+    "UNKNOWN_SERVICE_FAMILY",
+    "NO_COMPATIBLE_SERVICE_FOR_FAMILY",
     "INVALID_ACTION",
     "REPRICE_QUOTE_REQUIRED",
     "ADD_SERVICE_CODE_REQUIRED",
@@ -1019,6 +1024,35 @@ app.post("/api/vambe/catalog/quote-flat", async (req, res) => {
       ok: false,
       error_code: "SERVICE_UNAVAILABLE",
       message: "No pudimos cotizar en este momento. Intenta de nuevo en unos minutos.",
+      warnings: [],
+      quote_id: null,
+    });
+  }
+});
+
+app.post("/api/vambe/catalog/compatible-services", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({
+      ok: false,
+      error_code: "UNAUTHORIZED",
+      message: "No autorizado",
+      warnings: [],
+      quote_id: null,
+    });
+  }
+  try {
+    const out = await asistentePrecios.compatibleServicesVambe(req.body || {});
+    if (!out.ok) {
+      const code = out.error_code || "REQUEST_ERROR";
+      return res.status(vambeQuoteErrorStatus(code)).json(out);
+    }
+    return res.json(out);
+  } catch (e) {
+    console.warn("vambe/catalog/compatible-services", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos consultar servicios compatibles en este momento. Intenta de nuevo en unos minutos.",
       warnings: [],
       quote_id: null,
     });

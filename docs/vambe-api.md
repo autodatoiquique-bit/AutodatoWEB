@@ -28,6 +28,7 @@ No exponer estos tokens en el frontend público.
 Ejecutar en Supabase (SQL Editor):
 
 - Archivo: `supabase/vambe_quotes_promociones.sql`
+- Familias Vambe / metadata opcional: `supabase/servicio_familias_vambe.sql` (`service_families`, `priority`, `oil_liters`, `tags` en `servicios`)
 
 Si la tabla `cotizaciones` ya existía sin `ticket_idempotency_key`:
 
@@ -187,6 +188,89 @@ Ejemplo **`validate`:**
 
 ---
 
+### `POST /api/vambe/catalog/compatible-services`
+
+Solo lectura: lista **candidatos** de servicios del catálogo que coinciden con una **familia** estable y son **compatibles** con el vehículo, usando el mismo motor que la cotización (`servicioAplicaAVehiculo` / columnas de tablero / lista de compatibilidad). **No** crea filas en `cotizaciones` ni tickets. El precio mostrado usa `precioPagado` (lista, combinación, oferta fija y promoción temporal cuando aplique al servicio solo).
+
+**Autenticación:** igual que los demás endpoints Vambe.
+
+**Cuerpo (campos planos, mismo criterio que `quote-flat` para el vehículo):**
+
+```json
+{
+  "scope": "hyundai_kia",
+  "channel": "vambe",
+  "brand": "Hyundai",
+  "model": "Santa Fe",
+  "year": 2015,
+  "fuel": "diesel",
+  "service_family": "cambio_aceite",
+  "locale": "es-CL"
+}
+```
+
+- `scope`: si es `"hyundai_kia"`, misma validación de marca que en cotización (otras marcas → `BRAND_OUT_OF_SCOPE`).
+- `service_family`: slug estable (`cambio_aceite`, `descarbonizacion`, etc.). Se normaliza a minúsculas y guiones bajos.
+- `locale`: opcional; se devuelve en la respuesta para trazabilidad (no altera la lógica).
+
+**Familias en el catálogo (datos, no código):**
+
+1. Columna **`service_families`** en `servicios` (JSON array de strings), *o*
+2. En **extras** por servicio en `catalogo-canales.json`: `"service_families": ["cambio_aceite"]`, *o*
+3. Tag con prefijo en **`tags`**: `"family:cambio_aceite"`.
+
+Campos opcionales útiles: `priority` (número, mayor = más prioridad en empates), `oil_liters` (extras o columna), y en cada ítem de `vehiculos` (compatibilidad por modelo) se puede usar `oil_liters` o `litros_aceite` para volumen por rango sin inferir desde el nombre.
+
+**Respuesta exitosa (varios candidatos → desambiguación):**
+
+```json
+{
+  "ok": true,
+  "eligible": true,
+  "scope": "hyundai_kia",
+  "service_family": "cambio_aceite",
+  "catalog_version": "sha256:…",
+  "disambiguation_needed": true,
+  "locale": "es-CL",
+  "channel": "vambe",
+  "candidates": [
+    {
+      "service_code": "0003",
+      "canonical_service_name": "Cambio de aceite … + regeneración DPF",
+      "display_name": "Cambio de aceite … + regeneración DPF",
+      "price_list": 250000,
+      "price_with_promotions": 240000,
+      "promotion_summary": "Nombre promo o regla",
+      "oil_liters": null,
+      "variant_hints": ["Incluye regeneración DPF", "…"],
+      "rank": 1
+    }
+  ],
+  "warnings": []
+}
+```
+
+- `disambiguation_needed`: `true` si hay **más de un** candidato (hasta 5). No se elige automáticamente entre variantes comerciales; Vambe debe elegir un `service_code` y llamar a `quote-flat`.
+- `oil_liters`: número si viene de `servicios.oil_liters`, del extra `oil_liters`, o de **una sola** línea de compatibilidad con `oil_liters`/`litros_aceite`; si hay varios valores distintos o no hay dato, `null`.
+- `variant_hints`: combina `resumen`, `tags` (excepto `family:*`), primera línea de `detalle` y texto de promoción cuando aplica.
+
+**Errores comunes:**
+
+| `error_code` | HTTP | Notas |
+|--------------|------|--------|
+| `SERVICE_FAMILY_REQUIRED` | 400 | Falta `service_family`. |
+| `BRAND_OUT_OF_SCOPE` | 400 | `scope` hyundai_kia y marca no Hyundai/Kia. |
+| `VEHICLE_*_REQUIRED` | 400 | Misma familia que cotización. |
+| `UNKNOWN_SERVICE_FAMILY` | 400 | El slug no aparece en ningún servicio del catálogo cargado. |
+| `SERVICE_FAMILIES_NOT_CONFIGURED` | 400 | Hay servicios pero ninguno tiene familia en columnas/tags/extras. |
+| `CATALOG_EMPTY` | 400 | No hay filas activas en `servicios`. |
+| `NO_COMPATIBLE_SERVICE_FOR_FAMILY` | 400 | La familia existe pero ningún servicio aplica al vehículo (`eligible: true`). |
+| `UNAUTHORIZED` | 401 | Token ausente o incorrecto. |
+
+**Flujo recomendado:** `compatible-services` → elegir código → `POST /api/vambe/catalog/quote-flat` con `service_code`. La cotización **vuelve** a validar compatibilidad y precios.
+
+---
+
 ### `POST /api/vambe/ticket/from-quote`
 
 Crea ticket en AutoNexus usando el **snapshot** de la cotización recalculado con el catálogo actual (compatibilidad + totales deben coincidir con la fila).
@@ -254,7 +338,7 @@ Orden documentado y reflejado en `tierReglaPrecio` / `mejorPrecioEntre`:
 
 ## `catalog_version`
 
-Hash estable `sha256:...` sobre: filas relevantes de `servicios`, `complementos`, columnas `_tablero_columnas`, extras de `catalogo-canales.json` (sin duplicar el motor), promociones activas cargadas, y versión del motor (`PRICING_ENGINE`).
+Hash estable `sha256:...` sobre: filas relevantes de `servicios` (incluye `service_families`, `priority`, `oil_liters` cuando existan), `complementos`, columnas `_tablero_columnas`, extras de `catalogo-canales.json` (sin duplicar el motor), promociones activas cargadas, y versión del motor (`PRICING_ENGINE`).
 
 ## Probar localmente
 
@@ -271,6 +355,11 @@ curl -s -X POST http://localhost:5173/api/vambe/catalog/quote-flat \
   -H "Content-Type: application/json" \
   -H "x-asistente-token: TU_TOKEN" \
   -d '{"action":"quote","scope":"hyundai_kia","brand":"Hyundai","model":"Santa Fe","year":2015,"fuel":"diesel","service_code":"0003","channel":"vambe"}'
+
+curl -s -X POST http://localhost:5173/api/vambe/catalog/compatible-services \
+  -H "Content-Type: application/json" \
+  -H "x-asistente-token: TU_TOKEN" \
+  -d '{"scope":"hyundai_kia","brand":"Hyundai","model":"Santa Fe","year":2015,"fuel":"diesel","service_family":"cambio_aceite","channel":"vambe"}'
 
 curl -s -X POST http://localhost:5173/api/vambe/ticket/from-quote-flat \
   -H "Content-Type: application/json" \
@@ -292,9 +381,10 @@ npm test
 
 ## Archivos tocados (implementación)
 
-- `asistente-precios.js` — API interna Vambe, cotizaciones Supabase, promociones temporales en `precioPagado`, `tokenAsistenteValido`.
-- `server.js` — rutas `POST /api/vambe/catalog/quote`, `POST /api/vambe/catalog/quote-flat`, `POST /api/vambe/ticket/from-quote`, `POST /api/vambe/ticket/from-quote-flat`.
+- `asistente-precios.js` — API interna Vambe, cotizaciones Supabase, promociones temporales en `precioPagado`, `tokenAsistenteValido`, `compatibleServicesVambe`.
+- `server.js` — rutas `POST /api/vambe/catalog/quote`, `POST /api/vambe/catalog/quote-flat`, `POST /api/vambe/catalog/compatible-services`, `POST /api/vambe/ticket/from-quote`, `POST /api/vambe/ticket/from-quote-flat`.
 - `supabase/vambe_quotes_promociones.sql` — tablas e índices.
+- `supabase/servicio_familias_vambe.sql` — columnas opcionales en `servicios` para familias Vambe.
 - `test/vambe-pricing.test.js` — pruebas.
 - `package.json` — script `test`.
 - `render.yaml` — env vars documentadas.

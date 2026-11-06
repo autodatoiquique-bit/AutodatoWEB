@@ -3,6 +3,7 @@
  * POST /api/asistente/consultar-precios
  * POST /api/vambe/catalog/quote
  * POST /api/vambe/catalog/quote-flat
+ * POST /api/vambe/catalog/compatible-services
  * POST /api/vambe/ticket/from-quote
  * POST /api/vambe/ticket/from-quote-flat
  */
@@ -81,12 +82,19 @@ function normalizarVehiculos(lista) {
   return lista
     .map((v) => {
       if (!v || !v.marca) return null;
+      const oil =
+        v.oil_liters != null && Number.isFinite(Number(v.oil_liters))
+          ? Number(v.oil_liters)
+          : v.litros_aceite != null && Number.isFinite(Number(v.litros_aceite))
+            ? Number(v.litros_aceite)
+            : null;
       return {
         marca: String(v.marca),
         modelo: String(v.modelo || "*"),
         ano_desde: anioONull(v.ano_desde),
         ano_hasta: anioONull(v.ano_hasta),
         combustible: normalizarCombustible(v.combustible),
+        ...(oil != null ? { oil_liters: oil } : {}),
       };
     })
     .filter(Boolean);
@@ -153,36 +161,60 @@ function columnaDeVehiculo(v) {
   return candidatos[0];
 }
 
-function servicioAplicaAVehiculo(s, vehiculo) {
+/**
+ * Evalúa compatibilidad servicio ↔ vehículo con el mismo criterio que el catálogo.
+ * `via`: "columna" | "lista_vehiculos" | "generico"
+ */
+function evalCompatibilidadServicioVehiculo(s, vehiculo) {
   if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) {
-    return { aplica: false, motivo: "Falta marca o modelo del vehículo" };
+    return { aplica: false, motivo: "Falta marca o modelo del vehículo", via: null, col: null, matching_destinos: [] };
   }
   if (vehiculo.ano == null || vehiculo.ano === "" || !Number.isFinite(Number(vehiculo.ano))) {
-    return { aplica: false, motivo: "Falta año del vehículo" };
+    return { aplica: false, motivo: "Falta año del vehículo", via: null, col: null, matching_destinos: [] };
   }
-  if (!s || s.activo === false) return { aplica: false, motivo: "Servicio inactivo" };
+  if (!s || s.activo === false) {
+    return { aplica: false, motivo: "Servicio inactivo", via: null, col: null, matching_destinos: [] };
+  }
   const col = columnaDeVehiculo(vehiculo);
   const id = String(s.id || "");
   if (col) {
     if (itemOcultoEnColumna(col, "servicio", id)) {
-      return { aplica: false, motivo: "No disponible para este vehículo en el taller" };
+      return { aplica: false, motivo: "No disponible para este vehículo en el taller", via: "columna", col, matching_destinos: [] };
     }
     if (!idsDeColumna(col, "servicios").includes(id)) {
-      return { aplica: false, motivo: "Este servicio no está habilitado para ese modelo en el catálogo" };
+      return {
+        aplica: false,
+        motivo: "Este servicio no está habilitado para ese modelo en el catálogo",
+        via: "columna",
+        col,
+        matching_destinos: [],
+      };
     }
-    return { aplica: true, motivo: "" };
+    return { aplica: true, motivo: "", via: "columna", col, matching_destinos: [] };
   }
   const destinos = normalizarVehiculos(s.vehiculos);
-  if (!destinos.length) return { aplica: true, motivo: "" };
-  const ok = destinos.some((v) => {
+  if (!destinos.length) return { aplica: true, motivo: "", via: "generico", col: null, matching_destinos: [] };
+  const matching_destinos = destinos.filter((v) => {
     if (v.marca !== vehiculo.marca) return false;
     if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
     if (!anioEnRango(vehiculo.ano, v)) return false;
     return combustibleCoincide(v.combustible, vehiculo.combustible);
   });
-  return ok
-    ? { aplica: true, motivo: "" }
-    : { aplica: false, motivo: "No aplica a la marca, modelo, año o combustible indicados" };
+  if (matching_destinos.length) {
+    return { aplica: true, motivo: "", via: "lista_vehiculos", col: null, matching_destinos };
+  }
+  return {
+    aplica: false,
+    motivo: "No aplica a la marca, modelo, año o combustible indicados",
+    via: "lista_vehiculos",
+    col: null,
+    matching_destinos: [],
+  };
+}
+
+function servicioAplicaAVehiculo(s, vehiculo) {
+  const r = evalCompatibilidadServicioVehiculo(s, vehiculo);
+  return { aplica: r.aplica, motivo: r.motivo };
 }
 
 function numeroSerieDe(s) {
@@ -537,8 +569,54 @@ function etiquetaCanales(s) {
   return p.join(" · ") || "Catálogo";
 }
 
+function normalizeFamilySlug(x) {
+  return String(x || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+function parseServiceFamiliesFromJson(val) {
+  if (val == null) return [];
+  if (Array.isArray(val)) {
+    return val.map((x) => normalizeFamilySlug(x)).filter(Boolean);
+  }
+  if (typeof val === "string") {
+    const t = val.trim();
+    if (!t) return [];
+    try {
+      const j = JSON.parse(t);
+      if (Array.isArray(j)) return parseServiceFamiliesFromJson(j);
+    } catch (_e) {
+      return t
+        .split(/[,;]/)
+        .map((x) => normalizeFamilySlug(x))
+        .filter(Boolean);
+    }
+    return [];
+  }
+  return [];
+}
+
+function servicioFamiliesEfectivas(s) {
+  const set = new Set(parseServiceFamiliesFromJson(s && s.service_families));
+  if (s && Array.isArray(s.tags)) {
+    s.tags.forEach((t) => {
+      const raw = String(t || "").trim();
+      const lower = raw.toLowerCase();
+      if (lower.startsWith("family:")) {
+        const slug = normalizeFamilySlug(raw.slice(7));
+        if (slug) set.add(slug);
+      }
+    });
+  }
+  return [...set];
+}
+
 function fusionarExtraEnServicio(s, ex) {
   if (!ex) return s;
+  if (Array.isArray(ex.tags)) s.tags = ex.tags.map((t) => String(t || "").trim()).filter(Boolean);
   s.canales = normalizarCanales(
     { ofertas: ex.ofertas, mantencion: ex.mantencion, diagnostico: ex.diagnostico },
     s.tipo
@@ -556,6 +634,13 @@ function fusionarExtraEnServicio(s, ex) {
   if (ex.tiempo_min != null) s.tiempo_min = Number(ex.tiempo_min) || null;
   if (ex.mano_obra != null) s.mano_obra = Number(ex.mano_obra) || 0;
   if (Array.isArray(ex.insumos)) s.insumos = ex.insumos;
+  if (ex.oil_liters != null && Number.isFinite(Number(ex.oil_liters))) s.oil_liters = Number(ex.oil_liters);
+  if (ex.priority != null && Number.isFinite(Number(ex.priority))) s.priority = Number(ex.priority);
+  if (ex.service_families != null) {
+    const extraFam = parseServiceFamiliesFromJson(ex.service_families);
+    const cur = parseServiceFamiliesFromJson(s.service_families);
+    s.service_families = [...new Set([...cur, ...extraFam])];
+  }
   s.tiene_oferta = tieneOferta(s);
   return s;
 }
@@ -581,13 +666,17 @@ function filaAServicio(row, comps) {
       })),
     es_combo: false,
     combo_items: [],
-    vehiculos: [],
+    vehiculos: Array.isArray(row.vehiculos) ? row.vehiculos : [],
     agotado: false,
     ultima_unidad: false,
     tiempo_min: null,
     mano_obra: 0,
     insumos: [],
     numero_serie: null,
+    service_families: parseServiceFamiliesFromJson(row.service_families),
+    tags: Array.isArray(row.tags) ? row.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
+    priority: row.priority != null && Number.isFinite(Number(row.priority)) ? Number(row.priority) : null,
+    oil_liters: row.oil_liters != null && Number.isFinite(Number(row.oil_liters)) ? Number(row.oil_liters) : null,
   };
 }
 
@@ -695,6 +784,9 @@ function calcularCatalogVersionHash() {
         precio: r.precio,
         tipo: r.tipo,
         activo: r.activo,
+        service_families: r.service_families,
+        priority: r.priority,
+        oil_liters: r.oil_liters,
       })),
       complementos: ultimosComplementos || [],
       tablero: tableroColumnas || [],
@@ -1602,6 +1694,261 @@ function respuestaExitoDesdeFilaCotizacion(row, extraWarnings) {
   });
 }
 
+function servicioElegibleDescubrimientoVambe(s) {
+  if (!s || s.activo === false) return false;
+  if (esServicioCombo(s)) return false;
+  return true;
+}
+
+function litersFromDestino(d) {
+  if (!d || d.oil_liters == null || !Number.isFinite(Number(d.oil_liters))) return null;
+  return Number(d.oil_liters);
+}
+
+function oilLitersParaServicio(s, ev) {
+  if (s && s.oil_liters != null && Number.isFinite(Number(s.oil_liters))) return Number(s.oil_liters);
+  if (ev && ev.via === "lista_vehiculos" && ev.matching_destinos && ev.matching_destinos.length) {
+    const vals = ev.matching_destinos.map(litersFromDestino).filter((x) => x != null);
+    if (vals.length === 1) return vals[0];
+    const set = new Set(vals.map((x) => Math.round(x * 100) / 100));
+    if (set.size === 1) return vals[0];
+  }
+  return null;
+}
+
+function precioPreviewDescubrimiento(s, vehiculo) {
+  const pLista = precioPagado(s, [], vehiculo, { sinPromocionTemporal: true });
+  const pFull = precioPagado(s, [], vehiculo, {});
+  const price_list = pLista.lista != null ? Math.round(Number(pLista.lista)) : null;
+  const price_with_promotions = pFull.pagado != null ? Math.round(Number(pFull.pagado)) : null;
+  let promotion_summary = null;
+  const r = pFull.regla;
+  if (r && r.tipo === "promocion_temporal") {
+    promotion_summary = String(r.promocion_nombre || r.etiqueta || "Promoción temporal").trim();
+  } else if (r && r.tipo === "asociacion") {
+    promotion_summary = String(r.etiqueta || "").trim() || null;
+  } else if (r && r.tipo === "oferta_fija") {
+    promotion_summary = String(r.etiqueta || "Oferta fija").trim();
+  } else if (
+    price_list != null &&
+    price_with_promotions != null &&
+    price_with_promotions < price_list
+  ) {
+    promotion_summary = "Precio promocional";
+  }
+  return { price_list, price_with_promotions, promotion_summary };
+}
+
+function puntuacionCompatibilidadDescubrimiento(ev, vehiculo) {
+  let score = 0;
+  if (ev.via === "columna" && ev.col) {
+    score += 1000;
+    const span =
+      (ev.col.ano_hasta != null ? ev.col.ano_hasta : ANIO_MAX) - (ev.col.ano_desde != null ? ev.col.ano_desde : ANIO_MIN);
+    score += Math.max(0, 500 - Math.min(500, Number(span) || 0));
+    if (ev.col.combustible && ev.col.combustible !== "ambos") score += 40;
+  } else if (ev.via === "lista_vehiculos" && ev.matching_destinos && ev.matching_destinos.length) {
+    const best = ev.matching_destinos.reduce((acc, d) => {
+      let z = 0;
+      if (d.modelo && d.modelo !== "*") z += 200;
+      if (d.combustible && d.combustible !== "ambos") z += 35;
+      const span =
+        (d.ano_hasta != null ? d.ano_hasta : ANIO_MAX) - (d.ano_desde != null ? d.ano_desde : ANIO_MIN);
+      z += Math.max(0, 200 - Math.min(200, Number(span) || 0));
+      if (d.oil_liters != null && Number.isFinite(Number(d.oil_liters))) z += 25;
+      return Math.max(acc, z);
+    }, 0);
+    score += best;
+  } else if (ev.via === "generico") {
+    score += 80;
+  }
+  return score;
+}
+
+function construirVariantHintsDescubrimiento(s, promotion_summary) {
+  const hints = [];
+  const res = String((s && s.resumen) || "").trim();
+  if (res) hints.push(res.length > 220 ? `${res.slice(0, 217)}…` : res);
+  const tags = Array.isArray(s && s.tags) ? s.tags : [];
+  tags.forEach((t) => {
+    const x = String(t || "").trim();
+    if (!x || /^family:/i.test(x)) return;
+    if (!hints.includes(x)) hints.push(x);
+  });
+  const det = String((s && s.detalle) || "").trim();
+  if (det && hints.length < 6) {
+    const line = det.split(/\r?\n/).map((l) => l.trim()).find(Boolean) || det.slice(0, 160);
+    if (line && !hints.includes(line)) hints.push(line.length > 200 ? `${line.slice(0, 197)}…` : line);
+  }
+  if (promotion_summary && !hints.includes(promotion_summary)) hints.push(promotion_summary);
+  return hints.slice(0, 8);
+}
+
+function catalogKnownServiceFamilies() {
+  const fam = new Set();
+  (catalogo || []).forEach((s) => {
+    servicioFamiliesEfectivas(s).forEach((f) => fam.add(f));
+  });
+  return fam;
+}
+
+async function compatibleServicesVambe(body) {
+  await asegurarCatalogo();
+  const scope = parseScopeVambe(body || {});
+  const vehErrIn = validarVehiculoVambeParaCotizar(body || {}, scope);
+  if (vehErrIn) {
+    return {
+      ...vehErrIn,
+      catalog_version: catalogVersionHash || null,
+      candidates: [],
+    };
+  }
+  const vehiculo = normalizarVehiculoVambe(body || {});
+  const vehNormErr = validarVehiculoNormalizadoVambe(vehiculo, scope, null);
+  if (vehNormErr) {
+    return {
+      ...vehNormErr,
+      catalog_version: catalogVersionHash || null,
+      candidates: [],
+    };
+  }
+
+  const familyRaw = (body && body.service_family) != null ? body.service_family : body && body.serviceFamily;
+  const service_family = normalizeFamilySlug(familyRaw);
+  if (!service_family) {
+    return {
+      ok: false,
+      eligible: false,
+      error_code: "SERVICE_FAMILY_REQUIRED",
+      message: "Indica service_family (categoría estable, por ejemplo cambio_aceite).",
+      catalog_version: catalogVersionHash,
+      candidates: [],
+    };
+  }
+
+  if (!Array.isArray(catalogo) || catalogo.length === 0) {
+    return {
+      ok: false,
+      eligible: true,
+      error_code: "CATALOG_EMPTY",
+      message: "No hay servicios activos en el catálogo.",
+      catalog_version: catalogVersionHash,
+      service_family,
+      candidates: [],
+    };
+  }
+
+  const knownFamilies = catalogKnownServiceFamilies();
+  if (knownFamilies.size === 0) {
+    return {
+      ok: false,
+      eligible: true,
+      error_code: "SERVICE_FAMILIES_NOT_CONFIGURED",
+      message:
+        "El catálogo aún no define service_families en servicios o tags family: en extras. Configura familias en el catálogo.",
+      catalog_version: catalogVersionHash,
+      service_family,
+      candidates: [],
+    };
+  }
+  if (!knownFamilies.has(service_family)) {
+    return {
+      ok: false,
+      eligible: true,
+      error_code: "UNKNOWN_SERVICE_FAMILY",
+      message: `La categoría "${service_family}" no existe en el catálogo vigente.`,
+      catalog_version: catalogVersionHash,
+      service_family,
+      candidates: [],
+    };
+  }
+
+  const scored = [];
+  (catalogo || []).forEach((s) => {
+    if (!servicioElegibleDescubrimientoVambe(s)) return;
+    const fams = servicioFamiliesEfectivas(s);
+    if (!fams.includes(service_family)) return;
+    const ev = evalCompatibilidadServicioVehiculo(s, vehiculo);
+    if (!ev.aplica) return;
+    const { price_list, price_with_promotions, promotion_summary } = precioPreviewDescubrimiento(s, vehiculo);
+    const oil_liters = oilLitersParaServicio(s, ev);
+    const hints = construirVariantHintsDescubrimiento(s, promotion_summary);
+    const spec = puntuacionCompatibilidadDescubrimiento(ev, vehiculo);
+    const prio = s.priority != null && Number.isFinite(Number(s.priority)) ? Number(s.priority) : 0;
+    const cod = formatoNumeroSerie(numeroSerieDe(s));
+    scored.push({
+      s,
+      ev,
+      spec,
+      prio,
+      price_list,
+      price_with_promotions,
+      promotion_summary,
+      oil_liters,
+      hints,
+      service_code: cod,
+    });
+  });
+
+  if (!scored.length) {
+    return {
+      ok: false,
+      eligible: true,
+      error_code: "NO_COMPATIBLE_SERVICE_FOR_FAMILY",
+      message: "No hay servicios de esa categoría compatibles con el vehículo indicado.",
+      catalog_version: catalogVersionHash,
+      scope: scope || null,
+      service_family,
+      candidates: [],
+    };
+  }
+
+  scored.sort((a, b) => {
+    if (b.spec !== a.spec) return b.spec - a.spec;
+    if (b.prio !== a.prio) return b.prio - a.prio;
+    const pa = a.price_list != null ? a.price_list : Infinity;
+    const pb = b.price_list != null ? b.price_list : Infinity;
+    if (pa !== pb) return pa - pb;
+    return String(a.service_code).localeCompare(String(b.service_code));
+  });
+
+  const maxCand = 5;
+  const top = scored.slice(0, maxCand);
+  const disambiguation_needed = top.length > 1;
+
+  const locale = String((body && body.locale) || "").trim() || null;
+  const warnings = [];
+
+  const candidates = top.map((row, i) => {
+    const s = row.s;
+    const display_name = String(s.nombre || "").trim();
+    return {
+      service_code: row.service_code,
+      canonical_service_name: display_name,
+      display_name,
+      price_list: row.price_list,
+      price_with_promotions: row.price_with_promotions,
+      promotion_summary: row.promotion_summary,
+      oil_liters: row.oil_liters,
+      variant_hints: row.hints,
+      rank: i + 1,
+    };
+  });
+
+  return {
+    ok: true,
+    eligible: true,
+    scope: scope || null,
+    service_family,
+    catalog_version: catalogVersionHash,
+    disambiguation_needed,
+    locale,
+    channel: String((body && body.channel) || "").trim() || null,
+    candidates,
+    warnings,
+  };
+}
+
 /** Webhook plano → cuerpo interno de cotización (mismas respuestas que /catalog/quote). */
 function quoteFlatBodyToInternal(flat) {
   const f = flat && typeof flat === "object" ? flat : {};
@@ -2257,6 +2604,7 @@ module.exports = {
   consultarPrecios,
   cotizarVambeInterno,
   ticketDesdeCotizacionVambe,
+  compatibleServicesVambe,
   quoteFlatBodyToInternal,
   ticketFlatBodyToInternal,
   tokenAsistenteValido,
