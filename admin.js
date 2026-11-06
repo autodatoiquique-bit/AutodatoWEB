@@ -257,6 +257,11 @@ function htmlEditorNumeroSerie(s) {
   return `<p class="editor-preview-serie muted">Al guardar se asignará un número de 4 dígitos para el asistente.</p>`;
 }
 
+function textoCompatibilidadListadoAsistente(s) {
+  if (typeof etiquetaVehiculos === "function") return etiquetaVehiculos(s);
+  return "Todos los vehículos";
+}
+
 function construirListadoAsistenteTextos() {
   const items = typeof serviciosOrdenadosPorSerie === "function" ? serviciosOrdenadosPorSerie() : [];
   const solo = [];
@@ -265,10 +270,11 @@ function construirListadoAsistenteTextos() {
     if (s.activo === false) return;
     const cod = typeof formatoNumeroSerie === "function" ? formatoNumeroSerie(numeroSerieDe(s)) : "0000";
     const nom = nombreListadoAsistente(s);
+    const compat = textoCompatibilidadListadoAsistente(s);
     const { normal } = preciosListadoAsistente(s);
     const descTxt = textoDescuentoListadoAsistente(s);
-    solo.push(`${cod} ${nom}`);
-    full.push(`${cod} — ${nom} | Normal: ${clp(normal)} | Descuento: ${descTxt}`);
+    solo.push(`${cod} ${nom} | Compat: ${compat}`);
+    full.push(`${cod} — ${nom} | Compat: ${compat} | Normal: ${clp(normal)} | Descuento: ${descTxt}`);
   });
   listadoAsistenteTextos = { solo: solo.join("\n"), full: full.join("\n") };
   return listadoAsistenteTextos;
@@ -279,7 +285,7 @@ function htmlPanelListadoAsistente() {
   const textos = construirListadoAsistenteTextos();
   return `
     <div class="listado-asistente-panel" id="listado-asistente-panel">
-      <p class="hint">Servicios, promociones y combos activos. Incluye ofertas fijas y descuentos por llevar otro servicio.</p>
+      <p class="hint">Servicios, promociones y combos activos. Incluye ofertas fijas y descuentos por llevar otro servicio. Cada línea indica <strong>Compat</strong>: modelos y rango de año (y combustible si aplica), igual que en el catálogo.</p>
       <textarea class="listado-asistente-text" id="listado-asistente-text" readonly rows="14">${escapeText(textos.full)}</textarea>
       <div class="btn-row listado-asistente-acciones">
         <button class="btn-line" type="button" id="btn-copiar-listado-solo">Copiar solo nombres</button>

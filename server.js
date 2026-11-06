@@ -956,6 +956,204 @@ app.post("/api/asistente/consultar-precios", async (req, res) => {
   }
 });
 
+function vambeQuoteErrorStatus(code) {
+  const clientErr = new Set([
+    "SERVICE_NOT_COMPATIBLE",
+    "SERVICE_CODES_REQUIRED",
+    "VEHICLE_REQUIRED",
+    "VEHICLE_YEAR_REQUIRED",
+    "VEHICLE_BRAND_REQUIRED",
+    "VEHICLE_MODEL_REQUIRED",
+    "BRAND_OUT_OF_SCOPE",
+    "INVALID_ACTION",
+    "REPRICE_QUOTE_REQUIRED",
+    "ADD_SERVICE_CODE_REQUIRED",
+    "REMOVE_SERVICE_CODE_REQUIRED",
+    "SERVICE_NOT_IN_QUOTE",
+    "CANNOT_REMOVE_COMBO_MEMBER",
+  ]);
+  if (clientErr.has(code)) return 400;
+  const notFound = new Set(["QUOTE_NOT_FOUND"]);
+  if (notFound.has(code)) return 404;
+  return 409;
+}
+
+app.post("/api/vambe/catalog/quote", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({ ok: false, error_code: "UNAUTHORIZED", message: "No autorizado", warnings: [], quote_id: null });
+  }
+  try {
+    const out = await asistentePrecios.cotizarVambeInterno(req.body || {});
+    if (!out.ok) {
+      const code = out.error_code || "REQUEST_ERROR";
+      return res.status(vambeQuoteErrorStatus(code)).json(out);
+    }
+    return res.json(out);
+  } catch (e) {
+    console.warn("vambe/catalog/quote", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos cotizar en este momento. Intenta de nuevo en unos minutos.",
+      warnings: [],
+      quote_id: null,
+    });
+  }
+});
+
+app.post("/api/vambe/catalog/quote-flat", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({ ok: false, error_code: "UNAUTHORIZED", message: "No autorizado", warnings: [], quote_id: null });
+  }
+  try {
+    const internal = asistentePrecios.quoteFlatBodyToInternal(req.body || {});
+    const out = await asistentePrecios.cotizarVambeInterno(internal);
+    if (!out.ok) {
+      const code = out.error_code || "REQUEST_ERROR";
+      return res.status(vambeQuoteErrorStatus(code)).json(out);
+    }
+    return res.json(out);
+  } catch (e) {
+    console.warn("vambe/catalog/quote-flat", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos cotizar en este momento. Intenta de nuevo en unos minutos.",
+      warnings: [],
+      quote_id: null,
+    });
+  }
+});
+
+app.post("/api/vambe/ticket/from-quote", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({ ok: false, error_code: "UNAUTHORIZED", message: "No autorizado", quote_id: null });
+  }
+  try {
+    const enviar = async (payload) => {
+      const token = tokenAutonexus();
+      const id_taller = idTallerAutonexus();
+      if (!token || !id_taller) {
+        return { ok: false, error_code: "WEBHOOK_NOT_CONFIGURED", message: "Webhook no configurado", code: "" };
+      }
+      const body = cuerpoAutonexus(payload, token, id_taller);
+      const { ok, status, parsed, texto, url } = await postAutonexus(body);
+      if (webhookAutonexusRechazo(parsed, ok)) {
+        const msg = mensajeErrorRespuestaAutonexus(parsed, texto, status);
+        return {
+          ok: false,
+          error_code: (parsed && (parsed.codigo || parsed.error_code || parsed.error)) || "AUTONEXUS_REJECTED",
+          message: msg,
+          http_status: status,
+          webhook_destino: url || urlWebhookAutonexus(),
+        };
+      }
+      const code = (parsed && (parsed.code || parsed.codigo_ticket)) || "";
+      return { ok: true, code: String(code), ticket_whatsapp_enviado: Boolean(parsed && parsed.ticket_whatsapp_enviado), data: parsed };
+    };
+    const out = await asistentePrecios.ticketDesdeCotizacionVambe(req.body || {}, enviar);
+    if (!out.ok) {
+      const c = out.error_code || "TICKET_ERROR";
+      const st =
+        c === "QUOTE_EXPIRED" || c === "QUOTE_STALE_CATALOG" || c === "QUOTE_PRICE_MISMATCH"
+          ? 409
+          : c === "QUOTE_NOT_FOUND"
+            ? 404
+            : c === "TICKET_IDEMPOTENCY_CONFLICT"
+              ? 409
+              : 400;
+      return res.status(st).json({
+        ok: false,
+        error_code: c,
+        message: out.message || "No se pudo crear el ticket.",
+        quote_id: out.quote_id != null ? out.quote_id : null,
+      });
+    }
+    return res.json({
+      ok: true,
+      code: out.code,
+      repeated: Boolean(out.repeated),
+      quote_id: out.quote_id,
+      message: out.message || null,
+      ticket_whatsapp_enviado: out.ticket_whatsapp_enviado,
+      data: out.data,
+    });
+  } catch (e) {
+    console.warn("vambe/ticket/from-quote", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos crear el ticket en este momento.",
+      quote_id: null,
+    });
+  }
+});
+
+app.post("/api/vambe/ticket/from-quote-flat", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({ ok: false, error_code: "UNAUTHORIZED", message: "No autorizado", quote_id: null });
+  }
+  try {
+    const internal = asistentePrecios.ticketFlatBodyToInternal(req.body || {});
+    const enviar = async (payload) => {
+      const token = tokenAutonexus();
+      const id_taller = idTallerAutonexus();
+      if (!token || !id_taller) {
+        return { ok: false, error_code: "WEBHOOK_NOT_CONFIGURED", message: "Webhook no configurado", code: "" };
+      }
+      const body = cuerpoAutonexus(payload, token, id_taller);
+      const { ok, status, parsed, texto, url } = await postAutonexus(body);
+      if (webhookAutonexusRechazo(parsed, ok)) {
+        const msg = mensajeErrorRespuestaAutonexus(parsed, texto, status);
+        return {
+          ok: false,
+          error_code: (parsed && (parsed.codigo || parsed.error_code || parsed.error)) || "AUTONEXUS_REJECTED",
+          message: msg,
+          http_status: status,
+          webhook_destino: url || urlWebhookAutonexus(),
+        };
+      }
+      const code = (parsed && (parsed.code || parsed.codigo_ticket)) || "";
+      return { ok: true, code: String(code), ticket_whatsapp_enviado: Boolean(parsed && parsed.ticket_whatsapp_enviado), data: parsed };
+    };
+    const out = await asistentePrecios.ticketDesdeCotizacionVambe(internal, enviar);
+    if (!out.ok) {
+      const c = out.error_code || "TICKET_ERROR";
+      const st =
+        c === "QUOTE_EXPIRED" || c === "QUOTE_STALE_CATALOG" || c === "QUOTE_PRICE_MISMATCH"
+          ? 409
+          : c === "QUOTE_NOT_FOUND"
+            ? 404
+            : c === "TICKET_IDEMPOTENCY_CONFLICT"
+              ? 409
+              : 400;
+      return res.status(st).json({
+        ok: false,
+        error_code: c,
+        message: out.message || "No se pudo crear el ticket.",
+        quote_id: out.quote_id != null ? out.quote_id : null,
+      });
+    }
+    return res.json({
+      ok: true,
+      code: out.code,
+      repeated: Boolean(out.repeated),
+      quote_id: out.quote_id,
+      message: out.message || null,
+      ticket_whatsapp_enviado: out.ticket_whatsapp_enviado,
+      data: out.data,
+    });
+  } catch (e) {
+    console.warn("vambe/ticket/from-quote-flat", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos crear el ticket en este momento.",
+      quote_id: null,
+    });
+  }
+});
+
 app.get("/api/asistente/consultar-precios", (_req, res) => {
   res.status(405).json({ ok: false, error: "Usa POST con JSON" });
 });

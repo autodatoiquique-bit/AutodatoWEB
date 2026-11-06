@@ -4,7 +4,8 @@
   "description": "Sitio público AutoDato: catálogo, carrito y ticket",
   "scripts": {
     "start": "node server.js",
-    "dev": "npx --yes serve -l 5173"
+    "dev": "npx --yes serve -l 5173",
+    "test": "node --test test/vambe-pricing.test.js"
   },
   "dependencies": {
     "express": "^4.22.3"

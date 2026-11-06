@@ -18,3 +18,7 @@ services:
         sync: false
       - key: AUTONEXUS_ID_TALLER
         sync: false
+      - key: ASISTENTE_PRECIOS_TOKEN
+        sync: false
+      - key: VAMBE_QUOTE_TTL_MS
+        sync: false
