@@ -244,6 +244,15 @@ Campos opcionales útiles: `priority` (número, mayor = más prioridad en empate
       "price_list": 250000,
       "price_with_promotions": 240000,
       "promotion_summary": "Nombre promo o regla",
+      "combination_promotions": [
+        {
+          "requires_service_code": "0001",
+          "requires_service_name": "Descarbonización …",
+          "price_for_this_service": 120000,
+          "label": "con descarbonización",
+          "other_service_compatible_with_vehicle": true
+        }
+      ],
       "oil_liters": null,
       "variant_hints": ["Incluye regeneración DPF", "…"],
       "rank": 1
@@ -254,8 +263,12 @@ Campos opcionales útiles: `priority` (número, mayor = más prioridad en empate
 ```
 
 - `disambiguation_needed`: `true` si hay **más de un** candidato (hasta 5). No se elige automáticamente entre variantes comerciales; Vambe debe elegir un `service_code` y llamar a `quote-flat`.
+- `price_list` / `price_with_promotions` / `promotion_summary`: mismas capas que `precioPagado` con carrito vacío (oferta fija, reglas de complemento solo si el otro servicio ya está en el carrito — ver `combination_promotions`), promoción temporal de `promociones` cuando aplica.
+- `combination_promotions`: ofertas **por llevar otro servicio** definidas en complementos (`complementos` / `s.complementos`). Lista **no vacía** cuando otro servicio del catálogo declara precio combo para este `servicio_id`. Incluye si el **otro** servicio es compatible con el mismo vehículo (`other_service_compatible_with_vehicle`). Para cobrar ese precio hay que cotizar con **ambos** códigos en `quote-flat`.
 - `oil_liters`: número si viene de `servicios.oil_liters`, del extra `oil_liters`, o de **una sola** línea de compatibilidad con `oil_liters`/`litros_aceite`; si hay varios valores distintos o no hay dato, `null`.
 - `variant_hints`: combina `resumen`, `tags` (excepto `family:*`), primera línea de `detalle` y texto de promoción cuando aplica.
+
+**Nota:** los servicios **combo** (`es_combo` con varios ítems) no aparecen como candidatos del descubrimiento (se cotizan por su `service_code` en `quote-flat`). Para exponer un pack en descubrimiento, asignad familia a ese servicio combo o usad `combination_promotions` en los ítems.
 
 **Errores comunes:**
 

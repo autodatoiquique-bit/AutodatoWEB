@@ -916,6 +916,25 @@ describe("Vambe pricing", () => {
     assert.ok(out.candidates.every((c) => c.promotion_summary != null || c.price_list != null));
   });
 
+  test("compatible-services incluye combination_promotions (descuento al llevar otro servicio)", async () => {
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    const c3 = out.candidates.find((c) => c.service_code === "0003");
+    assert.ok(c3 && Array.isArray(c3.combination_promotions));
+    const combo = c3.combination_promotions.find((x) => x.requires_service_code === "0001");
+    assert.ok(combo);
+    assert.equal(combo.price_for_this_service, 120000);
+    assert.equal(combo.other_service_compatible_with_vehicle, true);
+  });
+
   test("compatible-services Kia mismo catálogo", async () => {
     const ap = reloadAsistente();
     const out = await ap.compatibleServicesVambe({

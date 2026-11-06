@@ -1739,6 +1739,27 @@ function precioPreviewDescubrimiento(s, vehiculo) {
   return { price_list, price_with_promotions, promotion_summary };
 }
 
+/** Descuentos por combo catalogados (otro servicio en el carrito): no exige IA; mismo modelo que precioPagado. */
+function combinationPromotionsDescubrimiento(s, vehiculo) {
+  if (!s || !vehiculo) return [];
+  return combosEntrantesDe(s.id)
+    .map((r) => {
+      const other = servicioPorId(r.si);
+      if (!other || !Number.isFinite(Number(r.precio)) || Number(r.precio) <= 0) return null;
+      const ap = servicioAplicaAVehiculo(other, vehiculo);
+      const codOtro = formatoNumeroSerie(numeroSerieDe(other));
+      return {
+        requires_service_code: codOtro,
+        requires_service_name: String(other.nombre || "").trim(),
+        /** Precio del servicio actual si además contratan `requires_*` (igual que en cotización con ambos). */
+        price_for_this_service: Math.round(Number(r.precio)),
+        label: String(r.etiqueta || "").trim() || null,
+        other_service_compatible_with_vehicle: ap.aplica,
+      };
+    })
+    .filter(Boolean);
+}
+
 function puntuacionCompatibilidadDescubrimiento(ev, vehiculo) {
   let score = 0;
   if (ev.via === "columna" && ev.col) {
@@ -1871,6 +1892,7 @@ async function compatibleServicesVambe(body) {
     const ev = evalCompatibilidadServicioVehiculo(s, vehiculo);
     if (!ev.aplica) return;
     const { price_list, price_with_promotions, promotion_summary } = precioPreviewDescubrimiento(s, vehiculo);
+    const combination_promotions = combinationPromotionsDescubrimiento(s, vehiculo);
     const oil_liters = oilLitersParaServicio(s, ev);
     const hints = construirVariantHintsDescubrimiento(s, promotion_summary);
     const spec = puntuacionCompatibilidadDescubrimiento(ev, vehiculo);
@@ -1884,6 +1906,7 @@ async function compatibleServicesVambe(body) {
       price_list,
       price_with_promotions,
       promotion_summary,
+      combination_promotions,
       oil_liters,
       hints,
       service_code: cod,
@@ -1929,6 +1952,7 @@ async function compatibleServicesVambe(body) {
       price_list: row.price_list,
       price_with_promotions: row.price_with_promotions,
       promotion_summary: row.promotion_summary,
+      combination_promotions: row.combination_promotions || [],
       oil_liters: row.oil_liters,
       variant_hints: row.hints,
       rank: i + 1,
