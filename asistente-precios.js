@@ -1163,42 +1163,16 @@ function fotoModeloVambe(marca, modelo) {
   return (fotosModelosVambe && fotosModelosVambe[k]) || "";
 }
 
-function portadasFlyerColumnaVambe(col) {
-  if (!col) return [];
-  const ids = idsDeColumnaMenu(col, "portadas");
-  if (!ids.length) return [];
-  const byId = new Map((portadaSlidesVambe || []).map((s) => [String(s.id), s]));
-  const out = [];
-  const seen = new Set();
-  const agregar = (pid) => {
-    const id = String(pid || "");
-    if (!id || seen.has(id) || !ids.includes(id)) return;
-    const slide = byId.get(id);
-    if (!slide || !slide.foto) return;
-    seen.add(id);
-    out.push(slide);
-  };
-  (col.orden_tarjetas || []).forEach((tok) => {
-    const p = parseTokenTarjetaColumna(tok);
-    if (p && p.tipo === "portada") agregar(p.id);
-  });
-  ids.forEach(agregar);
-  return out;
-}
-
-/** Misma prioridad que la web: foto de columna → primer flyer → foto de modelo. */
-function fotoPortadaVehiculoVambe(v) {
+/**
+ * Foto de perfil del vehículo (encabezado de columna en el tablero), no flyers de promoción.
+ * Prioridad: `foto` de la columna del tablero → `_fotos_modelos` (`Marca|Modelo`).
+ */
+function fotoPerfilVehiculoVambe(v) {
   if (!v || !v.marca || !v.modelo) return null;
   const col = pe && pe.columnaDeVehiculo ? pe.columnaDeVehiculo(v) : null;
-  if (col) {
-    if (col.foto) return col.foto;
-    const slides = portadasFlyerColumnaVambe(col);
-    if (slides[0] && slides[0].foto) return slides[0].foto;
-    const fm = fotoModeloVambe(col.marca, col.modelo);
-    if (fm) return fm;
-  }
-  const direct = fotoModeloVambe(v.marca, v.modelo);
-  return direct || null;
+  if (col && col.foto) return col.foto;
+  const fm = fotoModeloVambe(v.marca, v.modelo);
+  return fm || null;
 }
 
 function lineaDescripcionVehiculoVambe(v) {
@@ -1218,7 +1192,8 @@ function lineaDescripcionVehiculoVambe(v) {
 function mapVehicleOut(v) {
   if (!v) return null;
   const vi = vehiculoInternoDesdeOut(v);
-  const coverRaw = fotoPortadaVehiculoVambe(vi);
+  const perfilRaw = fotoPerfilVehiculoVambe(vi);
+  const profile_image_url = perfilRaw ? absolutizarUrlMedioVambe(perfilRaw) : null;
   const description_line = lineaDescripcionVehiculoVambe(vi);
   if (v.marca != null || v.modelo != null) {
     return {
@@ -1227,7 +1202,7 @@ function mapVehicleOut(v) {
       year: v.ano,
       fuel: v.combustible,
       description_line,
-      cover_image_url: coverRaw ? absolutizarUrlMedioVambe(coverRaw) : null,
+      profile_image_url,
     };
   }
   return {
@@ -1236,7 +1211,7 @@ function mapVehicleOut(v) {
     year: v.year,
     fuel: v.fuel,
     description_line,
-    cover_image_url: coverRaw ? absolutizarUrlMedioVambe(coverRaw) : null,
+    profile_image_url,
   };
 }
 

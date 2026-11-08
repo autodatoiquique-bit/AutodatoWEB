@@ -983,7 +983,7 @@ describe("Vambe pricing", () => {
     assert.ok(out.services.every((s) => "argumento_venta" in s && Array.isArray(s.pack_contents)));
     assert.ok(out.vehicle && out.vehicle.description_line);
     assert.equal(
-      out.vehicle.cover_image_url,
+      out.vehicle.profile_image_url,
       "https://cdn.example.test/vehiculos/hyundai-santa-fe.jpg"
     );
     assert.ok(out.services.every((s) => "image_url" in s && Array.isArray(s.image_urls)));

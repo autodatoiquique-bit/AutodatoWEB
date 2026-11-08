@@ -294,7 +294,7 @@ Campos opcionales útiles: `priority` (número, mayor = más prioridad en empate
 Además de `brand`, `model`, `year` y `fuel`, incluye:
 
 - **`description_line`** — misma línea que `column_label` del menú (ej. `Hyundai Santa Fe · 2010–2026 · Diésel`).
-- **`cover_image_url`** — portada del vehículo (foto de columna en tablero, si no hay → primer flyer de la columna, si no → `_fotos_modelos` del catálogo). URL absoluta o `null`.
+- **`profile_image_url`** — foto de **perfil del vehículo** (la del encabezado de la columna en el tablero de promociones), no flyers. Origen: `foto` de la columna en `_tablero_columnas`, o si falta → `_fotos_modelos` (`Marca|Modelo` en `catalogo-canales.json`). URL absoluta o `null`.
 
 Presente en cotizaciones exitosas (`quote-flat`), `vehicle-menu`, `compatible-services` y `validate`.
 
