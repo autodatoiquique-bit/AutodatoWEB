@@ -1174,15 +1174,17 @@ function construirRespuestaVambeExito(opts) {
   const tot = Number(o.totales && o.totales.total_pagado != null ? o.totales.total_pagado : o.total) || 0;
   const sub = Number(o.totales && o.totales.subtotal_lista != null ? o.totales.subtotal_lista : o.subtotal) || 0;
   const disc = Math.max(0, sub - tot);
+  const items = o.items || [];
   return {
     ok: true,
     eligible: o.eligible !== false,
+    cart_empty: items.length === 0,
     quote_id: o.quote_id || null,
     catalog_version: catalogVersionHash || "",
     pricing_engine: PRICING_ENGINE,
     expires_at: o.expires_at != null ? o.expires_at : null,
     vehicle: mapVehicleOut(o.vehicle),
-    items: o.items || [],
+    items,
     suggested_addons: o.suggested_addons || [],
     subtotal: Math.round(sub),
     discount: Math.round(disc),
@@ -2259,13 +2261,6 @@ async function cotizarVambeInterno(body) {
         return errorVambe(errCombo.code, errCombo.message, { quote_id: existing.id, warnings: errCombo.warnings || [] });
       }
       codigos = codigos.filter((c) => c !== remNorm);
-      if (!codigos.length) {
-        return errorVambe(
-          "SERVICE_CODES_REQUIRED",
-          "No se puede dejar la cotización sin servicios. Quita el combo completo o agrega otros códigos.",
-          { quote_id: existing.id, warnings: [] }
-        );
-      }
     }
 
     const inner = {
@@ -2360,12 +2355,6 @@ async function cotizarVambeInterno(body) {
 
     const { eligible, warnings: wElig } = vehiculoEligible(vehiculo);
     const codigos = parseServiceCodesVambe(body);
-    if (!codigos.length) {
-      return errorVambe("SERVICE_CODES_REQUIRED", "Indica al menos un código de servicio.", {
-        quote_id: existing.id,
-        warnings: wElig,
-      });
-    }
 
     const flatAdd = String((body && body._vambe_flat_add_code) || "")
       .replace(/\D/g, "")
@@ -2388,33 +2377,49 @@ async function cotizarVambeInterno(body) {
       }
     }
 
-    const { carrito, errores, warnings: wCart } = construirCarritoVambeDesdeCodigos(codigos, vehiculo);
-    const warnings = [...(wElig || []), ...(wCart || [])];
+    let carritoFiltrado = [];
+    let errores = [];
+    let warnings = [...(wElig || [])];
+    let tot = { subtotal_lista: 0, total_pagado: 0, ahorro_total: 0 };
+    let items = [];
+    let suggested = [];
 
-    if (errores.length && !carrito.length) {
-      const first = errores[0];
-      return errorVambe("SERVICE_NOT_COMPATIBLE", first.error || "Servicio no aplicable.", {
-        quote_id: existing.id,
-        warnings,
+    if (!codigos.length) {
+      warnings.push({
+        code: "QUOTE_CART_EMPTY",
+        message: "La cotización quedó sin servicios (total $0). Usa reprice_add o un quote nuevo para agregar ítems.",
+      });
+    } else {
+      const built = construirCarritoVambeDesdeCodigos(codigos, vehiculo);
+      carritoFiltrado = built.carrito;
+      errores = built.errores || [];
+      warnings = [...warnings, ...(built.warnings || [])];
+
+      if (errores.length && !carritoFiltrado.length) {
+        const first = errores[0];
+        return errorVambe("SERVICE_NOT_COMPATIBLE", first.error || "Servicio no aplicable.", {
+          quote_id: existing.id,
+          warnings,
+        });
+      }
+
+      carritoFiltrado = carritoFiltrado.filter((l) => {
+        const s = servicioPorId(l.id);
+        return s && !errores.some((e) => e.id === s.id);
+      });
+
+      tot = calcularCarrito(carritoFiltrado, vehiculo);
+      items = itemsVambeDesdeCarrito(carritoFiltrado, vehiculo);
+      suggested = addonsSugeridosVambe(carritoFiltrado, vehiculo);
+
+      errores.forEach((e) => {
+        warnings.push({
+          code: "SERVICE_SKIPPED",
+          message: e.error || "Servicio omitido",
+          service_code: e.codigo,
+        });
       });
     }
-
-    const carritoFiltrado = carrito.filter((l) => {
-      const s = servicioPorId(l.id);
-      return s && !errores.some((e) => e.id === s.id);
-    });
-
-    const tot = calcularCarrito(carritoFiltrado, vehiculo);
-    const items = itemsVambeDesdeCarrito(carritoFiltrado, vehiculo);
-    const suggested = addonsSugeridosVambe(carritoFiltrado, vehiculo);
-
-    errores.forEach((e) => {
-      warnings.push({
-        code: "SERVICE_SKIPPED",
-        message: e.error || "Servicio omitido",
-        service_code: e.codigo,
-      });
-    });
 
     const nuevaExpira = new Date(Date.now() + QUOTE_DEFAULT_TTL_MS).toISOString();
     const snap = {
@@ -2660,6 +2665,14 @@ async function ticketDesdeCotizacionVambe(body, enviarAutonexus) {
   }
 
   const carritoStored = (row.lines_json && row.lines_json.carrito) || [];
+  if (!carritoStored.length) {
+    return {
+      ok: false,
+      error_code: "QUOTE_CART_EMPTY",
+      message: "La cotización no tiene servicios. Agrega al menos uno antes de crear el ticket.",
+      quote_id: quoteId,
+    };
+  }
   const carritoFiltrado = (carritoStored || []).filter((l) => {
     const s = servicioPorId(l.id);
     if (!s) return false;

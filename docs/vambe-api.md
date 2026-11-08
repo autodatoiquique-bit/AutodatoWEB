@@ -114,7 +114,7 @@ Códigos HTTP típicos: 400 (validación / servicio no compatible), 409 (catálo
 **Acciones adicionales (cuerpo JSON, mismo motor de respuesta):** `reprice_add` | `reprice_remove`
 
 - **`reprice_add`:** `quote_id`, `add_service_code` (un código), opcional `scope`, `channel`, `idempotency_key`. Lee `service_codes` del snapshot, añade el código si falta, recalcula y actualiza la fila (mismo comportamiento que `reprice` con lista extendida). Si el código ya estaba: respuesta OK con warning `SERVICE_ALREADY_IN_QUOTE`. Si el nuevo servicio no aplica al vehículo: `SERVICE_NOT_COMPATIBLE`.
-- **`reprice_remove`:** `quote_id`, `remove_service_code`. No permite quitar un servicio que solo existe como **miembro** de un combo en el carrito; en ese caso `CANNOT_REMOVE_COMBO_MEMBER`. Para vaciar el carrito hay que quitar el código del **combo** o cotizar de nuevo.
+- **`reprice_remove`:** `quote_id`, `remove_service_code`. No permite quitar un servicio que solo existe como **miembro** de un combo en el carrito; en ese caso `CANNOT_REMOVE_COMBO_MEMBER`. **Sí permite** quitar el último ítem: la cotización queda con `items: []`, `total: 0`, `cart_empty: true` y aviso `QUOTE_CART_EMPTY` (mismo `quote_id`; agrega servicios con `reprice_add` o abre un `quote` nuevo).
 
 ---
 

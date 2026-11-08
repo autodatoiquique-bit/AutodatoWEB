@@ -700,6 +700,29 @@ describe("Vambe pricing", () => {
     assert.equal(out.items.length, 2);
   });
 
+  test("reprice_remove último servicio deja carrito en $0", async () => {
+    cotizacionesMem.clear();
+    quoteSeq = 0;
+    const ap = reloadAsistente();
+    const q = await ap.cotizarVambeInterno({
+      action: "quote",
+      vehicle: vehicleHyundai,
+      service_codes: ["0003"],
+      channel: "vambe",
+    });
+    const out = await ap.cotizarVambeInterno({
+      action: "reprice_remove",
+      quote_id: q.quote_id,
+      remove_service_code: "0003",
+      channel: "vambe",
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.items.length, 0);
+    assert.equal(out.total, 0);
+    assert.equal(out.cart_empty, true);
+    assert.ok(out.warnings.some((w) => w.code === "QUOTE_CART_EMPTY"));
+  });
+
   test("reprice_remove quita servicio", async () => {
     cotizacionesMem.clear();
     quoteSeq = 0;
