@@ -287,6 +287,38 @@ Campos opcionales útiles: `priority` (número, mayor = más prioridad en empate
 
 ---
 
+### `POST /api/vambe/catalog/vehicle-menu`
+
+Menú completo por vehículo (columna del tablero). Misma autenticación y vehículo plano que `quote-flat`.
+
+Cada elemento de `services[]` incluye:
+
+- `argumento_venta` — copy comercial configurado en el admin (servicios individuales o pack); `null` si vacío.
+- `detail` — resumen/descripción para contexto (no reemplaza el argumento de venta).
+- `is_combo` — `true` si es pack.
+- `pack_contents` — si `is_combo`, desglose ordenado de ítems incluidos; cada uno con `service_code`, `canonical_service_name`, `detail`, `argumento_venta`. Si no es pack, array vacío `[]`.
+
+Ejemplo (pack):
+
+```json
+{
+  "service_code": "0020",
+  "canonical_service_name": "Combo mantención 10.000 km",
+  "argumento_venta": "Ideal para mantener garantía y ahorrar vs cotizar por separado.",
+  "is_combo": true,
+  "pack_contents": [
+    {
+      "service_code": "0002",
+      "canonical_service_name": "Cambio de aceite …",
+      "detail": "Aceite y filtro",
+      "argumento_venta": "Protección del motor en climas exigentes."
+    }
+  ]
+}
+```
+
+---
+
 ### `POST /api/vambe/ticket/from-quote`
 
 Crea ticket en AutoNexus usando el **snapshot** de la cotización recalculado con el catálogo actual (compatibilidad + totales deben coincidir con la fila).

@@ -260,6 +260,7 @@ function fusionarExtraEnServicio(s, ex) {
     const cur = parseServiceFamiliesFromJson(s.service_families);
     s.service_families = [...new Set([...cur, ...extraFam])];
   }
+  if (ex.argumento_venta != null) s.argumento_venta = String(ex.argumento_venta || "").trim();
   s.tiene_oferta = tieneOferta(s);
   return s;
 }
@@ -271,6 +272,7 @@ function filaAServicio(row, comps) {
     nombre: row.nombre,
     resumen: row.resumen || "",
     detalle: row.detalle || "",
+    argumento_venta: "",
     foto: row.foto || "",
     precio: row.precio,
     precio_oferta: null,
@@ -1685,6 +1687,24 @@ function detalleMenuServicio(s) {
   return String((s && s.nombre) || "").trim();
 }
 
+/** Desglose de ítems incluidos en un pack/combo para menú Vambe. */
+function packContentsMenuVambe(s) {
+  if (!s || !esServicioCombo(s)) return [];
+  return comboItemsDe(s)
+    .map((mid) => {
+      const m = servicioPorId(mid);
+      if (!m) return null;
+      return {
+        service_code: formatoNumeroSerie(numeroSerieDe(m)),
+        service_id: String(m.id || ""),
+        canonical_service_name: String(m.nombre || "").trim(),
+        detail: detalleMenuServicio(m),
+        argumento_venta: String(m.argumento_venta || "").trim() || null,
+      };
+    })
+    .filter(Boolean);
+}
+
 function precioPreviewMenuItem(s, vehiculo) {
   if (esServicioCombo(s)) {
     const pack = preciosPackCombo(s, vehiculo);
@@ -1804,6 +1824,8 @@ async function vehicleMenuVambe(body) {
     const combination_promotions = combinationPromotionsDescubrimiento(s, vehiculo);
     const variant_hints = construirVariantHintsDescubrimiento(s, promotion_summary);
     const canonical_service_name = String(s.nombre || "").trim();
+    const isCombo = esServicioCombo(s);
+    const pack_contents = isCombo ? packContentsMenuVambe(s) : [];
 
     combination_promotions.forEach((cp) => {
       const key = `${service_code}:${cp.requires_service_code}:${cp.price_for_this_service}`;
@@ -1820,13 +1842,15 @@ async function vehicleMenuVambe(body) {
       service_code,
       canonical_service_name,
       detail: detalleMenuServicio(s),
+      argumento_venta: String(s.argumento_venta || "").trim() || null,
       price_list,
       price_with_promotions,
       promotion_summary,
       variant_hints,
       rank,
       combination_promotions,
-      is_combo: esServicioCombo(s),
+      is_combo: isCombo,
+      pack_contents,
       sold_out: Boolean(s.agotado),
       available: !s.agotado,
     });

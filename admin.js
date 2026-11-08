@@ -64,6 +64,8 @@ let adminGuardadoDepth = 0;
 let adminGuardadoOkTimer = null;
 let listadoServiciosAbierto = false;
 let listadoAsistenteTextos = { solo: "", full: "" };
+/** Filtro visual del tablero: todos | individuales | packs */
+let filtroTarjetasTablero = "todos";
 
 function adminTextoGuardado(txt) {
   const el = $("admin-guardando-texto");
@@ -420,6 +422,7 @@ function servicioVacio() {
     nombre: "",
     resumen: "",
     detalle: "",
+    argumento_venta: "",
     foto: "",
     galeria: [],
     videos: [],
@@ -712,6 +715,43 @@ function htmlTarjetaKanbanServicio(s, colId, token) {
   return colId ? htmlKanbanCardShell(colId, tok, inner) : inner;
 }
 
+function esPackServicioTablero(s) {
+  if (!s) return false;
+  if (typeof esServicioCombo === "function") return esServicioCombo(s);
+  const items = Array.isArray(s.combo_items) ? s.combo_items.map(String).filter(Boolean) : [];
+  return Boolean(s.es_combo && items.length >= 2);
+}
+
+function tarjetaKanbanPasaFiltro(t) {
+  const f = String(filtroTarjetasTablero || "todos");
+  if (f === "todos") return true;
+  if (!t || t.tipo === "portada") return false;
+  if (t.tipo !== "servicio" || !t.servicio) return false;
+  const pack = esPackServicioTablero(t.servicio);
+  if (f === "packs") return pack;
+  if (f === "individuales") return !pack;
+  return true;
+}
+
+function filtrarTarjetasKanbanTablero(tarjetas) {
+  return (tarjetas || []).filter(tarjetaKanbanPasaFiltro);
+}
+
+function htmlFiltroTarjetasTablero() {
+  const f = String(filtroTarjetasTablero || "todos");
+  const btn = (id, label) =>
+    `<button type="button" class="kanban-filtro-btn${f === id ? " is-on" : ""}" data-tablero-filtro="${id}" aria-pressed="${f === id ? "true" : "false"}">${label}</button>`;
+  return `
+    <div class="kanban-top-row kanban-filtro-row">
+      <span class="kanban-filtro-label">Ver en columnas</span>
+      <div class="kanban-filtro-grupo" role="group" aria-label="Filtrar tarjetas del tablero">
+        ${btn("todos", "Todos")}
+        ${btn("individuales", "Individuales")}
+        ${btn("packs", "Packs")}
+      </div>
+    </div>`;
+}
+
 function htmlTarjetaKanbanPortada(s, i, colId, token) {
   const tok = token || tokenTarjetaColumna("portada", s.id);
   const inner = `<button class="kanban-card" type="button" data-kanban-portada="${s.id}">
@@ -726,7 +766,12 @@ function htmlTarjetaKanbanPortada(s, i, colId, token) {
 
 function htmlColumnaKanban(col) {
   const foto = fotoPortadaColumna(col);
-  const tarjetas = tarjetasKanbanDe(col);
+  const todas = tarjetasKanbanDe(col);
+  const tarjetas = filtrarTarjetasKanbanTablero(todas);
+  const vacioMsg =
+    !tarjetas.length && todas.length
+      ? "Ninguna tarjeta coincide con el filtro."
+      : "Sin promociones para este auto.";
   return `
     <section class="kanban-col" data-col-id="${col.id}">
       <div class="kanban-apex">
@@ -748,7 +793,7 @@ function htmlColumnaKanban(col) {
               : htmlTarjetaKanbanServicio(t.servicio, col.id, t.token)
           )
           .join("")}
-        ${!tarjetas.length ? `<p class="kanban-vacio">Sin promociones para este auto.</p>` : ""}
+        ${!tarjetas.length ? `<p class="kanban-vacio">${vacioMsg}</p>` : ""}
       </div>
       <div class="kanban-add">
         <span class="kanban-col-count" aria-label="Tarjetas en esta columna">${tarjetas.length} ${tarjetas.length === 1 ? "tarjeta" : "tarjetas"}</span>
@@ -1195,6 +1240,7 @@ function renderTablero(opciones) {
           </div>
           <button type="button" class="btn-soft btn-tablero-revertir" id="btn-tablero-revertir" disabled title="Deshacer cambios desde que abriste el tablero">Revertir</button>
         </div>
+        ${htmlFiltroTarjetasTablero()}
       </div>
       <div class="kanban-track">
         ${TABLERO_COLUMNAS.map(htmlColumnaKanban).join("")}
@@ -1664,6 +1710,8 @@ function leerEditor() {
   editando.tipo = tipoDesdeCanales(editando.canales);
   editando.resumen = $("e-resumen").value.trim();
   editando.detalle = $("e-detalle").value.trim();
+  editando.argumento_venta =
+    $("e-argumento-venta") && !editando.es_combo ? $("e-argumento-venta").value.trim() : editando.argumento_venta || "";
   editando.service_families = parseFamiliasVambeInput($("e-vambe-families") && $("e-vambe-families").value);
   leerCostosEditor();
   editando.tiene_oferta = Boolean($("e-oferta-fija") && $("e-oferta-fija").checked);
@@ -2109,6 +2157,8 @@ function renderEditor() {
             ${htmlEnlaceServicioAdmin(s)}
             <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
             <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
+            <label class="field"><span>Argumento de venta</span><textarea id="e-argumento-venta" rows="4" placeholder="Frases cortas para el asistente (Vambe)…">${escapeText(s.argumento_venta || "")}</textarea></label>
+            <p class="hint">Opcional. Copy comercial para conversaciones; no aparece en la ficha del cliente (solo la descripción de arriba).</p>
             <label class="field"><span>Familias Vambe (slugs)</span><input id="e-vambe-families" type="text" value="${escapeAttr(familiasVambeTextoDesdeServicio(s))}" autocomplete="off" placeholder="ej: cambio_aceite mantencion_10k" list="dl-vambe-families" /></label>
             <datalist id="dl-vambe-families">${VAMBE_FAMILIAS_SUGERIDAS.map((f) => `<option value="${escapeAttr(f)}"></option>`).join("")}</datalist>
             <p class="hint">Opcional. Separá con espacio o coma. Usá slugs estables (coinciden con <code>service_family</code> en Vambe). Ej.: <code>mantencion_10k</code> para mantención a 10.000 km.</p>
@@ -3125,6 +3175,15 @@ $("btn-salir").addEventListener("click", async () => {
 });
 
 $("stage").addEventListener("click", (e) => {
+  const filtroBtn = e.target.closest("[data-tablero-filtro]");
+  if (filtroBtn) {
+    const next = String(filtroBtn.getAttribute("data-tablero-filtro") || "todos");
+    if (next === filtroTarjetasTablero) return;
+    filtroTarjetasTablero = next;
+    tableroOmitirSnapshot = true;
+    renderTablero();
+    return;
+  }
   if (e.target.id === "btn-taller") {
     guardarTaller({
       direccion: $("taller-dir").value,

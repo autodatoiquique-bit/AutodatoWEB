@@ -941,6 +941,12 @@ describe("Vambe pricing", () => {
     assert.equal(codes.has("0003"), true);
     assert.equal(codes.has("0011"), true);
     assert.ok(Array.isArray(out.combinations));
+    assert.ok(out.services.every((s) => "argumento_venta" in s && Array.isArray(s.pack_contents)));
+    const combo = out.services.find((s) => s.service_code === "0002" && s.is_combo);
+    if (combo) {
+      assert.ok(combo.pack_contents.length >= 2);
+      assert.ok(combo.pack_contents.every((x) => x.service_code && x.canonical_service_name && "argumento_venta" in x));
+    }
   });
 
   test("vehicle-menu quote-flat con service_code del menú", async () => {

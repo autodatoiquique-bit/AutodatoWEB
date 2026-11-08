@@ -150,6 +150,8 @@ function renderEditorCombo() {
             ${htmlEnlaceServicioAdmin(s)}
             <label class="field"><span>Resumen (tarjeta)</span><input id="e-resumen" type="text" value="${escapeAttr(s.resumen)}" /></label>
             <label class="field"><span>Descripción</span><textarea id="e-detalle">${escapeText(s.detalle)}</textarea></label>
+            <label class="field"><span>Argumento de venta</span><textarea id="e-argumento-venta" rows="4" placeholder="Frases cortas para el asistente (Vambe)…">${escapeText(s.argumento_venta || "")}</textarea></label>
+            <p class="hint">Opcional. Copy del pack completo para Vambe. El desglose de ítems incluidos se arma con los argumentos de cada servicio del pack.</p>
             ${htmlVehiculosEditor(s)}
             <h3>Servicios incluidos</h3>
             <div id="combo-pick-host">${htmlCatalogoPickCombo(s)}</div>
@@ -203,6 +205,8 @@ function leerEditorComboBasico() {
   editando.tipo = tipoDesdeCanales(editando.canales);
   editando.resumen = $("e-resumen").value.trim();
   editando.detalle = $("e-detalle").value.trim();
+  editando.argumento_venta =
+    $("e-argumento-venta") ? $("e-argumento-venta").value.trim() : String(editando.argumento_venta || "").trim();
   const m = mediaActual();
   if (m && m.tipo === "foto") {
     if ($("e-zoom")) m.zoom = Number($("e-zoom").value) / 100;

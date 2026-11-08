@@ -206,6 +206,7 @@ async function nubeGuardarCatalogoCanales(lista) {
       es_combo: conservarCombo ? true : Boolean(s.es_combo),
       combo_items: conservarCombo ? prev.combo_items : itemsLocal,
       numero_serie: Number(s.numero_serie) > 0 ? Math.floor(Number(s.numero_serie)) : null,
+      argumento_venta: String(s.argumento_venta || "").trim(),
     };
   });
   mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
@@ -335,6 +336,7 @@ function fusionarExtraEnServicio(s, extra, opts) {
   }
   if (ex.priority != null && Number.isFinite(Number(ex.priority))) s.priority = Number(ex.priority);
   if (ex.oil_liters != null && Number.isFinite(Number(ex.oil_liters))) s.oil_liters = Number(ex.oil_liters);
+  if (ex.argumento_venta != null) s.argumento_venta = String(ex.argumento_venta || "").trim();
   return s;
 }
 

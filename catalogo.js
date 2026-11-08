@@ -1124,6 +1124,7 @@ function normalizarServicio(s) {
     tags: Array.isArray(s && s.tags) ? s.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
     priority: s && s.priority != null && Number.isFinite(Number(s.priority)) ? Number(s.priority) : null,
     oil_liters: s && s.oil_liters != null && Number.isFinite(Number(s.oil_liters)) ? Number(s.oil_liters) : null,
+    argumento_venta: String((s && s.argumento_venta) || "").trim(),
     agotado: Boolean(s && s.agotado),
     ultima_unidad: Boolean(s && s.ultima_unidad),
     stock_restante: stockRestanteDe(s),
