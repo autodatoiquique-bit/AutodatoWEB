@@ -97,6 +97,8 @@ Otros errores de vehículo (sin devolver cotización): `VEHICLE_BRAND_REQUIRED`,
 
 **Respuesta exitosa:** ver contrato en el mensaje de especificación del usuario (`ok`, `eligible`, `quote_id`, `catalog_version`, `items`, `suggested_addons`, totales, `warnings`, `active_promotions`).
 
+Cada promoción temporal en `active_promotions[]` incluye `image_url` / `image_urls` del servicio asociado (`servicio_id`), si existe en catálogo.
+
 **Ítems (`items[]`):** además de `applied_rules` (lista), cada línea incluye cuando corresponde:
 
 - `promotion_id`, `promotion_name` — si ganó una promoción temporal.
@@ -296,7 +298,11 @@ Cada elemento de `services[]` incluye:
 - `argumento_venta` — copy comercial configurado en el admin (servicios individuales o pack); `null` si vacío.
 - `detail` — resumen/descripción para contexto (no reemplaza el argumento de venta).
 - `is_combo` — `true` si es pack.
-- `pack_contents` — si `is_combo`, desglose ordenado de ítems incluidos; cada uno con `service_code`, `canonical_service_name`, `detail`, `argumento_venta`. Si no es pack, array vacío `[]`.
+- `pack_contents` — si `is_combo`, desglose ordenado de ítems incluidos; cada uno con `service_code`, `canonical_service_name`, `detail`, `argumento_venta`, `image_url`, `image_urls`. Si no es pack, array vacío `[]`.
+- `image_url` — portada del servicio (misma lógica que la ficha web: `foto`, galería `media` del catálogo y URLs de imagen embebidas en resumen/descripción/argumento de venta). URL absoluta; `null` si no hay imagen.
+- `image_urls` — todas las imágenes detectadas para ese servicio, en orden (portada primero).
+- `promotions` — flyers de portada del tablero para ese vehículo (`portada_slides` en columna). Cada ítem: `promotion_id`, `rank`, `image_url`, `image_urls`, `service_code` / `linked_service_name` si el flyer apunta a un servicio, `label` (texto del botón en admin).
+- `promotion_count` — cantidad de flyers en `promotions`.
 
 Ejemplo (pack):
 

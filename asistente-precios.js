@@ -46,6 +46,8 @@ const QUOTE_DEFAULT_TTL_MS = Number(process.env.VAMBE_QUOTE_TTL_MS) || 48 * 60 *
 
 /** Promociones temporales vigentes (cargadas desde tabla `promociones`; vacío = sin cambio) */
 let promocionesVigentes = [];
+/** Flyers / portadas del tablero (tabla `portada_slides`) */
+let portadaSlidesVambe = [];
 
 let pe = null;
 
@@ -261,8 +263,70 @@ function fusionarExtraEnServicio(s, ex) {
     s.service_families = [...new Set([...cur, ...extraFam])];
   }
   if (ex.argumento_venta != null) s.argumento_venta = String(ex.argumento_venta || "").trim();
+  if (ex.foto && !s.foto) s.foto = String(ex.foto || "").trim();
+  if (Array.isArray(ex.media) && ex.media.length) s.media = ex.media;
   s.tiene_oferta = tieneOferta(s);
   return s;
+}
+
+function vambePublicOrigin() {
+  const o = String(process.env.PUBLIC_SITE_ORIGIN || process.env.SITE_URL || "https://autodato.cl").trim();
+  return o.replace(/\/$/, "");
+}
+
+function absolutizarUrlMedioVambe(raw) {
+  const u = String(raw || "").trim();
+  if (!u) return null;
+  if (/^data:/i.test(u)) return u;
+  if (/^https?:\/\//i.test(u)) return u;
+  if (u.startsWith("//")) return `https:${u}`;
+  const base = vambePublicOrigin();
+  return `${base}/${u.replace(/^\//, "")}`;
+}
+
+function urlsImagenEnTextoVambe(text) {
+  const t = String(text || "");
+  if (!t) return [];
+  const found = [];
+  const push = (u) => {
+    const abs = absolutizarUrlMedioVambe(u);
+    if (abs && !found.includes(abs)) found.push(abs);
+  };
+  let m;
+  const reImg = /<img[^>]+src\s*=\s*["']([^"']+)["']/gi;
+  while ((m = reImg.exec(t))) push(m[1]);
+  const reMd = /!\[[^\]]*\]\(([^)]+)\)/g;
+  while ((m = reMd.exec(t))) push(m[1]);
+  const reUrl = /\b(https?:\/\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<>"']*)?)/gi;
+  while ((m = reUrl.exec(t))) push(m[1]);
+  return found;
+}
+
+/** Imágenes de la ficha (portada/galería) y enlaces embebidos en descripción, resumen o argumento. */
+function imagenesDescripcionServicioVambe(s) {
+  const urls = [];
+  const add = (u) => {
+    const abs = absolutizarUrlMedioVambe(u);
+    if (abs && !urls.includes(abs)) urls.push(abs);
+  };
+  if (!s) return urls;
+  if (s.foto) add(s.foto);
+  if (Array.isArray(s.media)) {
+    s.media.forEach((item) => {
+      if (!item) return;
+      const tipo = String(item.tipo || "foto").toLowerCase();
+      if (tipo === "video") return;
+      if (item.src) add(item.src);
+    });
+  }
+  urlsImagenEnTextoVambe(s.resumen).forEach(add);
+  urlsImagenEnTextoVambe(s.detalle).forEach(add);
+  urlsImagenEnTextoVambe(s.argumento_venta).forEach(add);
+  return urls;
+}
+
+function imagenPortadaVambe(slide) {
+  return absolutizarUrlMedioVambe(slide && slide.foto);
 }
 
 function filaAServicio(row, comps) {
@@ -358,7 +422,7 @@ async function cargarCatalogoDesdeNube() {
       }
     : null;
 
-  const [rows, comps, extra, promos] = await Promise.all([
+  const [rows, comps, extra, promos, portadas] = await Promise.all([
     fetchJson(`${base}/rest/v1/servicios?select=*&order=nombre.asc`, headers),
     fetchJson(`${base}/rest/v1/complementos?select=*`, headers),
     fetchJson(`${base}/storage/v1/object/public/servicios/catalogo-canales.json?t=${Date.now()}`, {}).catch(
@@ -369,6 +433,7 @@ async function cargarCatalogoDesdeNube() {
           () => []
         )
       : Promise.resolve([]),
+    fetchJson(`${base}/rest/v1/portada_slides?select=*&order=orden.asc`, headers).catch(() => []),
   ]);
 
   tableroColumnas = Array.isArray(extra && extra._tablero_columnas)
@@ -380,6 +445,7 @@ async function cargarCatalogoDesdeNube() {
   ultimoExtraCanales = extra;
 
   promocionesVigentes = Array.isArray(promos) ? promos : [];
+  portadaSlidesVambe = Array.isArray(portadas) ? portadas : [];
 
   catalogo = (rows || [])
     .map((row) => {
@@ -1125,13 +1191,19 @@ function construirRespuestaVambeExito(opts) {
     warnings: o.warnings || [],
     active_promotions: (promocionesVigentes || [])
       .filter((p) => p && p.activo && promocionTemporalVigente(p, Date.now()))
-      .map((p) => ({
-        id: p.id,
-        nombre: p.nombre,
-        servicio_id: p.servicio_id,
-        fecha_inicio: p.fecha_inicio,
-        fecha_fin: p.fecha_fin,
-      })),
+      .map((p) => {
+        const svc = p.servicio_id ? servicioPorId(p.servicio_id) : null;
+        const imgs = imagenesDescripcionServicioVambe(svc);
+        return {
+          id: p.id,
+          nombre: p.nombre,
+          servicio_id: p.servicio_id,
+          fecha_inicio: p.fecha_inicio,
+          fecha_fin: p.fecha_fin,
+          image_url: imgs[0] || null,
+          image_urls: imgs,
+        };
+      }),
   };
 }
 
@@ -1642,6 +1714,7 @@ async function compatibleServicesVambe(body) {
   const candidates = top.map((row, i) => {
     const s = row.s;
     const display_name = String(s.nombre || "").trim();
+    const simgs = imagenesDescripcionServicioVambe(s);
     return {
       service_code: row.service_code,
       canonical_service_name: display_name,
@@ -1653,6 +1726,8 @@ async function compatibleServicesVambe(body) {
       oil_liters: row.oil_liters,
       variant_hints: row.hints,
       rank: i + 1,
+      image_url: simgs[0] || null,
+      image_urls: simgs,
     };
   });
 
@@ -1754,12 +1829,15 @@ function packContentsMenuVambe(s) {
     .map((mid) => {
       const m = servicioPorId(mid);
       if (!m) return null;
+      const mImgs = imagenesDescripcionServicioVambe(m);
       return {
         service_code: formatoNumeroSerie(numeroSerieDe(m)),
         service_id: String(m.id || ""),
         canonical_service_name: String(m.nombre || "").trim(),
         detail: detalleMenuServicio(m),
         argumento_venta: String(m.argumento_venta || "").trim() || null,
+        image_url: mImgs[0] || null,
+        image_urls: mImgs,
       };
     })
     .filter(Boolean);
@@ -1803,6 +1881,7 @@ async function vehicleMenuVambe(body) {
       column_label: null,
       services: [],
       combinations: [],
+      promotions: [],
     };
   }
   const vehiculo = normalizarVehiculoVambe(body || {});
@@ -1815,6 +1894,7 @@ async function vehicleMenuVambe(body) {
       column_label: null,
       services: [],
       combinations: [],
+      promotions: [],
     };
   }
 
@@ -1829,6 +1909,7 @@ async function vehicleMenuVambe(body) {
       column_label: null,
       services: [],
       combinations: [],
+      promotions: [],
     };
   }
 
@@ -1856,6 +1937,7 @@ async function vehicleMenuVambe(body) {
       column_label: null,
       services: [],
       combinations: [],
+      promotions: [],
       warnings,
     };
   }
@@ -1865,8 +1947,31 @@ async function vehicleMenuVambe(body) {
 
   const services = [];
   const combinations = [];
+  const promotions = [];
   const combinationKeys = new Set();
   let rank = 0;
+  let promoRank = 0;
+
+  (colWork.orden_tarjetas || []).forEach((tok) => {
+    const pt = parseTokenTarjetaColumna(tok);
+    if (!pt || pt.tipo !== "portada") return;
+    if (itemOcultoEnColumnaMenu(colWork, "portada", pt.id)) return;
+    if (!idsDeColumnaMenu(colWork, "portadas").includes(pt.id)) return;
+    const slide = (portadaSlidesVambe || []).find((x) => String(x.id) === String(pt.id));
+    if (!slide || !slide.foto) return;
+    promoRank += 1;
+    const linked = slide.servicio_id ? servicioPorId(slide.servicio_id) : null;
+    const flyerUrl = imagenPortadaVambe(slide);
+    promotions.push({
+      promotion_id: String(slide.id),
+      rank: promoRank,
+      image_url: flyerUrl,
+      image_urls: flyerUrl ? [flyerUrl] : [],
+      service_code: linked ? formatoNumeroSerie(numeroSerieDe(linked)) : null,
+      linked_service_name: linked ? String(linked.nombre || "").trim() : null,
+      label: String(slide.btn_texto || "").trim() || null,
+    });
+  });
 
   (colWork.orden_tarjetas || []).forEach((tok) => {
     const p = parseTokenTarjetaColumna(tok);
@@ -1886,6 +1991,7 @@ async function vehicleMenuVambe(body) {
     const canonical_service_name = String(s.nombre || "").trim();
     const isCombo = esServicioCombo(s);
     const pack_contents = isCombo ? packContentsMenuVambe(s) : [];
+    const svcImgs = imagenesDescripcionServicioVambe(s);
 
     combination_promotions.forEach((cp) => {
       const key = `${service_code}:${cp.requires_service_code}:${cp.price_for_this_service}`;
@@ -1914,6 +2020,8 @@ async function vehicleMenuVambe(body) {
       pack_contents,
       sold_out: Boolean(s.agotado),
       available: !s.agotado,
+      image_url: svcImgs[0] || null,
+      image_urls: svcImgs,
     });
   });
 
@@ -1932,6 +2040,7 @@ async function vehicleMenuVambe(body) {
       column_label: etiquetaColumnaVambe(colWork),
       services: [],
       combinations: [],
+      promotions,
       warnings,
     };
   }
@@ -1959,8 +2068,10 @@ async function vehicleMenuVambe(body) {
     },
     disambiguation_needed,
     service_count: services.length,
+    promotion_count: promotions.length,
     services,
     combinations,
+    promotions,
     warnings,
   };
 }

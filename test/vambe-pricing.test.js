@@ -84,7 +84,12 @@ function buildExtras(opts) {
         orden_tarjetas: [],
       },
     ],
-    a1: o.a1 || { numero_serie: 1, tiene_oferta: false, oil_liters: 4 },
+    a1: o.a1 || {
+      numero_serie: 1,
+      tiene_oferta: false,
+      oil_liters: 4,
+      media: [{ tipo: "foto", src: "https://cdn.example.test/servicios/aceite.jpg" }],
+    },
     a2: o.a2 || { numero_serie: 2, es_combo: true, combo_items: ["a1", "a9"] },
     a3: o.a3 || { numero_serie: 3 },
     a4: o.a4 || { numero_serie: 4, oil_liters: 6 },
@@ -179,6 +184,11 @@ function mockCatalogFetch(extraOpts) {
     }
     if (u.includes("/rest/v1/promociones")) {
       const data = promosRows();
+      const raw = JSON.stringify(data);
+      return { ok: true, status: 200, text: async () => raw, json: async () => data };
+    }
+    if (u.includes("/rest/v1/portada_slides")) {
+      const data = o.portadaSlides || [];
       const raw = JSON.stringify(data);
       return { ok: true, status: 200, text: async () => raw, json: async () => data };
     }
@@ -944,6 +954,9 @@ describe("Vambe pricing", () => {
     assert.equal(codes.has("0011"), true);
     assert.ok(Array.isArray(out.combinations));
     assert.ok(out.services.every((s) => "argumento_venta" in s && Array.isArray(s.pack_contents)));
+    assert.ok(out.services.every((s) => "image_url" in s && Array.isArray(s.image_urls)));
+    assert.equal(out.services.find((s) => s.service_code === "0001").image_url, "https://cdn.example.test/servicios/aceite.jpg");
+    assert.ok(Array.isArray(out.promotions));
     const combo = out.services.find((s) => s.service_code === "0002" && s.is_combo);
     if (combo) {
       assert.ok(combo.pack_contents.length >= 2);
