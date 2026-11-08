@@ -496,19 +496,30 @@ function descuentosCondicionales(s) {
   });
 }
 
+/**
+ * Complementos que conviene ofrecer cuando `s` ya está en el carrito.
+ * Solo reglas salientes (complementos del servicio en carrito), no reglas entrantes
+ * (evita mostrar el precio combo del ítem del carrito como si fuera precio del add-on).
+ */
 function recomendadosPara(s, vehiculo) {
-  return descuentosCondicionales(s)
-    .map((d) => {
-      const otro = servicioPorId(d.servicio_requerido_id);
-      if (!otro) return null;
+  if (!s || esServicioCombo(s)) return [];
+  return (s.complementos || [])
+    .map((c) => {
+      const otro = servicioPorId(c.id);
+      if (!otro || !Number.isFinite(Number(c.precioCombo)) || Number(c.precioCombo) <= 0) return null;
       const ap = servicioAplicaAVehiculo(otro, vehiculo);
       if (!ap.aplica) return null;
+      const codigo = formatoNumeroSerie(numeroSerieDe(otro));
+      const precio = Math.round(Number(c.precioCombo));
+      const etiqueta = String(c.etiqueta || "").trim();
       return {
-        codigo: d.servicio_requerido_codigo,
-        nombre: d.servicio_requerido_nombre,
-        precio_si_combinan: d.precio_con_descuento,
-        precio_si_combinan_texto: d.precio_con_descuento_texto,
-        mensaje: d.mensaje,
+        codigo,
+        nombre: String(otro.nombre || "").trim(),
+        precio_si_combinan: precio,
+        precio_si_combinan_texto: clp(precio),
+        mensaje: etiqueta
+          ? `${etiqueta} ${clp(precio)}`
+          : `Precio combinado si agregas ${otro.nombre}: ${clp(precio)}`,
       };
     })
     .filter(Boolean);
@@ -905,10 +916,16 @@ function addonsSugeridosVambe(carrito, vehiculo) {
       if (idsEn.has(otro.id) || miembrosCombo.has(otro.id)) return;
       if (vistoCod.has(r.codigo)) return;
       vistoCod.add(r.codigo);
+      const idsCtx = idsServiciosEnCarrito(carrito);
+      const p = precioPagado(otro, idsCtx, vehiculo, {});
+      const price = p.pagado != null ? Math.round(Number(p.pagado)) : r.precio_si_combinan;
+      const price_list = p.lista != null ? Math.round(Number(p.lista)) : null;
       out.push({
         code: r.codigo,
         name: r.nombre,
-        price: r.precio_si_combinan,
+        price,
+        price_list,
+        combination_price: Boolean(p.regla && p.regla.tipo === "asociacion"),
         reason: r.mensaje || "Complemento sugerido",
       });
     });

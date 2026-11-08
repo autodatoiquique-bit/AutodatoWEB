@@ -1402,6 +1402,69 @@ describe("Vambe pricing", () => {
     reloadAsistente();
   });
 
+  test("suggested_addons no ofrece complemento con precio combo invertido", async () => {
+    cotizacionesMem.clear();
+    quoteSeq = 0;
+    const rows = [
+      {
+        id: "a3",
+        tipo: "oferta",
+        nombre: "Aceite DPF",
+        precio: 184990,
+        activo: true,
+        service_families: '["cambio_aceite"]',
+      },
+      {
+        id: "a_desc",
+        tipo: "oferta",
+        nombre: "Descarbonización",
+        precio: 250000,
+        activo: true,
+        service_families: '["descarbonizacion"]',
+      },
+    ];
+    const complementos = [{ servicio_id: "a_desc", asociado_id: "a3", precio_combo: 160000, etiqueta: "con aceite" }];
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: rows,
+        complementos,
+        a3: { numero_serie: 3 },
+        a_desc: { numero_serie: 5 },
+        serviciosEnColumna: ["a3", "a_desc"],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.cotizarVambeInterno({
+      action: "quote",
+      vehicle: vehicleHyundai,
+      service_codes: ["0003"],
+      channel: "vambe",
+      idempotency_key: "sug-inv-" + Date.now(),
+    });
+    assert.equal(out.ok, true);
+    const desc = (out.suggested_addons || []).find((x) => x.code === "0005");
+    assert.equal(desc, undefined);
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("suggested_addons precio contractual con complemento saliente del carrito", async () => {
+    cotizacionesMem.clear();
+    const ap = reloadAsistente();
+    const out = await ap.cotizarVambeInterno({
+      action: "quote",
+      vehicle: vehicleHyundai,
+      service_codes: ["0001"],
+      channel: "vambe",
+      idempotency_key: "sug-out-" + Date.now(),
+    });
+    const sug = (out.suggested_addons || []).find((x) => x.code === "0003");
+    assert.ok(sug);
+    assert.equal(sug.code, "0003");
+    assert.ok(typeof sug.price === "number" && sug.price > 0);
+    assert.ok(sug.price_list != null && sug.price <= sug.price_list);
+  });
+
   test("quote-flat sigue igual con service_code tras cambios", async () => {
     global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
     const ap = reloadAsistente();
