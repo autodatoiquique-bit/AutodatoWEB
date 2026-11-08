@@ -60,6 +60,9 @@ function buildExtras(opts) {
   const o = opts || {};
   const serviciosTablero = o.serviciosEnColumna || ["a1", "a2", "a3", "a4", "a9", "a11"];
   return {
+    _fotos_modelos: o.fotosModelos || {
+      "Hyundai|Santa Fe": "https://cdn.example.test/vehiculos/hyundai-santa-fe.jpg",
+    },
     _tablero_columnas: o.columnas || [
       {
         marca: "Hyundai",
@@ -71,6 +74,7 @@ function buildExtras(opts) {
         ocultos: o.ocultos || [],
         portadas: [],
         orden_tarjetas: [],
+        foto: o.columnaFotoHyundai || null,
       },
       {
         marca: "Kia",
@@ -977,6 +981,11 @@ describe("Vambe pricing", () => {
     assert.equal(codes.has("0011"), true);
     assert.ok(Array.isArray(out.combinations));
     assert.ok(out.services.every((s) => "argumento_venta" in s && Array.isArray(s.pack_contents)));
+    assert.ok(out.vehicle && out.vehicle.description_line);
+    assert.equal(
+      out.vehicle.cover_image_url,
+      "https://cdn.example.test/vehiculos/hyundai-santa-fe.jpg"
+    );
     assert.ok(out.services.every((s) => "image_url" in s && Array.isArray(s.image_urls)));
     assert.equal(out.services.find((s) => s.service_code === "0001").image_url, "https://cdn.example.test/servicios/aceite.jpg");
     assert.ok(Array.isArray(out.promotions));

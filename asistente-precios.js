@@ -48,6 +48,8 @@ const QUOTE_DEFAULT_TTL_MS = Number(process.env.VAMBE_QUOTE_TTL_MS) || 48 * 60 *
 let promocionesVigentes = [];
 /** Flyers / portadas del tablero (tabla `portada_slides`) */
 let portadaSlidesVambe = [];
+/** Fotos de modelo (clave `Marca|Modelo` desde `catalogo-canales.json` → `_fotos_modelos`) */
+let fotosModelosVambe = {};
 
 let pe = null;
 
@@ -378,6 +380,7 @@ function normalizarColumnaTablero(c) {
     ocultos: Array.isArray(c.ocultos) ? c.ocultos : [],
     portadas: Array.isArray(c.portadas) ? c.portadas : [],
     orden_tarjetas: Array.isArray(c.orden_tarjetas) ? c.orden_tarjetas : [],
+    foto: String(c.foto || "").trim() || null,
   };
 }
 
@@ -446,6 +449,8 @@ async function cargarCatalogoDesdeNube() {
 
   promocionesVigentes = Array.isArray(promos) ? promos : [];
   portadaSlidesVambe = Array.isArray(portadas) ? portadas : [];
+  fotosModelosVambe =
+    extra && extra._fotos_modelos && typeof extra._fotos_modelos === "object" ? extra._fotos_modelos : {};
 
   catalogo = (rows || [])
     .map((row) => {
@@ -1131,15 +1136,98 @@ async function actualizarCotizacionSupabase(id, patch) {
   return row;
 }
 
+function claveVehiculoVambe(marca, modelo) {
+  return `${String(marca || "").trim()}|${String(modelo || "").trim()}`;
+}
+
+function vehiculoInternoDesdeOut(v) {
+  if (!v) return null;
+  if (v.marca != null || v.modelo != null) {
+    return {
+      marca: v.marca,
+      modelo: v.modelo,
+      ano: v.ano,
+      combustible: v.combustible || "ambos",
+    };
+  }
+  return {
+    marca: v.brand,
+    modelo: v.model,
+    ano: v.year,
+    combustible: v.fuel || "ambos",
+  };
+}
+
+function fotoModeloVambe(marca, modelo) {
+  const k = claveVehiculoVambe(marca, modelo);
+  return (fotosModelosVambe && fotosModelosVambe[k]) || "";
+}
+
+function portadasFlyerColumnaVambe(col) {
+  if (!col) return [];
+  const ids = idsDeColumnaMenu(col, "portadas");
+  if (!ids.length) return [];
+  const byId = new Map((portadaSlidesVambe || []).map((s) => [String(s.id), s]));
+  const out = [];
+  const seen = new Set();
+  const agregar = (pid) => {
+    const id = String(pid || "");
+    if (!id || seen.has(id) || !ids.includes(id)) return;
+    const slide = byId.get(id);
+    if (!slide || !slide.foto) return;
+    seen.add(id);
+    out.push(slide);
+  };
+  (col.orden_tarjetas || []).forEach((tok) => {
+    const p = parseTokenTarjetaColumna(tok);
+    if (p && p.tipo === "portada") agregar(p.id);
+  });
+  ids.forEach(agregar);
+  return out;
+}
+
+/** Misma prioridad que la web: foto de columna → primer flyer → foto de modelo. */
+function fotoPortadaVehiculoVambe(v) {
+  if (!v || !v.marca || !v.modelo) return null;
+  const col = pe && pe.columnaDeVehiculo ? pe.columnaDeVehiculo(v) : null;
+  if (col) {
+    if (col.foto) return col.foto;
+    const slides = portadasFlyerColumnaVambe(col);
+    if (slides[0] && slides[0].foto) return slides[0].foto;
+    const fm = fotoModeloVambe(col.marca, col.modelo);
+    if (fm) return fm;
+  }
+  const direct = fotoModeloVambe(v.marca, v.modelo);
+  return direct || null;
+}
+
+function lineaDescripcionVehiculoVambe(v) {
+  if (!v) return null;
+  const col = pe && pe.columnaDeVehiculo ? pe.columnaDeVehiculo(v) : null;
+  if (col) return etiquetaColumnaVambe(col);
+  const parts = [`${v.marca || ""} ${v.modelo || ""}`.trim()];
+  if (v.ano != null && Number.isFinite(Number(v.ano))) parts.push(String(v.ano));
+  const comb = String(v.combustible || "ambos");
+  if (comb && comb !== "ambos") {
+    parts.push(comb === "diesel" ? "Diésel" : comb === "bencina" ? "Bencina" : comb);
+  }
+  return parts.filter(Boolean).join(" · ") || null;
+}
+
 /** Snapshot u objeto interno: produce salida estable para la API Vambe */
 function mapVehicleOut(v) {
   if (!v) return null;
+  const vi = vehiculoInternoDesdeOut(v);
+  const coverRaw = fotoPortadaVehiculoVambe(vi);
+  const description_line = lineaDescripcionVehiculoVambe(vi);
   if (v.marca != null || v.modelo != null) {
     return {
       brand: v.marca,
       model: v.modelo,
       year: v.ano,
       fuel: v.combustible,
+      description_line,
+      cover_image_url: coverRaw ? absolutizarUrlMedioVambe(coverRaw) : null,
     };
   }
   return {
@@ -1147,6 +1235,8 @@ function mapVehicleOut(v) {
     model: v.model,
     year: v.year,
     fuel: v.fuel,
+    description_line,
+    cover_image_url: coverRaw ? absolutizarUrlMedioVambe(coverRaw) : null,
   };
 }
 
@@ -1742,6 +1832,7 @@ async function compatibleServicesVambe(body) {
     disambiguation_needed,
     locale,
     channel: String((body && body.channel) || "").trim() || null,
+    vehicle: mapVehicleOut(vehiculo),
     candidates,
     warnings,
   };

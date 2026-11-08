@@ -289,6 +289,15 @@ Campos opcionales útiles: `priority` (número, mayor = más prioridad en empate
 
 ---
 
+### Objeto `vehicle` en respuestas
+
+Además de `brand`, `model`, `year` y `fuel`, incluye:
+
+- **`description_line`** — misma línea que `column_label` del menú (ej. `Hyundai Santa Fe · 2010–2026 · Diésel`).
+- **`cover_image_url`** — portada del vehículo (foto de columna en tablero, si no hay → primer flyer de la columna, si no → `_fotos_modelos` del catálogo). URL absoluta o `null`.
+
+Presente en cotizaciones exitosas (`quote-flat`), `vehicle-menu`, `compatible-services` y `validate`.
+
 ### `POST /api/vambe/catalog/vehicle-menu`
 
 Menú completo por vehículo (columna del tablero). Misma autenticación y vehículo plano que `quote-flat`.
