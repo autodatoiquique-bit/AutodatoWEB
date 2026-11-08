@@ -501,6 +501,40 @@ function descuentosCondicionales(s) {
  * Solo reglas salientes (complementos del servicio en carrito), no reglas entrantes
  * (evita mostrar el precio combo del ítem del carrito como si fuera precio del add-on).
  */
+/** Complementos que bajan de precio si el cliente lleva `parent` (vista menú / descarbonización → CKP, etc.). */
+function bundledAddonsMenuVambe(parent, vehiculo) {
+  if (!parent || esServicioCombo(parent)) return [];
+  const parentCode = formatoNumeroSerie(numeroSerieDe(parent));
+  const parentName = String(parent.nombre || "").trim();
+  return (parent.complementos || [])
+    .map((c) => {
+      const otro = servicioPorId(c.id);
+      if (!otro || !Number.isFinite(Number(c.precioCombo)) || Number(c.precioCombo) <= 0) return null;
+      const ap = servicioAplicaAVehiculo(otro, vehiculo);
+      if (!ap.aplica) return null;
+      const pSolo = precioPagado(otro, [], vehiculo, {});
+      const pCombo = precioPagado(otro, [parent.id], vehiculo, {});
+      const lista = pSolo.lista != null ? Math.round(Number(pSolo.lista)) : null;
+      const comboCfg = Math.round(Number(c.precioCombo));
+      let bundled =
+        pCombo.pagado != null && pCombo.regla && pCombo.regla.tipo === "asociacion"
+          ? Math.round(Number(pCombo.pagado))
+          : comboCfg;
+      if (!Number.isFinite(bundled) || bundled <= 0) return null;
+      return {
+        service_code: formatoNumeroSerie(numeroSerieDe(otro)),
+        canonical_service_name: String(otro.nombre || "").trim(),
+        price_if_bundled_with_parent: bundled,
+        price_list_standalone: lista,
+        savings: lista != null ? Math.max(0, lista - bundled) : null,
+        parent_service_code: parentCode,
+        parent_service_name: parentName,
+        label: String(c.etiqueta || "").trim() || null,
+      };
+    })
+    .filter(Boolean);
+}
+
 function recomendadosPara(s, vehiculo) {
   if (!s || esServicioCombo(s)) return [];
   return (s.complementos || [])
@@ -919,13 +953,17 @@ function addonsSugeridosVambe(carrito, vehiculo) {
       const idsCtx = idsServiciosEnCarrito(carrito);
       const p = precioPagado(otro, idsCtx, vehiculo, {});
       const price = p.pagado != null ? Math.round(Number(p.pagado)) : r.precio_si_combinan;
-      const price_list = p.lista != null ? Math.round(Number(p.lista)) : null;
+      const listaRef = p.lista != null ? Math.round(Number(p.lista)) : null;
       out.push({
         code: r.codigo,
         name: r.nombre,
         price,
-        price_list,
+        price_list: listaRef,
         combination_price: Boolean(p.regla && p.regla.tipo === "asociacion"),
+        savings: listaRef != null && price != null ? Math.max(0, listaRef - price) : null,
+        trigger_service_code: formatoNumeroSerie(numeroSerieDe(s)),
+        trigger_service_name: String(s.nombre || "").trim(),
+        requires_service_in_cart: true,
         reason: r.mensaje || "Complemento sugerido",
       });
     });
@@ -1388,11 +1426,16 @@ function combinationPromotionsDescubrimiento(s, vehiculo) {
       if (!other || !Number.isFinite(Number(r.precio)) || Number(r.precio) <= 0) return null;
       const ap = servicioAplicaAVehiculo(other, vehiculo);
       const codOtro = formatoNumeroSerie(numeroSerieDe(other));
+      const solo = precioPagado(s, [], vehiculo, {});
+      const listaSolo = solo.lista != null ? Math.round(Number(solo.lista)) : null;
+      const precioCombo = Math.round(Number(r.precio));
       return {
         requires_service_code: codOtro,
         requires_service_name: String(other.nombre || "").trim(),
         /** Precio del servicio actual si además contratan `requires_*` (igual que en cotización con ambos). */
-        price_for_this_service: Math.round(Number(r.precio)),
+        price_for_this_service: precioCombo,
+        price_list_standalone: listaSolo,
+        savings_if_bundled: listaSolo != null ? Math.max(0, listaSolo - precioCombo) : null,
         label: String(r.etiqueta || "").trim() || null,
         other_service_compatible_with_vehicle: ap.aplica,
       };
@@ -1866,6 +1909,7 @@ async function vehicleMenuVambe(body) {
       variant_hints,
       rank,
       combination_promotions,
+      bundled_addons: bundledAddonsMenuVambe(s, vehiculo),
       is_combo: isCombo,
       pack_contents,
       sold_out: Boolean(s.agotado),

@@ -90,6 +90,8 @@ function buildExtras(opts) {
     a4: o.a4 || { numero_serie: 4, oil_liters: 6 },
     a9: o.a9 || { numero_serie: 9 },
     a11: o.a11 || { numero_serie: 11 },
+    ...(o.a_desc ? { a_desc: o.a_desc } : {}),
+    ...(o.a_ckp ? { a_ckp: o.a_ckp } : {}),
   };
 }
 
@@ -154,7 +156,7 @@ function mockCatalogFetch(extraOpts) {
         service_families: '["cambio_refrigerante"]',
       },
     ];
-  const complementos = [
+  const complementos = o.complementos || [
     { servicio_id: "a1", asociado_id: "a3", precio_combo: 120000, etiqueta: "con 0001" },
   ];
   const extras = buildExtras(extraOpts);
@@ -1398,6 +1400,96 @@ describe("Vambe pricing", () => {
     });
     assert.equal(out.ok, true);
     assert.equal(out.candidates[0].service_code, "0001");
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("vehicle-menu descarbonización expone bundled_addons CKP 160k", async () => {
+    const rows = [
+      {
+        id: "a_desc",
+        tipo: "oferta",
+        nombre: "Descarbonización",
+        precio: 240000,
+        activo: true,
+        service_families: '["descarbonizacion"]',
+      },
+      {
+        id: "a_ckp",
+        tipo: "oferta",
+        nombre: "Sensor CKP",
+        precio: 220000,
+        activo: true,
+        service_families: '["sensor_ckp"]',
+      },
+    ];
+    const complementos = [{ servicio_id: "a_desc", asociado_id: "a_ckp", precio_combo: 160000, etiqueta: "con descarbonización" }];
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: rows,
+        complementos,
+        a_desc: { numero_serie: 1, oferta_combo: true },
+        a_ckp: { numero_serie: 18, oferta_combo: true },
+        serviciosEnColumna: ["a_desc", "a_ckp"],
+      })
+    );
+    const ap = reloadAsistente();
+    const menu = await ap.vehicleMenuVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+    });
+    const desc = menu.services.find((s) => s.service_code === "0001");
+    const ckp = menu.services.find((s) => s.service_code === "0018");
+    assert.ok(desc && desc.bundled_addons && desc.bundled_addons.some((b) => b.service_code === "0018" && b.price_if_bundled_with_parent === 160000));
+    assert.ok(ckp && ckp.combination_promotions.some((c) => c.requires_service_code === "0001" && c.price_for_this_service === 160000));
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("suggested_addons descarbonización en carrito sugiere CKP 160k", async () => {
+    cotizacionesMem.clear();
+    const rows = [
+      {
+        id: "a_desc",
+        tipo: "oferta",
+        nombre: "Descarbonización",
+        precio: 240000,
+        activo: true,
+      },
+      {
+        id: "a_ckp",
+        tipo: "oferta",
+        nombre: "Sensor CKP",
+        precio: 220000,
+        activo: true,
+      },
+    ];
+    const complementos = [{ servicio_id: "a_desc", asociado_id: "a_ckp", precio_combo: 160000, etiqueta: "con descarbonización" }];
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: rows,
+        complementos,
+        a_desc: { numero_serie: 1, oferta_combo: true },
+        a_ckp: { numero_serie: 18, oferta_combo: true },
+        serviciosEnColumna: ["a_desc", "a_ckp"],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.cotizarVambeInterno({
+      action: "quote",
+      vehicle: vehicleHyundai,
+      service_codes: ["0001"],
+      channel: "vambe",
+      idempotency_key: "desc-ckp-" + Date.now(),
+    });
+    const sug = (out.suggested_addons || []).find((x) => x.code === "0018");
+    assert.ok(sug);
+    assert.equal(sug.price, 160000);
+    assert.equal(sug.trigger_service_code, "0001");
+    assert.equal(sug.savings, 60000);
     global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
     reloadAsistente();
   });
