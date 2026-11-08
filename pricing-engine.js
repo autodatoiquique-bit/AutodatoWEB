@@ -120,9 +120,13 @@
       return combustibleCoincide(v.combustible, col.combustible);
     }
 
+    function columnasCandidatasVehiculo(v) {
+      if (!v || !v.marca || !v.modelo) return [];
+      return tableroColumnas.filter((c) => vehiculoEnColumna(v, c));
+    }
+
     function columnaDeVehiculo(v) {
-      if (!v || !v.marca || !v.modelo) return null;
-      const candidatos = tableroColumnas.filter((c) => vehiculoEnColumna(v, c));
+      const candidatos = columnasCandidatasVehiculo(v);
       if (!candidatos.length) return null;
       if (candidatos.length === 1) return candidatos[0];
       if (v.ano != null && v.ano !== "") {
@@ -541,6 +545,10 @@
       mejorComboEntrante,
       nombreServicioDe,
       promocionTemporalVigente,
+      columnaDeVehiculo,
+      columnasCandidatasVehiculo,
+      itemOcultoEnColumna,
+      idsDeColumna,
     };
   }
 

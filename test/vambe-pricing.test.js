@@ -919,6 +919,60 @@ describe("Vambe pricing", () => {
     assert.equal(b.items.length, 1);
   });
 
+  test("vehicle-menu devuelve servicios de columna con rank y campos Vambe", async () => {
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    const ap = reloadAsistente();
+    const out = await ap.vehicleMenuVambe({
+      scope: "hyundai_kia",
+      channel: "vambe",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      locale: "es-CL",
+    });
+    assert.equal(out.ok, true);
+    assert.ok(out.column_id);
+    assert.ok(out.column_label);
+    assert.ok(out.services.length >= 3);
+    assert.ok(out.services.every((s) => s.service_code && s.canonical_service_name && s.detail != null));
+    assert.ok(out.services.every((s) => typeof s.rank === "number"));
+    const codes = new Set(out.services.map((s) => s.service_code));
+    assert.equal(codes.has("0003"), true);
+    assert.equal(codes.has("0011"), true);
+    assert.ok(Array.isArray(out.combinations));
+  });
+
+  test("vehicle-menu quote-flat con service_code del menú", async () => {
+    cotizacionesMem.clear();
+    quoteSeq = 0;
+    const ap = reloadAsistente();
+    const menu = await ap.vehicleMenuVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+    });
+    const pick = menu.services.find((s) => s.service_code === "0003");
+    assert.ok(pick);
+    const internal = ap.quoteFlatBodyToInternal({
+      action: "quote",
+      scope: "hyundai_kia",
+      channel: "vambe",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_code: pick.service_code,
+      idempotency_key: "vm-quote-" + Date.now(),
+    });
+    const q = await ap.cotizarVambeInterno(internal);
+    assert.equal(q.ok, true);
+    assert.ok(q.quote_id);
+    assert.ok(q.items.some((it) => String(it.code || it.service_code).replace(/\D/g, "").padStart(4, "0").slice(-4) === "0003"));
+  });
+
   test("compatible-services Hyundai: varios candidatos y disambiguation", async () => {
     global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
     const ap = reloadAsistente();

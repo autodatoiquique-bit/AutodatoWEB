@@ -1608,6 +1608,278 @@ async function compatibleServicesVambe(body) {
   };
 }
 
+function parseTokenTarjetaColumna(tok) {
+  const m = String(tok || "").match(/^([ps]):(.+)$/);
+  if (!m) return null;
+  return { tipo: m[1] === "p" ? "portada" : "servicio", id: m[2] };
+}
+
+function tokenTarjetaColumnaMenu(tipo, id) {
+  const sid = String(id || "");
+  if (!sid) return "";
+  return `${tipo === "portada" ? "p" : "s"}:${sid}`;
+}
+
+function idsDeColumnaMenu(col, campo) {
+  if (!col || !Array.isArray(col[campo])) return [];
+  return col[campo].map(String).filter(Boolean);
+}
+
+function sincronizarOrdenTarjetasColMenu(col) {
+  if (!col) return;
+  const vistos = new Set();
+  const out = [];
+  const push = (tok) => {
+    if (!tok || vistos.has(tok)) return;
+    const p = parseTokenTarjetaColumna(tok);
+    if (!p) return;
+    if (p.tipo === "portada" && !idsDeColumnaMenu(col, "portadas").includes(p.id)) return;
+    if (p.tipo === "servicio" && !idsDeColumnaMenu(col, "servicios").includes(p.id)) return;
+    vistos.add(tok);
+    out.push(tok);
+  };
+  (Array.isArray(col.orden_tarjetas) ? col.orden_tarjetas : []).forEach(push);
+  idsDeColumnaMenu(col, "portadas").forEach((id) => push(tokenTarjetaColumnaMenu("portada", id)));
+  idsDeColumnaMenu(col, "servicios").forEach((id) => push(tokenTarjetaColumnaMenu("servicio", id)));
+  col.orden_tarjetas = out;
+}
+
+function columnaIdVambe(col) {
+  if (!col) return "";
+  const id = String(col.id || "").trim();
+  if (id) return id;
+  const marca = String(col.marca || "").toLowerCase().replace(/\s+/g, "_");
+  const modelo = String(col.modelo || "").toLowerCase().replace(/\s+/g, "_");
+  const comb = String(col.combustible || "ambos");
+  const d = col.ano_desde != null ? col.ano_desde : "";
+  const h = col.ano_hasta != null ? col.ano_hasta : "";
+  return [marca, modelo, comb, d, h].filter((x) => x !== "").join("_");
+}
+
+function etiquetaColumnaVambe(col) {
+  if (!col) return "";
+  const desde = col.ano_desde != null ? col.ano_desde : null;
+  const hasta = col.ano_hasta != null ? col.ano_hasta : null;
+  let rango = "";
+  if (desde != null && hasta != null) rango = `${desde}–${hasta}`;
+  else if (desde != null) rango = `desde ${desde}`;
+  else if (hasta != null) rango = `hasta ${hasta}`;
+  const combRaw = String(col.combustible || "ambos").toLowerCase();
+  const comb =
+    combRaw === "diesel" ? "Diésel" : combRaw === "bencina" ? "Bencina" : combRaw === "ambos" ? "Ambos" : combRaw;
+  const parts = [`${col.marca} ${col.modelo}`.trim()];
+  if (rango) parts.push(rango);
+  parts.push(comb);
+  return parts.join(" · ");
+}
+
+function detalleMenuServicio(s) {
+  const res = String((s && s.resumen) || "").trim();
+  if (res) return res.length > 500 ? `${res.slice(0, 497)}…` : res;
+  const det = String((s && s.detalle) || "").trim();
+  if (det) {
+    const line = det.split(/\r?\n/).map((l) => l.trim()).find(Boolean);
+    const t = line || det.slice(0, 160);
+    return t.length > 500 ? `${t.slice(0, 497)}…` : t;
+  }
+  return String((s && s.nombre) || "").trim();
+}
+
+function precioPreviewMenuItem(s, vehiculo) {
+  if (esServicioCombo(s)) {
+    const pack = preciosPackCombo(s, vehiculo);
+    const price_list = pack.lista != null ? Math.round(Number(pack.lista)) : null;
+    const price_with_promotions = pack.pagado != null ? Math.round(Number(pack.pagado)) : null;
+    let promotion_summary = null;
+    if (pack.ahorro > 0) promotion_summary = "Pack combo";
+    return { price_list, price_with_promotions, promotion_summary };
+  }
+  return precioPreviewDescubrimiento(s, vehiculo);
+}
+
+function columnaDeVehiculoMenu(v) {
+  return pe.columnaDeVehiculo(v);
+}
+
+function columnasCandidatasVehiculoMenu(v) {
+  return pe.columnasCandidatasVehiculo(v);
+}
+
+function itemOcultoEnColumnaMenu(col, tipo, id) {
+  return pe.itemOcultoEnColumna(col, tipo, id);
+}
+
+async function vehicleMenuVambe(body) {
+  await asegurarCatalogo();
+  const scope = parseScopeVambe(body || {});
+  const locale = String((body && body.locale) || "").trim() || null;
+  const channel = String((body && body.channel) || "").trim() || null;
+  const vehErrIn = validarVehiculoVambeParaCotizar(body || {}, scope);
+  if (vehErrIn) {
+    return {
+      ...vehErrIn,
+      catalog_version: catalogVersionHash || null,
+      column_id: null,
+      column_label: null,
+      services: [],
+      combinations: [],
+    };
+  }
+  const vehiculo = normalizarVehiculoVambe(body || {});
+  const vehNormErr = validarVehiculoNormalizadoVambe(vehiculo, scope, null);
+  if (vehNormErr) {
+    return {
+      ...vehNormErr,
+      catalog_version: catalogVersionHash || null,
+      column_id: null,
+      column_label: null,
+      services: [],
+      combinations: [],
+    };
+  }
+
+  if (!Array.isArray(catalogo) || catalogo.length === 0) {
+    return {
+      ok: false,
+      eligible: true,
+      error_code: "CATALOG_EMPTY",
+      message: "No hay servicios activos en el catálogo.",
+      catalog_version: catalogVersionHash,
+      column_id: null,
+      column_label: null,
+      services: [],
+      combinations: [],
+    };
+  }
+
+  const { eligible, warnings: wElig } = vehiculoEligible(vehiculo);
+  const warnings = [...(wElig || [])];
+  warnings.push({
+    code: "PRICE_IS_PREVIEW",
+    message: "price_list y price_with_promotions son referencia; el total contractual viene de quote-flat.",
+  });
+
+  const candidatos = columnasCandidatasVehiculoMenu(vehiculo);
+  const col = columnaDeVehiculoMenu(vehiculo);
+  if (!col) {
+    return {
+      ok: false,
+      eligible,
+      error_code: "NO_BOARD_COLUMN",
+      message: "No hay columna de tablero para este vehículo.",
+      catalog_version: catalogVersionHash,
+      scope: scope || null,
+      channel,
+      locale,
+      vehicle: mapVehicleOut(vehiculo),
+      column_id: null,
+      column_label: null,
+      services: [],
+      combinations: [],
+      warnings,
+    };
+  }
+
+  const colWork = { ...col, orden_tarjetas: Array.isArray(col.orden_tarjetas) ? col.orden_tarjetas.slice() : [] };
+  sincronizarOrdenTarjetasColMenu(colWork);
+
+  const services = [];
+  const combinations = [];
+  const combinationKeys = new Set();
+  let rank = 0;
+
+  (colWork.orden_tarjetas || []).forEach((tok) => {
+    const p = parseTokenTarjetaColumna(tok);
+    if (!p || p.tipo !== "servicio") return;
+    if (itemOcultoEnColumnaMenu(colWork, "servicio", p.id)) return;
+    const s = servicioPorId(p.id);
+    if (!s || s.activo === false) return;
+    if (!idsDeColumnaMenu(colWork, "servicios").includes(p.id)) return;
+    const ev = evalCompatibilidadServicioVehiculo(s, vehiculo);
+    if (!ev.aplica) return;
+
+    rank += 1;
+    const service_code = formatoNumeroSerie(numeroSerieDe(s));
+    const { price_list, price_with_promotions, promotion_summary } = precioPreviewMenuItem(s, vehiculo);
+    const combination_promotions = combinationPromotionsDescubrimiento(s, vehiculo);
+    const variant_hints = construirVariantHintsDescubrimiento(s, promotion_summary);
+    const canonical_service_name = String(s.nombre || "").trim();
+
+    combination_promotions.forEach((cp) => {
+      const key = `${service_code}:${cp.requires_service_code}:${cp.price_for_this_service}`;
+      if (combinationKeys.has(key)) return;
+      combinationKeys.add(key);
+      combinations.push({
+        service_code,
+        canonical_service_name,
+        ...cp,
+      });
+    });
+
+    services.push({
+      service_code,
+      canonical_service_name,
+      detail: detalleMenuServicio(s),
+      price_list,
+      price_with_promotions,
+      promotion_summary,
+      variant_hints,
+      rank,
+      combination_promotions,
+      is_combo: esServicioCombo(s),
+      sold_out: Boolean(s.agotado),
+      available: !s.agotado,
+    });
+  });
+
+  if (!services.length) {
+    return {
+      ok: false,
+      eligible,
+      error_code: "EMPTY_VEHICLE_MENU",
+      message: "La columna del vehículo no tiene servicios cotizables.",
+      catalog_version: catalogVersionHash,
+      scope: scope || null,
+      channel,
+      locale,
+      vehicle: mapVehicleOut(vehiculo),
+      column_id: columnaIdVambe(colWork),
+      column_label: etiquetaColumnaVambe(colWork),
+      services: [],
+      combinations: [],
+      warnings,
+    };
+  }
+
+  const column_id = columnaIdVambe(colWork);
+  const disambiguation_needed = candidatos.length > 1;
+
+  return {
+    ok: true,
+    eligible,
+    scope: scope || null,
+    channel,
+    locale,
+    catalog_version: catalogVersionHash,
+    vehicle: mapVehicleOut(vehiculo),
+    column_id,
+    column_label: etiquetaColumnaVambe(colWork),
+    column: {
+      id: column_id,
+      brand: colWork.marca,
+      model: colWork.modelo,
+      year_from: colWork.ano_desde != null ? colWork.ano_desde : null,
+      year_to: colWork.ano_hasta != null ? colWork.ano_hasta : null,
+      fuel: colWork.combustible || "ambos",
+    },
+    disambiguation_needed,
+    service_count: services.length,
+    services,
+    combinations,
+    warnings,
+  };
+}
+
 /** Webhook plano → cuerpo interno de cotización (mismas respuestas que /catalog/quote). */
 function quoteFlatBodyToInternal(flat) {
   const f = flat && typeof flat === "object" ? flat : {};
@@ -1627,6 +1899,9 @@ function quoteFlatBodyToInternal(flat) {
   }
   if (action === "reprice_remove") {
     internal.remove_service_code = f.remove_service_code;
+    return internal;
+  }
+  if (action === "validate") {
     return internal;
   }
 
@@ -2264,6 +2539,7 @@ module.exports = {
   cotizarVambeInterno,
   ticketDesdeCotizacionVambe,
   compatibleServicesVambe,
+  vehicleMenuVambe,
   quoteFlatBodyToInternal,
   ticketFlatBodyToInternal,
   tokenAsistenteValido,

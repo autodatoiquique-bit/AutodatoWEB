@@ -970,6 +970,8 @@ function vambeQuoteErrorStatus(code) {
     "SERVICE_FAMILIES_NOT_CONFIGURED",
     "UNKNOWN_SERVICE_FAMILY",
     "NO_COMPATIBLE_SERVICE_FOR_FAMILY",
+    "NO_BOARD_COLUMN",
+    "EMPTY_VEHICLE_MENU",
     "INVALID_ACTION",
     "REPRICE_QUOTE_REQUIRED",
     "ADD_SERVICE_CODE_REQUIRED",
@@ -1055,6 +1057,37 @@ app.post("/api/vambe/catalog/compatible-services", async (req, res) => {
       message: "No pudimos consultar servicios compatibles en este momento. Intenta de nuevo en unos minutos.",
       warnings: [],
       quote_id: null,
+    });
+  }
+});
+
+app.post("/api/vambe/catalog/vehicle-menu", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({
+      ok: false,
+      error_code: "UNAUTHORIZED",
+      message: "No autorizado",
+      warnings: [],
+      services: [],
+      combinations: [],
+    });
+  }
+  try {
+    const out = await asistentePrecios.vehicleMenuVambe(req.body || {});
+    if (!out.ok) {
+      const code = out.error_code || "REQUEST_ERROR";
+      return res.status(vambeQuoteErrorStatus(code)).json(out);
+    }
+    return res.json(out);
+  } catch (e) {
+    console.warn("vambe/catalog/vehicle-menu", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos cargar el menú del vehículo en este momento. Intenta de nuevo en unos minutos.",
+      warnings: [],
+      services: [],
+      combinations: [],
     });
   }
 });
