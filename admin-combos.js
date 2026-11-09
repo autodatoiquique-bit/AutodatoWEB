@@ -2,6 +2,7 @@ function comboVacio() {
   const b = servicioVacio();
   b.es_combo = true;
   b.combo_items = [];
+  b.combo_regalo = [];
   b.oferta_combo = false;
   b.tiene_oferta = false;
   b.precio_oferta = null;
@@ -17,25 +18,67 @@ function serviciosElegiblesParaCombo(excluirId) {
   );
 }
 
+function descuentoManualComboAdmin(s) {
+  const pack = preciosPackCombo(s);
+  const base =
+    pack.pagado_asociaciones != null && Number.isFinite(Number(pack.pagado_asociaciones))
+      ? Number(pack.pagado_asociaciones)
+      : Number(pack.pagado) || 0;
+  if (!tieneOferta(s)) return { pesos: 0, pct: 0, base };
+  const final = Number(pack.pagado) || 0;
+  const pesos = Math.max(0, Math.round(base - final));
+  const pct = base > 0 ? (pesos / base) * 100 : 0;
+  return { pesos, pct, base };
+}
+
+function htmlDescuentoComboAdmin(s) {
+  const { pesos, pct, base } = descuentoManualComboAdmin(s);
+  const pctTxt = pct > 0 ? (Math.round(pct * 100) / 100).toString() : "";
+  return `
+    <div class="combo-descuento-manual">
+      <h4 class="combo-descuento-titulo">Descuento adicional del pack</h4>
+      <p class="hint">Se suma a los descuentos por «servicios asociados» entre ítems. Base para el %: total con asociaciones (${clp(base)}).</p>
+      <div class="combo-descuento-campos">
+        <label class="field"><span>Descuento ($)</span><input id="combo-dto-pesos" type="number" min="0" step="1000" value="${pesos > 0 ? pesos : ""}" placeholder="0" inputmode="numeric" /></label>
+        <label class="field"><span>Descuento (%)</span><input id="combo-dto-pct" type="number" min="0" max="100" step="0.1" value="${pctTxt}" placeholder="0" inputmode="decimal" /></label>
+      </div>
+    </div>
+  `;
+}
+
 function htmlTotalesComboAdmin(s) {
   const pack = preciosPackCombo(s);
   const sinStock = comboSinStockMiembros(s);
+  const pagadoAsoc =
+    pack.pagado_asociaciones != null ? pack.pagado_asociaciones : pack.pagado;
   return `
     <div class="combo-admin-totales${sinStock ? " combo-admin-sin-stock" : ""}">
       <div><span>Total lista (suma servicios)</span><strong>${clp(pack.lista)}</strong></div>
-      <div><span>Total combo (con descuentos asociados)</span><strong class="combo-total-pagado">${clp(pack.pagado)}</strong></div>
+      <div><span>Total con reglas asociadas</span><strong>${clp(pagadoAsoc)}</strong></div>
+      <div><span>Total combo (precio final)</span><strong class="combo-total-pagado">${clp(pack.pagado)}</strong></div>
       <div><span>Total ahorrado</span><strong class="combo-total-ahorro">${clp(pack.ahorro)}</strong></div>
       ${
         sinStock
           ? `<p class="error combo-stock-aviso">Algún servicio incluido está agotado: el combo se verá como agotado en la web.</p>`
-          : `<p class="hint">Los precios combo usan las reglas de «servicios asociados» ya definidas en cada servicio.</p>`
+          : `<p class="hint">Marca servicios incluidos y, si quieres, un descuento adicional del pack abajo.</p>`
       }
     </div>
   `;
 }
 
-function htmlCatalogoPickCombo(s) {
+function comboRegaloSetAdmin(s) {
+  const ids =
+    typeof comboRegaloDe === "function"
+      ? comboRegaloDe(s)
+      : Array.isArray(s && s.combo_regalo)
+        ? s.combo_regalo.map((x) => String(x || "").trim()).filter(Boolean)
+        : [];
+  return new Set(ids);
+}
+
+function htmlCatalogoPickComboRows(s) {
   const sel = new Set(comboItemsDe(s));
+  const regalo = comboRegaloSetAdmin(s);
   const q = String(comboBuscaAdmin || "")
     .trim()
     .toLowerCase();
@@ -45,32 +88,48 @@ function htmlCatalogoPickCombo(s) {
     return hay.includes(q);
   });
   const idsActuales = [...sel];
-  const rows = lista
+  return lista
     .map((srv) => {
       const otros = idsActuales.filter((id) => id !== srv.id);
       const p = precioPagado(srv, otros);
       const checked = sel.has(srv.id);
+      const esRegalo = checked && regalo.has(srv.id);
+      const pagadoCombo = esRegalo ? 0 : p.pagado;
+      const ahorroCombo = esRegalo ? p.lista : p.ahorro;
       const agot = servicioSinStock(srv);
-      const regla = p.regla && p.regla.etiqueta ? p.regla.etiqueta : p.ahorro > 0 ? "Descuento por asociación" : "Precio lista";
+      const regla = esRegalo
+        ? "Bonificación 100% (regalo)"
+        : p.regla && p.regla.etiqueta
+          ? p.regla.etiqueta
+          : p.ahorro > 0
+            ? "Descuento por asociación"
+            : "Precio lista";
+      const regaloTitle = checked ? "Bonificación 100%: el servicio queda gratis en este combo" : "Primero incluye el servicio en el combo";
       return `
-        <tr class="${checked ? "combo-pick-on" : ""}${agot ? " combo-pick-agotado" : ""}">
+        <tr class="${checked ? "combo-pick-on" : ""}${esRegalo ? " combo-pick-regalo-on" : ""}${agot ? " combo-pick-agotado" : ""}">
           <td><label class="check combo-pick-check"><input type="checkbox" data-combo-pick="${escapeAttr(srv.id)}" ${checked ? "checked" : ""} /></label></td>
-          <td><strong>${escapeText(srv.nombre)}</strong>${agot ? ` <span class="tag tag-agotado">Agotado</span>` : ""}</td>
+          <td class="combo-pick-regalo-col"><label class="check combo-pick-regalo-check" title="${escapeAttr(regaloTitle)}"><input type="checkbox" data-combo-regalo="${escapeAttr(srv.id)}" ${esRegalo ? "checked" : ""} ${checked ? "" : "disabled"} /></label></td>
+          <td><strong>${escapeText(srv.nombre)}</strong>${agot ? ` <span class="tag tag-agotado">Agotado</span>` : ""}${esRegalo ? ` <span class="tag tag-regalo-combo">Regalo</span>` : ""}</td>
           <td>${clp(srv.precio)}</td>
-          <td>${p.pagado != null ? clp(p.pagado) : "—"}</td>
-          <td>${p.ahorro > 0 ? clp(p.ahorro) : "—"}</td>
+          <td>${checked && pagadoCombo != null ? clp(pagadoCombo) : "—"}</td>
+          <td>${checked && ahorroCombo > 0 ? clp(ahorroCombo) : "—"}</td>
           <td class="muted combo-pick-regla">${escapeText(regla)}</td>
         </tr>
       `;
     })
-    .join("");
+    .join("") || `<tr><td colspan="7" class="muted">No hay servicios que coincidan.</td></tr>`;
+}
+
+function htmlCatalogoPickCombo(s) {
+  const rows = htmlCatalogoPickComboRows(s);
   return `
-    <label class="field"><span>Buscar en catálogo</span><input id="combo-admin-busca" type="search" placeholder="Nombre del servicio" value="${escapeAttr(comboBuscaAdmin)}" /></label>
+    <label class="field"><span>Buscar en catálogo</span><input id="combo-admin-busca" type="search" placeholder="Nombre del servicio" value="${escapeAttr(comboBuscaAdmin)}" autocomplete="off" /></label>
     <div class="combo-pick-wrap">
       <table class="combo-pick-table">
         <thead>
           <tr>
             <th></th>
+            <th class="combo-pick-regalo-col" title="Bonificación 100%">Regalo</th>
             <th>Servicio</th>
             <th>Lista</th>
             <th>En este combo</th>
@@ -78,7 +137,7 @@ function htmlCatalogoPickCombo(s) {
             <th>Regla</th>
           </tr>
         </thead>
-        <tbody>${rows || `<tr><td colspan="6" class="muted">No hay servicios que coincidan.</td></tr>`}</tbody>
+        <tbody id="combo-pick-tbody">${rows}</tbody>
       </table>
     </div>
   `;
@@ -155,6 +214,7 @@ function renderEditorCombo() {
             ${htmlVehiculosEditor(s)}
             <h3>Servicios incluidos</h3>
             <div id="combo-pick-host">${htmlCatalogoPickCombo(s)}</div>
+            <div id="combo-descuento-host">${htmlDescuentoComboAdmin(s)}</div>
             <div id="combo-totales-host">${htmlTotalesComboAdmin(s)}</div>
           </div>
           <div class="editor-col">
@@ -217,17 +277,91 @@ function leerEditorComboBasico() {
   editando.vehiculos = leerVehiculosEditor();
   editando.es_combo = true;
   editando.oferta_combo = false;
-  editando.tiene_oferta = false;
   editando.complementos = [];
+  leerDescuentoManualComboDesdeUi();
+}
+
+function basePagadoComboSinOfertaPack(s) {
+  const pack = preciosPackComboMiembros(s);
+  return Math.max(0, Math.round(Number(pack.pagado) || 0));
+}
+
+function aplicarDescuentoManualCombo(pesos) {
+  if (!editando) return;
+  const base = basePagadoComboSinOfertaPack(editando);
+  let dto = Math.max(0, Math.round(Number(pesos) || 0));
+  if (dto > base) dto = base;
+  if (dto <= 0 || base <= 0) {
+    editando.tiene_oferta = false;
+    editando.precio_oferta = null;
+  } else {
+    editando.tiene_oferta = true;
+    editando.precio_oferta = Math.max(0, base - dto);
+  }
+  const pack = preciosPackCombo(editando);
+  editando.precio = pack.lista;
+}
+
+function leerDescuentoManualComboDesdeUi() {
+  const inp = $("combo-dto-pesos");
+  if (!inp || !editando) return;
+  aplicarDescuentoManualCombo(inp.value);
+}
+
+let comboDtoSyncLock = false;
+
+function sincronizarComboDtoPesosDesdeUi() {
+  if (comboDtoSyncLock || !editando) return;
+  const base = basePagadoComboSinOfertaPack(editando);
+  const inpP = $("combo-dto-pesos");
+  const inpC = $("combo-dto-pct");
+  if (!inpP) return;
+  let pesos = Math.max(0, Math.round(Number(inpP.value) || 0));
+  if (pesos > base) pesos = base;
+  comboDtoSyncLock = true;
+  if (inpC && base > 0) {
+    const pct = (pesos / base) * 100;
+    inpC.value = pct > 0 ? String(Math.round(pct * 100) / 100) : "";
+  }
+  comboDtoSyncLock = false;
+  aplicarDescuentoManualCombo(pesos);
+  refrescarTotalesComboEnDom();
+}
+
+function sincronizarComboDtoPctDesdeUi() {
+  if (comboDtoSyncLock || !editando) return;
+  const base = basePagadoComboSinOfertaPack(editando);
+  const inpP = $("combo-dto-pesos");
+  const inpC = $("combo-dto-pct");
+  if (!inpC) return;
+  let pct = Math.max(0, Math.min(100, Number(inpC.value) || 0));
+  const pesos = base > 0 ? Math.round((base * pct) / 100) : 0;
+  comboDtoSyncLock = true;
+  if (inpP) inpP.value = pesos > 0 ? String(pesos) : "";
+  comboDtoSyncLock = false;
+  aplicarDescuentoManualCombo(pesos);
+  refrescarTotalesComboEnDom();
+}
+
+function refrescarTotalesComboEnDom(opts) {
+  const full = opts && opts.refreshDescuento;
+  const tot = $("combo-totales-host");
+  const pv = $("pv-precios");
+  const desc = $("combo-descuento-host");
+  if (tot) tot.innerHTML = htmlTotalesComboAdmin(editando);
+  if (pv) pv.innerHTML = htmlPrecioPreviewCombo(editando);
+  if (full && desc) desc.innerHTML = htmlDescuentoComboAdmin(editando);
 }
 
 function refrescarPickComboEnDom() {
-  const host = $("combo-pick-host");
-  const tot = $("combo-totales-host");
-  const pv = $("pv-precios");
-  if (host) host.innerHTML = htmlCatalogoPickCombo(editando);
-  if (tot) tot.innerHTML = htmlTotalesComboAdmin(editando);
-  if (pv) pv.innerHTML = htmlPrecioPreviewCombo(editando);
+  const tbody = $("combo-pick-tbody");
+  if (tbody) {
+    tbody.innerHTML = htmlCatalogoPickComboRows(editando);
+  } else {
+    const host = $("combo-pick-host");
+    if (host) host.innerHTML = htmlCatalogoPickCombo(editando);
+  }
+  refrescarTotalesComboEnDom({ refreshDescuento: true });
 }
 
 function toggleComboItem(servicioId, on) {
@@ -239,10 +373,58 @@ function toggleComboItem(servicioId, on) {
   if (on) set.add(id);
   else set.delete(id);
   editando.combo_items = [...set];
+  if (!on) toggleComboRegalo(id, false);
   editando.es_combo = true;
   const pack = preciosPackCombo(editando);
   editando.precio = pack.lista;
+  leerDescuentoManualComboDesdeUi();
   refrescarPickComboEnDom();
+}
+
+function toggleComboRegalo(servicioId, on) {
+  if (!editando) return;
+  const id = String(servicioId || "").trim();
+  if (!id) return;
+  const miembros = new Set(comboItemsDe(editando));
+  if (!miembros.has(id)) return;
+  if (!Array.isArray(editando.combo_regalo)) editando.combo_regalo = [];
+  const set = new Set(editando.combo_regalo.map((x) => String(x || "").trim()).filter(Boolean));
+  if (on) set.add(id);
+  else set.delete(id);
+  editando.combo_regalo = [...set];
+  const pack = preciosPackCombo(editando);
+  editando.precio = pack.lista;
+  leerDescuentoManualComboDesdeUi();
+  refrescarPickComboEnDom();
+}
+
+async function confirmarActivarComboRegalo(checkbox) {
+  if (!checkbox || !editando || !editando.es_combo) return;
+  const id = String(checkbox.dataset.comboRegalo || "").trim();
+  if (!id) return;
+  if (!checkbox.checked) {
+    leerEditorComboBasico();
+    toggleComboRegalo(id, false);
+    return;
+  }
+  const srv = typeof servicioPorId === "function" ? servicioPorId(id) : null;
+  const nombre = (srv && srv.nombre) || id;
+  const precioLista = srv && srv.precio != null ? clp(srv.precio) : "—";
+  const cuerpo = `<p>Vas a marcar <strong>${escapeText(nombre)}</strong> como <strong>regalo</strong> en este combo.</p>
+    <p>Dentro del pack ese servicio quedará a <strong>$0</strong> (valor de lista: <strong>${precioLista}</strong>).</p>
+    <p class="error">Confirma solo si quieres bonificarlo al 100%. Si fue un clic accidental, cancela.</p>`;
+  let ok = false;
+  if (typeof pedirConfirmacionAdmin === "function") {
+    ok = await pedirConfirmacionAdmin("Bonificación 100% — ¿es regalo?", cuerpo);
+  } else {
+    ok = confirm(`¿Marcar «${nombre}» como regalo (100% bonificación) en este combo?`);
+  }
+  if (!ok) {
+    checkbox.checked = false;
+    return;
+  }
+  leerEditorComboBasico();
+  toggleComboRegalo(id, true);
 }
 
 function htmlTarjetaComboAdmin(s) {
@@ -296,7 +478,7 @@ function renderListadoCombos() {
   `;
 }
 
-function abrirCombo(id) {
+function abrirEditorComboCatalogo(id) {
   const s = servicioPorId(id);
   if (!s || !s.es_combo) return;
   editando = normalizarServicio(JSON.parse(JSON.stringify(s)));
@@ -312,7 +494,7 @@ function nuevoCombo() {
   renderEditorCombo();
 }
 
-async function guardarCombo() {
+async function guardarComboPack() {
   leerEditorComboBasico();
   if (!editando.nombre) {
     alert("Escribe el nombre del combo.");
@@ -381,7 +563,7 @@ $("stage")?.addEventListener("click", (e) => {
     return;
   }
   if (e.target.id === "btn-guardar-combo-editor") {
-    guardarCombo();
+    guardarComboPack();
     return;
   }
   if (e.target.id === "btn-borrar-combo") {
@@ -390,22 +572,37 @@ $("stage")?.addEventListener("click", (e) => {
   }
   const abrir = e.target.closest("[data-abrir-combo]");
   if (abrir) {
-    abrirCombo(abrir.dataset.abrirCombo);
+    abrirEditorComboCatalogo(abrir.dataset.abrirCombo);
     return;
   }
 });
 
-$("stage")?.addEventListener("change", (e) => {
+$("stage")?.addEventListener("change", async (e) => {
   const pick = e.target.closest("[data-combo-pick]");
-  if (!pick || !editando || !editando.es_combo) return;
-  leerEditorComboBasico();
-  toggleComboItem(pick.dataset.comboPick, pick.checked);
+  if (pick && editando && editando.es_combo) {
+    leerEditorComboBasico();
+    toggleComboItem(pick.dataset.comboPick, pick.checked);
+    return;
+  }
+  const regalo = e.target.closest("[data-combo-regalo]");
+  if (regalo && editando && editando.es_combo) {
+    await confirmarActivarComboRegalo(e.target);
+  }
 });
 
 $("stage")?.addEventListener("input", (e) => {
   if (e.target.id === "combo-admin-busca") {
     comboBuscaAdmin = e.target.value;
     if (editando && editando.es_combo) refrescarPickComboEnDom();
+    return;
+  }
+  if (e.target.id === "combo-dto-pesos") {
+    sincronizarComboDtoPesosDesdeUi();
+    return;
+  }
+  if (e.target.id === "combo-dto-pct") {
+    sincronizarComboDtoPctDesdeUi();
+    return;
   }
   if (editando && editando.es_combo && (e.target.id === "e-nombre" || e.target.id === "e-resumen" || e.target.id === "e-detalle")) {
     if (e.target.id === "e-nombre" && $("pv-nombre")) $("pv-nombre").textContent = e.target.value || "Nombre del combo";

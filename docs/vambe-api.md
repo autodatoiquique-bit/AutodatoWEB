@@ -101,6 +101,9 @@ Cada promoción temporal en `active_promotions[]` incluye `image_url` / `image_u
 
 **Ítems (`items[]`):** además de `applied_rules` (lista), cada línea incluye cuando corresponde:
 
+- `included_services` — códigos de serie (`####`) de trabajos **incluidos sin costo** en esa línea (combos y servicios con «Servicios incluidos» en admin).
+- `pack_contents` — mismo desglose que en `vehicle-menu` (nombres, detalle, argumento, imágenes, `included_at_no_extra_charge`).
+- `assistant_note` — frase explícita para el bot: no vender por separado lo que ya viene dentro del servicio cotizado.
 - `promotion_id`, `promotion_name` — si ganó una promoción temporal.
 - `applied_rule` — objeto con `type`, `tier_order` (1–4 según prioridad documentada), `label`, y campos auxiliares.
 - `price_before` — precio de referencia **antes** de la regla final (lista si la regla es combinación u oferta fija; precio previo a la capa temporal si gana la promo temporal).
@@ -307,7 +310,8 @@ Cada elemento de `services[]` incluye:
 - `argumento_venta` — copy comercial configurado en el admin (servicios individuales o pack); `null` si vacío.
 - `detail` — resumen/descripción para contexto (no reemplaza el argumento de venta).
 - `is_combo` — `true` si es pack.
-- `pack_contents` — si `is_combo`, desglose ordenado de ítems incluidos; cada uno con `service_code`, `canonical_service_name`, `detail`, `argumento_venta`, `image_url`, `image_urls`. Si no es pack, array vacío `[]`.
+- `pack_contents` — desglose de trabajos **incluidos sin costo adicional**: en packs (`is_combo: true`), los miembros del combo; en servicios individuales, lo configurado en admin como «Servicios incluidos». Cada ítem trae `service_code`, `canonical_service_name`, `detail`, `argumento_venta`, `image_url`, `image_urls` y, si aplica, `included_at_no_extra_charge: true`.
+- `assistant_note` — texto listo para el bot: indica qué no debe cotizar por separado (ej. regeneración DPF ya dentro del escáner).
 - `image_url` — portada del servicio (misma lógica que la ficha web: `foto`, galería `media` del catálogo y URLs de imagen embebidas en resumen/descripción/argumento de venta). URL absoluta; `null` si no hay imagen.
 - `image_urls` — todas las imágenes detectadas para ese servicio, en orden (portada primero).
 - `promotions` — flyers de portada del tablero para ese vehículo (`portada_slides` en columna). Cada ítem: `promotion_id`, `rank`, `image_url`, `image_urls`, `service_code` / `linked_service_name` si el flyer apunta a un servicio, `label` (texto del botón en admin).
@@ -397,6 +401,9 @@ Orden documentado y reflejado en `tierReglaPrecio` / `mejorPrecioEntre`:
 
 - Un combo se representa como **una línea**; `included_services` son códigos de serie de los miembros.
 - Si se pide un servicio ya incluido en un combo del mismo pedido, se **omite** con advertencia `SERVICE_ALREADY_IN_COMBO` (no se cobra dos veces).
+- Si se pide un código que ya va **sin costo** dentro de otro servicio del mismo pedido (admin → «Servicios incluidos»), se **omite** con `SERVICE_ALREADY_INCLUDED` e indica `parent_service_code` / `parent_service_name`.
+
+En **`compatible-services`**, si el candidato es un trabajo que solo tiene sentido como incluido (ej. DPF), revisa `included_in_parent_services` y `bundled_in_parent_note`: ahí dice en qué servicio padre ya viene gratis.
 - `applied_rules` incluye `type: "combo"` y `source_code` del combo cuando corresponde.
 
 ## `catalog_version`

@@ -15,9 +15,13 @@ const MODELOS = {
 const ANIO_MIN = 2010;
 const ANIO_MAX = new Date().getFullYear();
 const MODELOS_EXTRA_KEY = "autodato_modelos_extra";
+const MARCAS_EXTRA_KEY = "autodato_marcas_extra";
 const FOTOS_MODELOS_KEY = "autodato_fotos_modelos";
 const TABLERO_KEY = "autodato_tablero_columnas";
+/** Opción en selects del tablero admin para crear marca/modelo no listado. */
+const COL_SEL_NUEVA = "__nueva__";
 let MODELOS_EXTRA = {};
+let MARCAS_EXTRA = [];
 let FOTOS_MODELOS = {};
 let TABLERO_COLUMNAS = [];
 
@@ -38,6 +42,19 @@ function hidratarModelosExtra() {
 
 function persistirModelosExtra() {
   localStorage.setItem(MODELOS_EXTRA_KEY, JSON.stringify(MODELOS_EXTRA || {}));
+}
+
+function hidratarMarcasExtra() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MARCAS_EXTRA_KEY) || "[]");
+    if (Array.isArray(raw)) MARCAS_EXTRA = raw.map((m) => String(m || "").trim()).filter(Boolean);
+  } catch (e) {
+    MARCAS_EXTRA = MARCAS_EXTRA || [];
+  }
+}
+
+function persistirMarcasExtra() {
+  localStorage.setItem(MARCAS_EXTRA_KEY, JSON.stringify(MARCAS_EXTRA || []));
 }
 
 function hidratarFotosModelos() {
@@ -467,15 +484,48 @@ function sembrarColumnasTablero() {
   persistirTablero();
 }
 
+function registrarMarca(marca) {
+  const m = String(marca || "").trim();
+  if (!m || m === "*" || m === "Otro" || m === COL_SEL_NUEVA) return false;
+  if (!MARCAS.includes(m) && !MARCAS_EXTRA.includes(m)) {
+    MARCAS_EXTRA.push(m);
+    persistirMarcasExtra();
+  }
+  if (!MODELOS[m] && !Array.isArray(MODELOS_EXTRA[m])) MODELOS_EXTRA[m] = [];
+  return true;
+}
+
 function registrarModelo(marca, modelo) {
   const m = String(modelo || "").trim();
-  if (!marca || !m || m === "*") return false;
+  if (!marca || !m || m === "*" || m === "Otro" || m === COL_SEL_NUEVA) return false;
+  registrarMarca(marca);
   const base = MODELOS[marca] || [];
   if (base.includes(m)) return true;
   if (!MODELOS_EXTRA[marca]) MODELOS_EXTRA[marca] = [];
   if (!MODELOS_EXTRA[marca].includes(m)) MODELOS_EXTRA[marca].push(m);
   persistirModelosExtra();
   return true;
+}
+
+function marcasParaAdminColumna() {
+  const set = new Set(MARCAS);
+  (MARCAS_EXTRA || []).forEach((m) => set.add(m));
+  columnasTableroActivas().forEach((c) => set.add(c.marca));
+  const lista = [...set].filter(Boolean);
+  lista.sort((a, b) => {
+    const ia = MARCAS.indexOf(a);
+    const ib = MARCAS.indexOf(b);
+    if (ia >= 0 && ib >= 0) return ia - ib;
+    if (ia >= 0) return -1;
+    if (ib >= 0) return 1;
+    return a.localeCompare(b, "es");
+  });
+  return lista;
+}
+
+function modelosParaAdminColumna(marca) {
+  if (!marca || marca === COL_SEL_NUEVA) return [];
+  return modelosDe(marca).filter((m) => m && m !== "Otro");
 }
 
 function recolectarModelosExtra(lista) {
@@ -929,6 +979,21 @@ function comboItemsDe(s) {
   return s.combo_items.map((id) => String(id || "").trim()).filter(Boolean);
 }
 
+/** Servicios que van incluidos sin costo extra dentro de este ítem (no es combo). */
+function serviciosIncluidosDe(s) {
+  if (!s || !Array.isArray(s.servicios_incluidos)) return [];
+  return s.servicios_incluidos.map((id) => String(id || "").trim()).filter(Boolean);
+}
+
+/** Ítems del combo con bonificación 100% (precio $0 dentro del pack). */
+function comboRegaloDe(s) {
+  const miembros = new Set(comboItemsDe(s));
+  if (!s || !Array.isArray(s.combo_regalo)) return [];
+  return s.combo_regalo
+    .map((id) => String(id || "").trim())
+    .filter((id) => id && miembros.has(id));
+}
+
 function esServicioCombo(s) {
   return Boolean(s && s.es_combo && comboItemsDe(s).length >= 2);
 }
@@ -938,8 +1003,9 @@ function idsMiembrosCombo(s) {
   return comboItemsDe(s);
 }
 
-function preciosPackCombo(s) {
+function preciosPackComboMiembros(s, vehiculoOpt) {
   const ids = idsMiembrosCombo(s);
+  const regalo = new Set(comboRegaloDe(s));
   const lineas = [];
   let lista = 0;
   let pagado = 0;
@@ -947,13 +1013,45 @@ function preciosPackCombo(s) {
     const item = servicioPorId(id);
     if (!item || item.precio == null) return;
     const otros = ids.filter((x) => x !== id);
-    const p = precioPagado(item, otros);
+    const p = precioPagado(item, otros, vehiculoOpt || null);
     if (p.lista == null || p.pagado == null) return;
     lista += p.lista;
-    pagado += p.pagado;
-    lineas.push({ id, nombre: item.nombre || id, ...p });
+    let pagadoLinea = p.pagado;
+    let ahorroLinea = p.ahorro;
+    let regla = p.regla;
+    if (regalo.has(id)) {
+      pagadoLinea = 0;
+      ahorroLinea = p.lista;
+      regla = { tipo: "combo_regalo", etiqueta: "Bonificación 100% (regalo)" };
+    }
+    pagado += pagadoLinea;
+    lineas.push({
+      id,
+      nombre: item.nombre || id,
+      lista: p.lista,
+      pagado: pagadoLinea,
+      ahorro: ahorroLinea,
+      regla,
+      combo_regalo: regalo.has(id),
+    });
   });
-  return { lista, pagado, ahorro: Math.max(0, lista - pagado), lineas };
+  return { lista, pagado, lineas };
+}
+
+function preciosPackCombo(s, vehiculoOpt) {
+  const base = preciosPackComboMiembros(s, vehiculoOpt);
+  let pagado = base.pagado;
+  const oferta = precioOfertaDe(s);
+  if (s && s.es_combo && oferta != null) {
+    pagado = Math.round(Number(oferta));
+  }
+  return {
+    lista: base.lista,
+    pagado,
+    pagado_asociaciones: base.pagado,
+    ahorro: Math.max(0, base.lista - pagado),
+    lineas: base.lineas,
+  };
 }
 
 function comboSinStockMiembros(s) {
@@ -1096,6 +1194,14 @@ function normalizarServicio(s) {
   const comboItems = Array.isArray(s && s.combo_items)
     ? s.combo_items.map((id) => String(id || "").trim()).filter(Boolean)
     : [];
+  const comboRegaloRaw = Array.isArray(s && s.combo_regalo)
+    ? s.combo_regalo.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
+  const miembrosSet = new Set(comboItems);
+  const combo_regalo = comboRegaloRaw.filter((id) => miembrosSet.has(id));
+  const servicios_incluidos = Array.isArray(s && s.servicios_incluidos)
+    ? s.servicios_incluidos.map((id) => String(id || "").trim()).filter((id) => id && id !== String(s && s.id))
+    : [];
   const familias = normalizarServiceFamiliesVal(s && s.service_families);
   const tagFam = Array.isArray(s && s.tags)
     ? s.tags
@@ -1110,6 +1216,8 @@ function normalizarServicio(s) {
     canales,
     es_combo: Boolean(s && s.es_combo),
     combo_items: comboItems,
+    combo_regalo,
+    servicios_incluidos,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
     tiene_oferta: tieneOferta(s),
     oferta_combo: s && (s.oferta_combo === true || s.oferta_combo === "si" || (s.oferta_combo == null && (s.complementos || []).length > 0)),
@@ -1143,11 +1251,21 @@ function normalizarServicioLista(s) {
   const comboItems = Array.isArray(s && s.combo_items)
     ? s.combo_items.map((id) => String(id || "").trim()).filter(Boolean)
     : [];
+  const comboRegaloRaw = Array.isArray(s && s.combo_regalo)
+    ? s.combo_regalo.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
+  const miembrosSet = new Set(comboItems);
+  const combo_regalo = comboRegaloRaw.filter((id) => miembrosSet.has(id));
+  const servicios_incluidos = Array.isArray(s && s.servicios_incluidos)
+    ? s.servicios_incluidos.map((id) => String(id || "").trim()).filter((id) => id && id !== String(s && s.id))
+    : [];
   const base = {
     ...s,
     canales,
     es_combo: Boolean(s && s.es_combo),
     combo_items: comboItems,
+    combo_regalo,
+    servicios_incluidos,
     tipo: (s && s.tipo) || tipoDesdeCanales(canales),
     tiene_oferta: tieneOferta(s),
     oferta_combo: s && (s.oferta_combo === true || s.oferta_combo === "si" || (s.oferta_combo == null && (s.complementos || []).length > 0)),
@@ -1321,6 +1439,7 @@ function etiquetaCanales(s) {
 function hidratarCatalogoClienteLocal() {
   if (catalogoEstaListo()) return catalogo;
   hidratarModelosExtra();
+  hidratarMarcasExtra();
   hidratarFotosModelos();
   hidratarTablero();
   const raw = hidratarCatalogo();
@@ -1362,6 +1481,7 @@ async function cargarCatalogo(opts) {
   const completo = Boolean(opts && opts.completo);
   const normalizar = completo ? normalizarServicio : normalizarServicioLista;
   hidratarModelosExtra();
+  hidratarMarcasExtra();
   hidratarFotosModelos();
   hidratarTablero();
   if (typeof nubeCargarConfigRemota === "function") await nubeCargarConfigRemota();
@@ -1416,6 +1536,22 @@ async function guardarCatalogo(lista) {
   localStorage.setItem(CATALOGO_KEY, JSON.stringify(lista));
   if (typeof nubeActiva === "function" && nubeActiva()) {
     await nubeGuardarCatalogo(lista);
+  }
+}
+
+/** Tablero: vehículos de servicios tocados + columnas en catalogo-canales.json (sin resubir todo Supabase). */
+async function guardarMembresiaTableroEnNube(servicioIds) {
+  if (typeof persistirCatalogoLocal === "function") persistirCatalogoLocal(catalogo);
+  if (typeof nubeActiva !== "function" || !nubeActiva()) return;
+  const ids = Array.isArray(servicioIds)
+    ? [...new Set(servicioIds.map((id) => String(id || "").trim()).filter(Boolean))]
+    : [];
+  if (ids.length && typeof nubeGuardarCatalogoCanales === "function") {
+    await nubeGuardarCatalogoCanales(catalogo, { soloIds: ids, mergePrevio: true });
+    return;
+  }
+  if (typeof nubeGuardarSoloTableroCanales === "function") {
+    await nubeGuardarSoloTableroCanales();
   }
 }
 

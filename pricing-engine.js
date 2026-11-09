@@ -221,6 +221,14 @@
       return s.combo_items.map((x) => String(x || "").trim()).filter(Boolean);
     }
 
+    function comboRegaloDe(s) {
+      const miembros = new Set(comboItemsDe(s));
+      if (!s || !Array.isArray(s.combo_regalo)) return [];
+      return s.combo_regalo
+        .map((id) => String(id || "").trim())
+        .filter((id) => id && miembros.has(id));
+    }
+
     function esServicioCombo(s) {
       return Boolean(s && s.es_combo && comboItemsDe(s).length >= 2);
     }
@@ -425,6 +433,7 @@
 
     function preciosPackCombo(s, vehiculoOpt) {
       const ids = comboItemsDe(s);
+      const regalo = new Set(comboRegaloDe(s));
       let lista = 0;
       let pagado = 0;
       const lineas = [];
@@ -435,10 +444,37 @@
         const p = precioPagado(item, otros, vehiculoOpt || null, {});
         if (p.lista == null || p.pagado == null) return;
         lista += p.lista;
-        pagado += p.pagado;
-        lineas.push({ id, nombre: item.nombre || id, ...p });
+        let pagadoLinea = p.pagado;
+        let ahorroLinea = p.ahorro;
+        let regla = p.regla;
+        if (regalo.has(id)) {
+          pagadoLinea = 0;
+          ahorroLinea = p.lista;
+          regla = { tipo: "combo_regalo", etiqueta: "Bonificación 100% (regalo)" };
+        }
+        pagado += pagadoLinea;
+        lineas.push({
+          id,
+          nombre: item.nombre || id,
+          lista: p.lista,
+          pagado: pagadoLinea,
+          ahorro: ahorroLinea,
+          regla,
+          combo_regalo: regalo.has(id),
+        });
       });
-      return { lista, pagado, ahorro: Math.max(0, lista - pagado), lineas };
+      const pagadoAsoc = pagado;
+      const oferta = precioOfertaDe(s);
+      if (s && esServicioCombo(s) && oferta != null) {
+        pagado = Math.round(Number(oferta));
+      }
+      return {
+        lista,
+        pagado,
+        pagado_asociaciones: pagadoAsoc,
+        ahorro: Math.max(0, lista - pagado),
+        lineas,
+      };
     }
 
     function idsMiembrosCombo(s) {

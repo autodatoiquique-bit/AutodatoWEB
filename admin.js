@@ -443,6 +443,7 @@ function servicioVacio() {
     dots_x: 50,
     dots_y: 62,
     complementos: [],
+    servicios_incluidos: [],
     activo: true,
     agotado: false,
     ultima_unidad: false,
@@ -481,27 +482,35 @@ function htmlOpcionesCombustible(sel, vacio) {
   );
 }
 
+const COL_SEL_NUEVA_TABLERO = typeof COL_SEL_NUEVA !== "undefined" ? COL_SEL_NUEVA : "__nueva__";
+
 function htmlCamposColumna(col, id) {
   const esNueva = id === "nueva" && !col;
-  const marca = esNueva ? "" : (col && col.marca) || MARCAS[0];
-  const modelos = marca ? modelosDe(marca) : [];
+  const marcasLista = typeof marcasParaAdminColumna === "function" ? marcasParaAdminColumna() : MARCAS;
+  const marca = esNueva ? "" : (col && col.marca) || marcasLista[0] || MARCAS[0];
+  const modelos = marca ? (typeof modelosParaAdminColumna === "function" ? modelosParaAdminColumna(marca) : modelosDe(marca).filter((m) => m !== "Otro")) : [];
   const modelo = esNueva ? "" : (col && col.modelo) || modelos[0];
   const adelante = esNueva ? false : !col || col.ano_hasta == null;
   const desde = esNueva ? "" : anioONull(col && col.ano_desde) ?? ANIO_MIN;
   const hasta = esNueva ? "" : anioONull(col && col.ano_hasta) ?? ANIO_MAX;
   const combustible = esNueva ? "" : col && col.combustible;
+  const modeloOpts = htmlOpcionesModeloColumna(id, marca, modelo, esNueva);
   return `
-    <label class="field"><span>Marca</span>
-      <select data-col-campo="marca" data-col-id="${id}">
-        ${esNueva ? `<option value="" selected disabled hidden>Elige marca</option>` : ""}
-        ${MARCAS.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m}</option>`).join("")}
-      </select>
+    <label class="field col-campo-lista-texto"><span>Marca</span>
+      <div class="col-shell-lista-texto" data-col-shell="marca" data-col-id="${id}">
+        <select data-col-campo="marca" data-col-kind="select" data-col-id="${id}">
+          ${esNueva ? `<option value="" selected disabled hidden>Elige marca</option>` : ""}
+          ${marcasLista.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m}</option>`).join("")}
+          <option value="${COL_SEL_NUEVA_TABLERO}">Nueva marca…</option>
+        </select>
+        <input type="text" data-col-campo="marca" data-col-kind="text" data-col-id="${id}" class="col-ctl-text" hidden placeholder="Escribe la marca" autocomplete="off" />
+      </div>
     </label>
-    <label class="field"><span>Modelo</span>
-      <select data-col-campo="modelo" data-col-id="${id}" ${esNueva && !marca ? "disabled" : ""}>
-        ${esNueva ? `<option value="" selected disabled hidden>Elige modelo</option>` : ""}
-        ${modelos.map((m) => `<option value="${m}" ${m === modelo ? "selected" : ""}>${m}</option>`).join("")}
-      </select>
+    <label class="field col-campo-lista-texto"><span>Modelo</span>
+      <div class="col-shell-lista-texto" data-col-shell="modelo" data-col-id="${id}">
+        <select data-col-campo="modelo" data-col-kind="select" data-col-id="${id}" ${esNueva && !marca ? "disabled" : ""}>${modeloOpts}</select>
+        <input type="text" data-col-campo="modelo" data-col-kind="text" data-col-id="${id}" class="col-ctl-text" hidden placeholder="Escribe el modelo" autocomplete="off" />
+      </div>
     </label>
     <label class="field"><span>Desde el año</span>
       <select data-col-campo="desde" data-col-id="${id}">${htmlOpcionesAnio(desde, esNueva)}</select>
@@ -527,14 +536,104 @@ function htmlCamposColumna(col, id) {
   `;
 }
 
+function colSelectColumna(id, campo) {
+  return document.querySelector(
+    `[data-col-shell="${campo}"][data-col-id="${id}"] [data-col-kind="select"]`
+  );
+}
+
+function htmlOpcionesModeloColumna(id, marca, selected, esNueva) {
+  const vacio = esNueva ? `<option value="" selected disabled hidden>Elige modelo</option>` : "";
+  if (!marca) return vacio;
+  if (marca === COL_SEL_NUEVA_TABLERO) {
+    return vacio + `<option value="${COL_SEL_NUEVA_TABLERO}">Nuevo modelo…</option>`;
+  }
+  const modelos =
+    typeof modelosParaAdminColumna === "function"
+      ? modelosParaAdminColumna(marca)
+      : modelosDe(marca).filter((m) => m !== "Otro");
+  return (
+    vacio +
+    modelos.map((m) => `<option value="${m}" ${m === selected ? "selected" : ""}>${m}</option>`).join("") +
+    `<option value="${COL_SEL_NUEVA_TABLERO}">Nuevo modelo…</option>`
+  );
+}
+
+function valorColCampoListaTexto(id, campo) {
+  const shell = document.querySelector(`[data-col-shell="${campo}"][data-col-id="${id}"]`);
+  if (!shell) return "";
+  const txt = shell.querySelector('[data-col-kind="text"]');
+  const sel = shell.querySelector('[data-col-kind="select"]');
+  if (txt && !txt.hidden) return String(txt.value || "").trim();
+  if (!sel || sel.hidden) return "";
+  const v = String(sel.value || "").trim();
+  if (v === COL_SEL_NUEVA_TABLERO) return "";
+  return v;
+}
+
+function activarColCampoTexto(id, campo) {
+  const shell = document.querySelector(`[data-col-shell="${campo}"][data-col-id="${id}"]`);
+  if (!shell) return;
+  const sel = shell.querySelector('[data-col-kind="select"]');
+  const txt = shell.querySelector('[data-col-kind="text"]');
+  if (!sel || !txt) return;
+  sel.hidden = true;
+  txt.hidden = false;
+  txt.value = "";
+  txt.focus();
+}
+
+function restaurarColCampoSelect(id, campo) {
+  const shell = document.querySelector(`[data-col-shell="${campo}"][data-col-id="${id}"]`);
+  if (!shell) return;
+  const sel = shell.querySelector('[data-col-kind="select"]');
+  const txt = shell.querySelector('[data-col-kind="text"]');
+  if (sel) sel.hidden = false;
+  if (txt) {
+    txt.hidden = true;
+    txt.value = "";
+  }
+}
+
+function onColMarcaTextoInput(id, texto) {
+  const selModelo = colSelectColumna(id, "modelo");
+  if (!selModelo) return;
+  const tiene = String(texto || "").trim().length > 0;
+  selModelo.disabled = !tiene;
+  if (tiene) pintarModelosColumna(id, COL_SEL_NUEVA_TABLERO);
+}
+
+function onColCampoSelectChange(id, campo, val) {
+  if (val === COL_SEL_NUEVA_TABLERO) {
+    activarColCampoTexto(id, campo);
+    if (campo === "marca") {
+      pintarModelosColumna(id, COL_SEL_NUEVA_TABLERO);
+      const selModelo = colSelectColumna(id, "modelo");
+      if (selModelo) selModelo.disabled = true;
+    }
+    return;
+  }
+  restaurarColCampoSelect(id, campo);
+  if (campo === "marca") pintarModelosColumna(id, val);
+}
+
+function resolverMarcaModeloColumna(id) {
+  const marca = valorColCampoListaTexto(id, "marca");
+  const modelo = valorColCampoListaTexto(id, "modelo");
+  if (marca && typeof registrarMarca === "function") registrarMarca(marca);
+  if (marca && modelo && typeof registrarModelo === "function") registrarModelo(marca, modelo);
+  return { marca, modelo };
+}
+
 function leerCamposColumna(id) {
   const q = (campo) => document.querySelector(`[data-col-campo="${campo}"][data-col-id="${id}"]`);
   const adelante = Boolean(q("adelante") && q("adelante").checked);
   const desdeRaw = q("desde") && q("desde").value;
   const hastaRaw = q("hasta") && q("hasta").value;
+  const { marca, modelo } = resolverMarcaModeloColumna(id);
   return {
-    marca: q("marca") && q("marca").value,
-    modelo: q("modelo") && q("modelo").value,
+    marca,
+    modelo,
     ano_desde: desdeRaw !== "" && desdeRaw != null ? Number(desdeRaw) : null,
     ano_hasta: adelante ? null : hastaRaw !== "" && hastaRaw != null ? Number(hastaRaw) : null,
     combustible: q("combustible") && q("combustible").value,
@@ -544,12 +643,74 @@ function leerCamposColumna(id) {
 }
 
 async function guardarTableroNube() {
-  return adminGuardando("Guardando tablero…", async () => {
-    persistirTablero();
-    if (typeof nubeActiva === "function" && nubeActiva()) {
-      await nubeGuardarCatalogoCanales(catalogo);
-    }
-  });
+  persistirTablero();
+  if (typeof guardarMembresiaTableroEnNube === "function") {
+    await guardarMembresiaTableroEnNube([]);
+    return;
+  }
+  if (typeof nubeActiva === "function" && nubeActiva() && typeof nubeGuardarSoloTableroCanales === "function") {
+    await nubeGuardarSoloTableroCanales();
+  }
+}
+
+let adminTableroSyncJobs = 0;
+let adminTableroSyncHideTimer = null;
+
+function adminTableroSyncTexto(txt) {
+  const el = $("admin-tablero-sync-text");
+  if (el && txt) el.textContent = txt;
+}
+
+function adminTableroSyncIniciar(texto) {
+  adminTableroSyncJobs += 1;
+  const root = $("admin-tablero-sync");
+  if (adminTableroSyncHideTimer) {
+    clearTimeout(adminTableroSyncHideTimer);
+    adminTableroSyncHideTimer = null;
+  }
+  if (root) {
+    root.classList.remove("is-ok", "is-error");
+    root.hidden = false;
+  }
+  adminTableroSyncTexto(texto || "Guardando tablero en la nube…");
+}
+
+function adminTableroSyncFinalizar(estado, mensaje) {
+  adminTableroSyncJobs = Math.max(0, adminTableroSyncJobs - 1);
+  const root = $("admin-tablero-sync");
+  if (!root) return;
+  if (estado === "ok") {
+    root.classList.add("is-ok");
+    root.classList.remove("is-error");
+    adminTableroSyncTexto(mensaje || "Tablero guardado");
+  } else if (estado === "error") {
+    root.classList.add("is-error");
+    root.classList.remove("is-ok");
+    adminTableroSyncTexto(mensaje || "No se pudo guardar el tablero");
+  }
+  if (adminTableroSyncJobs > 0) {
+    adminTableroSyncTexto("Guardando cambios del tablero…");
+    root.classList.remove("is-ok", "is-error");
+    return;
+  }
+  adminTableroSyncHideTimer = setTimeout(() => {
+    root.hidden = true;
+    root.classList.remove("is-ok", "is-error");
+    adminTableroSyncHideTimer = null;
+  }, estado === "error" ? 4500 : 1400);
+}
+
+function encolarGuardadoTablero(texto, fn) {
+  adminTableroSyncIniciar(texto);
+  return Promise.resolve()
+    .then(() => fn())
+    .then(() => {
+      adminTableroSyncFinalizar("ok");
+    })
+    .catch((e) => {
+      adminTableroSyncFinalizar("error", (e && e.message) || "Error al guardar");
+      throw e;
+    });
 }
 
 function clonarTableroParaSnapshot() {
@@ -1112,15 +1273,13 @@ async function asignarPortadasAColumna(pids, colId) {
     alert("No se pudo añadir ninguna portada a la columna.");
     return;
   }
-  try {
-    persistirTablero();
-    await guardarTableroNube();
-  } catch (e) {
-    alert((e && e.message) || "No se pudieron añadir las portadas.");
-    return;
-  }
+  persistirTablero();
   cerrarModalTarjeta();
+  tableroOmitirSnapshot = true;
   renderTablero();
+  encolarGuardadoTablero(`Guardando ${n} portada(s)…`, () => guardarTableroNube()).catch((e) => {
+    alert((e && e.message) || "No se pudieron añadir las portadas.");
+  });
 }
 
 function sumarDestinoAServicio(s, dest) {
@@ -1136,32 +1295,33 @@ function sumarDestinoAServicio(s, dest) {
   if (!ya) s.vehiculos = [...actuales, dest];
 }
 
-async function asignarServiciosAColumna(sids, colId) {
+function asignarServiciosAColumna(sids, colId) {
   const col = TABLERO_COLUMNAS.find((c) => c.id === colId);
   if (!col || !sids.length) return;
   const dest = vehiculosDeColumna(col)[0];
   if (!dest) return;
-  let n = 0;
+  const idsOk = [];
   sids.forEach((sid) => {
     const s = catalogo.find((x) => x.id === sid);
     if (!s) return;
     sumarDestinoAServicio(s, dest);
     sumarItemAColumna(col, sid, "servicios");
-    n += 1;
+    idsOk.push(sid);
   });
   if (typeof aplicarOrdenColumnaTableroSiCorresponde === "function") {
     aplicarOrdenColumnaTableroSiCorresponde(col);
   }
-  if (!n) return;
-  try {
-    persistirTablero();
-    await guardarCatalogo(catalogo);
-  } catch (e) {
-    alert((e && e.message) || "No se pudieron agregar las tarjetas.");
-    return;
-  }
+  if (!idsOk.length) return;
+  persistirTablero();
+  if (typeof persistirCatalogoLocal === "function") persistirCatalogoLocal(catalogo);
   cerrarModalTarjeta();
+  tableroOmitirSnapshot = true;
   renderTablero();
+  const etiqueta =
+    idsOk.length === 1 ? "Guardando 1 tarjeta en la nube…" : `Guardando ${idsOk.length} tarjetas en la nube…`;
+  encolarGuardadoTablero(etiqueta, () => guardarMembresiaTableroEnNube(idsOk)).catch((e) => {
+    alert((e && e.message) || "No se pudieron agregar las tarjetas. Revisa la conexión e inténtalo de nuevo.");
+  });
 }
 
 function aplicarFotoColumna(col, src) {
@@ -1254,7 +1414,7 @@ function renderTablero(opciones) {
   restaurarScrollTablero();
   pintarEstadoRevertirTablero();
   $("btn-tablero-revertir")?.addEventListener("click", () => revertirCambiosTablero());
-  if (sembrar) guardarTableroNube();
+  if (sembrar) encolarGuardadoTablero("Guardando tablero inicial…", () => guardarTableroNube());
 }
 
 function moverColumnaTablero(colId, targetColId, insertBefore) {
@@ -1288,13 +1448,9 @@ function moverTarjetaColumna(colId, token, beforeToken) {
   }
 }
 
-async function guardarOrdenTablero() {
+function guardarOrdenTablero() {
   persistirTablero();
-  try {
-    await guardarTableroNube();
-  } catch (e) {
-    alert((e && e.message) || "No se pudo guardar el orden del tablero.");
-  }
+  return encolarGuardadoTablero("Guardando orden del tablero…", () => guardarTableroNube());
 }
 
 function limpiarKanbanCardFlotante(st) {
@@ -1520,8 +1676,7 @@ function armarKanbanCardPointer(track) {
       const destino = st.markerBefore ? beforeTokenDesdeSlot(st.markerBefore) : st.dropBefore;
       moverTarjetaColumna(st.colId, st.token, destino);
       limpiarClasesDragTablero();
-      await guardarOrdenTablero();
-      renderTablero();
+      await guardarOrdenTablero().catch((e) => alert((e && e.message) || "No se pudo guardar el orden."));
       return;
     }
     const d = Math.hypot(e.clientX - st.startX, e.clientY - st.startY);
@@ -1576,8 +1731,9 @@ function armarDragTablero() {
       const antes = e.clientX < rect.left + rect.width / 2;
       moverColumnaTablero(colId, targetId, antes);
       limpiarClasesDragTablero();
-      await guardarOrdenTablero();
+      tableroOmitirSnapshot = true;
       renderTablero();
+      await guardarOrdenTablero().catch((e) => alert((e && e.message) || "No se pudo guardar el orden."));
     });
   });
 
@@ -1585,8 +1741,12 @@ function armarDragTablero() {
 
 async function agregarColumnaTablero() {
   const raw = leerCamposColumna("nueva");
-  if (!raw.marca || !raw.modelo) {
-    alert("Elige marca y modelo.");
+  if (!raw.marca) {
+    alert("Elige una marca de la lista o selecciona «Nueva marca…» y escribe el nombre.");
+    return;
+  }
+  if (!raw.modelo) {
+    alert("Elige un modelo de la lista o selecciona «Nuevo modelo…» y escribe el nombre.");
     return;
   }
   if (!raw.combustible) {
@@ -1922,17 +2082,22 @@ function htmlOpcionesAnio(sel, vacio) {
 }
 
 function pintarModelosColumna(id, marca) {
-  const sel = document.querySelector(`[data-col-campo="modelo"][data-col-id="${id}"]`);
+  const sel = colSelectColumna(id, "modelo");
   if (!sel) return;
+  const shellModelo = document.querySelector(`[data-col-shell="modelo"][data-col-id="${id}"]`);
+  const txtModelo = shellModelo && shellModelo.querySelector('[data-col-kind="text"]');
+  if (txtModelo && !txtModelo.hidden) return;
+  const esNueva = id === "nueva";
   if (!marca) {
     sel.disabled = true;
-    sel.innerHTML = `<option value="" selected disabled hidden>Elige modelo</option>`;
+    sel.innerHTML = htmlOpcionesModeloColumna(id, "", "", esNueva);
     return;
   }
-  const modelos = modelosDe(marca);
-  const vacio = id === "nueva" ? `<option value="" selected disabled hidden>Elige modelo</option>` : "";
   sel.disabled = false;
-  sel.innerHTML = vacio + modelos.map((m) => `<option value="${m}">${m}</option>`).join("");
+  sel.innerHTML = htmlOpcionesModeloColumna(id, marca, "", esNueva);
+  if (marca === COL_SEL_NUEVA_TABLERO) {
+    sel.value = COL_SEL_NUEVA_TABLERO;
+  }
 }
 
 function pintarPrecioPreview() {
@@ -2203,6 +2368,9 @@ function renderEditor() {
                   ? `<p class="hint">Video corto dentro de la ficha. El cliente lo reproduce ahí mismo, sin YouTube.</p>`
                   : ""
             }
+            <h3>Servicios incluidos</h3>
+            <p class="hint">Trabajos que van <strong>dentro del precio</strong> de este servicio, sin cobro aparte (ej. DPF incluido en el escáner).</p>
+            ${htmlServiciosIncluidosEditor(s)}
             <h3>Este servicio baja si llevan otro</h3>
             ${htmlCombosEntrantes(s)}
             <h3>Servicios que este hace más baratos</h3>
@@ -2225,6 +2393,39 @@ function renderEditor() {
   renderLista();
   aplicarLogos();
   activarEditorMedia();
+}
+
+function htmlServiciosIncluidosEditor(s) {
+  const ids = typeof serviciosIncluidosDe === "function" ? serviciosIncluidosDe(s) : [];
+  const usados = new Set(ids);
+  const opciones = (catalogo || []).filter(
+    (x) => x && x.id && x.id !== s.id && x.activo !== false && !x.es_combo && !usados.has(x.id)
+  );
+  const rows =
+    ids
+      .map((id) => {
+        const otro = servicioPorId(id);
+        return `
+      <div class="combo-row incluido-row">
+        <div>
+          <strong>${otro ? escapeText(otro.nombre) : escapeText(id)}</strong>
+          <div class="muted">Incluido sin costo · lista propia ${otro && otro.precio != null ? clp(otro.precio) : "—"}</div>
+        </div>
+        <button class="btn-soft" type="button" data-del-incluido="${escapeAttr(id)}">Quitar</button>
+      </div>
+    `;
+      })
+      .join("") || `<p class="muted">Ningún servicio incluido.</p>`;
+  const selectOpciones = opciones.length
+    ? opciones.map((x) => `<option value="${escapeAttr(x.id)}">${escapeText(x.nombre)}</option>`).join("")
+    : `<option value="">—</option>`;
+  return `
+    <div class="incluidos-list" id="e-incluidos">${rows}</div>
+    <label class="field"><span>Agregar del catálogo</span>
+      <select id="e-incluido-pick"${opciones.length ? "" : " disabled"}>${selectOpciones}</select>
+    </label>
+    <button class="btn-line btn-block" type="button" id="btn-add-incluido" ${opciones.length ? "" : "disabled"}>Agregar servicio incluido</button>
+  `;
 }
 
 function htmlComplementos(s) {
@@ -2596,7 +2797,7 @@ function pintarPreviewCombo() {
       : "El precio de combo tiene que ser menor que la oferta fija (o el valor normal si no tiene oferta).";
 }
 
-function guardarCombo() {
+function guardarComplementoServicio() {
   const id = $("combo-id").value;
   const precioCombo = Number($("combo-precio").value);
   const otro = servicioPorId(id);
@@ -3439,7 +3640,29 @@ $("stage").addEventListener("click", (e) => {
     else renderEditorPortada();
     return;
   }
-  if (t.id === "btn-add-combo") abrirCombo(-1);
+  if (t.id === "btn-add-combo") {
+    abrirCombo(-1);
+    return;
+  }
+  if (t.id === "btn-add-incluido") {
+    leerEditor();
+    const sel = $("e-incluido-pick");
+    const id = sel && String(sel.value || "").trim();
+    if (!id || !editando) return;
+    if (!Array.isArray(editando.servicios_incluidos)) editando.servicios_incluidos = [];
+    if (editando.servicios_incluidos.includes(id)) return;
+    editando.servicios_incluidos.push(id);
+    renderEditor();
+    return;
+  }
+  if (t.dataset.delIncluido) {
+    leerEditor();
+    const id = t.dataset.delIncluido;
+    if (!editando || !Array.isArray(editando.servicios_incluidos)) return;
+    editando.servicios_incluidos = editando.servicios_incluidos.filter((x) => String(x) !== String(id));
+    renderEditor();
+    return;
+  }
   if (t.id === "btn-add-foto") {
     $("e-foto")?.click();
     return;
@@ -3564,6 +3787,9 @@ $("stage").addEventListener("input", (e) => {
     pintarCalculadoraEditor();
     pintarPrecioPreview();
   }
+  if (e.target.dataset.colKind === "text" && e.target.dataset.colCampo === "marca") {
+    onColMarcaTextoInput(e.target.dataset.colId, e.target.value);
+  }
 });
 
 $("stage").addEventListener("change", async (e) => {
@@ -3601,8 +3827,8 @@ $("stage").addEventListener("change", async (e) => {
     else slideActual().defecto = false;
     renderEditorPortada();
   }
-  if (e.target.dataset.colCampo === "marca") {
-    pintarModelosColumna(e.target.dataset.colId, e.target.value);
+  if (e.target.dataset.colKind === "select" && (e.target.dataset.colCampo === "marca" || e.target.dataset.colCampo === "modelo")) {
+    onColCampoSelectChange(e.target.dataset.colId, e.target.dataset.colCampo, e.target.value);
   }
   if (e.target.dataset.colCampo === "adelante") {
     const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);
@@ -3701,7 +3927,7 @@ $("stage").addEventListener("change", async (e) => {
 $("cerrar-combo").addEventListener("click", () => {
   $("modal-combo").hidden = true;
 });
-$("btn-guardar-complemento")?.addEventListener("click", guardarCombo);
+$("btn-guardar-complemento")?.addEventListener("click", guardarComplementoServicio);
 $("combo-id").addEventListener("change", pintarPreviewCombo);
 $("combo-precio").addEventListener("input", pintarPreviewCombo);
 $("modal-combo").addEventListener("click", (e) => {
@@ -3808,9 +4034,14 @@ $("btn-tarjeta-aceptar")?.addEventListener("click", () => {
   if (tarjetaModalModo === "portadas") asignarPortadasAColumna([...tarjetaSeleccion], tarjetaColId);
   else asignarServiciosAColumna([...tarjetaSeleccion], tarjetaColId);
 });
+$("modal-columna")?.addEventListener("input", (e) => {
+  if (e.target.dataset.colKind === "text" && e.target.dataset.colCampo === "marca") {
+    onColMarcaTextoInput(e.target.dataset.colId, e.target.value);
+  }
+});
 $("modal-columna")?.addEventListener("change", (e) => {
-  if (e.target.dataset.colCampo === "marca") {
-    pintarModelosColumna(e.target.dataset.colId, e.target.value);
+  if (e.target.dataset.colKind === "select" && (e.target.dataset.colCampo === "marca" || e.target.dataset.colCampo === "modelo")) {
+    onColCampoSelectChange(e.target.dataset.colId, e.target.dataset.colCampo, e.target.value);
   }
   if (e.target.dataset.colCampo === "adelante") {
     const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);

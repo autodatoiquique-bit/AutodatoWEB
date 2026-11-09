@@ -4413,6 +4413,7 @@ function limpiarQueryFlotaAccesoEnHistorial() {
 
 async function arrancar() {
   if (typeof hidratarModelosExtra === "function") hidratarModelosExtra();
+  if (typeof hidratarMarcasExtra === "function") hidratarMarcasExtra();
   if (typeof hidratarFotosModelos === "function") hidratarFotosModelos();
   if (typeof hidratarTablero === "function") hidratarTablero();
   if (typeof hidratarPortadaLocal === "function") hidratarPortadaLocal();

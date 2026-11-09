@@ -169,49 +169,83 @@ async function nubeGuardarFlotasTarifario() {
   }
 }
 
-async function nubeGuardarCatalogoCanales(lista) {
+function entradaServicioCatalogoCanales(s, previo) {
+  const canales = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
+  const itemsLocal = Array.isArray(s.combo_items) ? s.combo_items : [];
+  const prev = previo && previo[s.id];
+  const conservarCombo =
+    !itemsLocal.length && prev && prev.es_combo && Array.isArray(prev.combo_items) && prev.combo_items.length >= 2;
+  return {
+    ...canales,
+    service_families: Array.isArray(s.service_families) ? s.service_families.map(slugFamiliaVambeNube).filter(Boolean) : [],
+    tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
+    priority: s.priority != null && Number.isFinite(Number(s.priority)) ? Number(s.priority) : null,
+    oil_liters: s.oil_liters != null && Number.isFinite(Number(s.oil_liters)) ? Number(s.oil_liters) : null,
+    tiene_oferta: Boolean(s.tiene_oferta) && Number(s.precio_oferta) > 0,
+    oferta_combo: Boolean(s.oferta_combo),
+    precio_oferta: s.tiene_oferta && Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null,
+    dots_x: Number(s.dots_x) || 50,
+    dots_y: Number(s.dots_y) || 62,
+    vehiculos: Array.isArray(s.vehiculos) ? s.vehiculos : [],
+    tiempo_min: Number(s.tiempo_min) > 0 ? Number(s.tiempo_min) : null,
+    mano_obra: Number(s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
+    insumos: Array.isArray(s.insumos) ? s.insumos : [],
+    media: Array.isArray(s.media) ? s.media : [],
+    agotado: Boolean(s.agotado),
+    ultima_unidad: Boolean(s.ultima_unidad),
+    stock_restante: stockRestanteDe(s),
+    es_combo: conservarCombo ? true : Boolean(s.es_combo),
+    combo_items: conservarCombo ? prev.combo_items : itemsLocal,
+    combo_regalo: Array.isArray(s.combo_regalo)
+      ? s.combo_regalo.map((id) => String(id || "").trim()).filter(Boolean)
+      : conservarCombo && Array.isArray(prev.combo_regalo)
+        ? prev.combo_regalo
+        : [],
+    numero_serie: Number(s.numero_serie) > 0 ? Math.floor(Number(s.numero_serie)) : null,
+    argumento_venta: String(s.argumento_venta || "").trim(),
+    servicios_incluidos: Array.isArray(s.servicios_incluidos)
+      ? s.servicios_incluidos.map((id) => String(id || "").trim()).filter(Boolean)
+      : [],
+  };
+}
+
+function metaCatalogoCanalesEnMapa(mapa) {
+  mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
+  mapa._marcas_extra = typeof MARCAS_EXTRA !== "undefined" ? MARCAS_EXTRA : [];
+  mapa._fotos_modelos = typeof FOTOS_MODELOS !== "undefined" ? FOTOS_MODELOS : {};
+  mapa._tablero_columnas = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  return mapa;
+}
+
+/** Solo columnas del tablero (orden y tarjetas por columna), sin reescribir todo el catálogo. */
+async function nubeGuardarSoloTableroCanales() {
   let previo = null;
   try {
     previo = await nubeLeerJsonStorage(NUBE_JSON_CANALES);
   } catch (e) {
     previo = null;
   }
-  const mapa = {};
+  const mapa = previo && typeof previo === "object" ? { ...previo } : {};
+  metaCatalogoCanalesEnMapa(mapa);
+  await nubeSubirJsonStorage(NUBE_JSON_CANALES, mapa);
+}
+
+async function nubeGuardarCatalogoCanales(lista, opts) {
+  let previo = null;
+  try {
+    previo = await nubeLeerJsonStorage(NUBE_JSON_CANALES);
+  } catch (e) {
+    previo = null;
+  }
+  const soloIds = opts && Array.isArray(opts.soloIds) ? new Set(opts.soloIds.map((id) => String(id || "").trim()).filter(Boolean)) : null;
+  const mergePrevio = Boolean(opts && opts.mergePrevio);
+  const mapa = mergePrevio && previo && typeof previo === "object" ? { ...previo } : {};
   (lista || []).forEach((s) => {
-    const canales = typeof normalizarCanales === "function" ? normalizarCanales(s.canales, s.tipo) : s.canales || {};
-    const itemsLocal = Array.isArray(s.combo_items) ? s.combo_items : [];
-    const prev = previo && previo[s.id];
-    // Un catálogo en memoria sin datos de combo no debe borrar un combo ya guardado en la nube.
-    const conservarCombo =
-      !itemsLocal.length && prev && prev.es_combo && Array.isArray(prev.combo_items) && prev.combo_items.length >= 2;
-    mapa[s.id] = {
-      ...canales,
-      service_families: Array.isArray(s.service_families) ? s.service_families.map(slugFamiliaVambeNube).filter(Boolean) : [],
-      tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t || "").trim()).filter(Boolean) : [],
-      priority: s.priority != null && Number.isFinite(Number(s.priority)) ? Number(s.priority) : null,
-      oil_liters: s.oil_liters != null && Number.isFinite(Number(s.oil_liters)) ? Number(s.oil_liters) : null,
-      tiene_oferta: Boolean(s.tiene_oferta) && Number(s.precio_oferta) > 0,
-      oferta_combo: Boolean(s.oferta_combo),
-      precio_oferta: s.tiene_oferta && Number(s.precio_oferta) > 0 ? Number(s.precio_oferta) : null,
-      dots_x: Number(s.dots_x) || 50,
-      dots_y: Number(s.dots_y) || 62,
-      vehiculos: Array.isArray(s.vehiculos) ? s.vehiculos : [],
-      tiempo_min: Number(s.tiempo_min) > 0 ? Number(s.tiempo_min) : null,
-      mano_obra: Number(s.mano_obra) > 0 ? Number(s.mano_obra) : 0,
-      insumos: Array.isArray(s.insumos) ? s.insumos : [],
-      media: Array.isArray(s.media) ? s.media : [],
-      agotado: Boolean(s.agotado),
-      ultima_unidad: Boolean(s.ultima_unidad),
-      stock_restante: stockRestanteDe(s),
-      es_combo: conservarCombo ? true : Boolean(s.es_combo),
-      combo_items: conservarCombo ? prev.combo_items : itemsLocal,
-      numero_serie: Number(s.numero_serie) > 0 ? Math.floor(Number(s.numero_serie)) : null,
-      argumento_venta: String(s.argumento_venta || "").trim(),
-    };
+    if (!s || !s.id) return;
+    if (soloIds && !soloIds.has(String(s.id))) return;
+    mapa[s.id] = entradaServicioCatalogoCanales(s, previo);
   });
-  mapa._modelos = typeof MODELOS_EXTRA !== "undefined" ? MODELOS_EXTRA : {};
-  mapa._fotos_modelos = typeof FOTOS_MODELOS !== "undefined" ? FOTOS_MODELOS : {};
-  mapa._tablero_columnas = typeof TABLERO_COLUMNAS !== "undefined" ? TABLERO_COLUMNAS : [];
+  metaCatalogoCanalesEnMapa(mapa);
   await nubeSubirJsonStorage(NUBE_JSON_CANALES, mapa);
 }
 
@@ -252,6 +286,11 @@ function aplicarMetaCatalogoExtra(extra, opts) {
   if (!extra || typeof extra !== "object") return;
   if (extra._modelos && typeof extra._modelos === "object") {
     MODELOS_EXTRA = extra._modelos;
+    if (typeof persistirModelosExtra === "function") persistirModelosExtra();
+  }
+  if (Array.isArray(extra._marcas_extra)) {
+    MARCAS_EXTRA = extra._marcas_extra.map((m) => String(m || "").trim()).filter(Boolean);
+    if (typeof persistirMarcasExtra === "function") persistirMarcasExtra();
   }
   if (extra._fotos_modelos && typeof extra._fotos_modelos === "object") {
     FOTOS_MODELOS = extra._fotos_modelos;
@@ -296,6 +335,8 @@ function fusionarExtraEnServicio(s, extra, opts) {
   }
   if (ex.es_combo != null) s.es_combo = Boolean(ex.es_combo);
   if (Array.isArray(ex.combo_items)) s.combo_items = ex.combo_items;
+  if (Array.isArray(ex.combo_regalo)) s.combo_regalo = ex.combo_regalo;
+  if (Array.isArray(ex.servicios_incluidos)) s.servicios_incluidos = ex.servicios_incluidos;
   if (Number(ex.numero_serie) > 0) s.numero_serie = Math.floor(Number(ex.numero_serie));
   if (lite) {
     if (Array.isArray(ex.media) && ex.media.length) {

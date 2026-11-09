@@ -253,6 +253,8 @@ function fusionarExtraEnServicio(s, ex) {
   if (ex.ultima_unidad != null) s.ultima_unidad = Boolean(ex.ultima_unidad);
   if (ex.es_combo != null) s.es_combo = Boolean(ex.es_combo);
   if (Array.isArray(ex.combo_items)) s.combo_items = ex.combo_items;
+  if (Array.isArray(ex.combo_regalo)) s.combo_regalo = ex.combo_regalo;
+  if (Array.isArray(ex.servicios_incluidos)) s.servicios_incluidos = ex.servicios_incluidos;
   if (Number(ex.numero_serie) > 0) s.numero_serie = Math.floor(Number(ex.numero_serie));
   if (ex.tiempo_min != null) s.tiempo_min = Number(ex.tiempo_min) || null;
   if (ex.mano_obra != null) s.mano_obra = Number(ex.mano_obra) || 0;
@@ -899,6 +901,27 @@ function construirCarritoVambeDesdeCodigos(codigos, vehiculo) {
   const carrito = [];
   const idsEnCarrito = new Set();
 
+  function avisoSiYaIncluido(s, cod) {
+    const cubiertos = idsCubiertosPorItemsEnCarrito([...idsEnCarrito]);
+    if (!cubiertos.has(s.id)) return false;
+    const padre = (catalogo || []).find(
+      (p) =>
+        p &&
+        idsEnCarrito.has(p.id) &&
+        (comboItemsDe(p).includes(s.id) || serviciosIncluidosIdsDe(p).includes(s.id))
+    );
+    const padreNom = padre ? String(padre.nombre || "").trim() : "otro ítem de la cotización";
+    const padreCod = padre ? formatoNumeroSerie(numeroSerieDe(padre)) : null;
+    warnings.push({
+      code: "SERVICE_ALREADY_INCLUDED",
+      message: `«${s.nombre}» ya va incluido sin costo adicional en ${padreNom}. No lo agregues como línea aparte.`,
+      service_code: cod,
+      parent_service_code: padreCod,
+      parent_service_name: padreNom,
+    });
+    return true;
+  }
+
   combos.forEach(({ cod, servicio: c }) => {
     const ap = servicioAplicaAVehiculo(c, vehiculo);
     if (!ap.aplica) {
@@ -923,6 +946,7 @@ function construirCarritoVambeDesdeCodigos(codigos, vehiculo) {
       });
       return;
     }
+    if (avisoSiYaIncluido(s, cod)) return;
     if (idsEnCarrito.has(s.id)) {
       warnings.push({
         code: "DUPLICATE_SERVICE",
@@ -979,6 +1003,8 @@ function itemsVambeDesdeCarrito(carrito, vehiculo) {
     const p = precioPagado(s, otros, vehiculo, {});
     const cod = linea.codigo_serie || formatoNumeroSerie(numeroSerieDe(s));
     const meta = itemMetaPromocion(p);
+    const includedCodes = codigosServiciosIncluidosEn(s);
+    const pack_contents = packContentsServicioIncluidosVambe(s);
     items.push({
       code: cod,
       id: s.id,
@@ -987,7 +1013,12 @@ function itemsVambeDesdeCarrito(carrito, vehiculo) {
       unit_price: p.pagado,
       quantity: 1,
       list_price: p.lista,
-      included_services: [],
+      included_services: includedCodes,
+      pack_contents,
+      assistant_note:
+        pack_contents.length > 0
+          ? `Este servicio ya incluye sin costo adicional: ${pack_contents.map((x) => x.canonical_service_name).join("; ")}. No cotices esos trabajos por separado.`
+          : null,
       applied_rules: reglaAAppliedRules(p.regla, {}),
       promotion_id: meta.promotion_id,
       promotion_name: meta.promotion_name,
@@ -1002,12 +1033,7 @@ function itemsVambeDesdeCarrito(carrito, vehiculo) {
 
 function addonsSugeridosVambe(carrito, vehiculo) {
   const idsEn = new Set(idsServiciosEnCarrito(carrito));
-  const miembrosCombo = new Set();
-  carrito.forEach((l) => {
-    if (!l.esComboLinea) return;
-    const c = servicioPorId(l.id);
-    if (c && esServicioCombo(c)) comboItemsDe(c).forEach((id) => miembrosCombo.add(id));
-  });
+  const cubiertos = idsCubiertosPorItemsEnCarrito([...idsEn]);
   const out = [];
   const vistoCod = new Set();
   carrito.forEach((linea) => {
@@ -1018,7 +1044,7 @@ function addonsSugeridosVambe(carrito, vehiculo) {
     sug.forEach((r) => {
       const otro = servicioPorNumeroSerie(r.codigo);
       if (!otro) return;
-      if (idsEn.has(otro.id) || miembrosCombo.has(otro.id)) return;
+      if (idsEn.has(otro.id) || cubiertos.has(otro.id)) return;
       if (vistoCod.has(r.codigo)) return;
       vistoCod.add(r.codigo);
       const idsCtx = idsServiciosEnCarrito(carrito);
@@ -1782,10 +1808,14 @@ async function compatibleServicesVambe(body) {
     const s = row.s;
     const display_name = String(s.nombre || "").trim();
     const simgs = imagenesDescripcionServicioVambe(s);
+    const isCombo = esServicioCombo(s);
+    const pack_contents = isCombo ? packContentsMenuVambe(s) : packContentsServicioIncluidosVambe(s);
+    const includedParents = padresQueIncluyenServicioId(s.id);
     return {
       service_code: row.service_code,
       canonical_service_name: display_name,
       display_name,
+      argumento_venta: String(s.argumento_venta || "").trim() || null,
       price_list: row.price_list,
       price_with_promotions: row.price_with_promotions,
       promotion_summary: row.promotion_summary,
@@ -1793,6 +1823,13 @@ async function compatibleServicesVambe(body) {
       oil_liters: row.oil_liters,
       variant_hints: row.hints,
       rank: i + 1,
+      is_combo: isCombo,
+      pack_contents,
+      included_in_parent_services: includedParents,
+      bundled_in_parent_note:
+        includedParents.length > 0
+          ? `Este trabajo ya va sin costo dentro de: ${includedParents.map((x) => x.canonical_service_name).join("; ")}. Ofrece el servicio padre, no esta línea aparte.`
+          : null,
       image_url: simgs[0] || null,
       image_urls: simgs,
     };
@@ -1890,25 +1927,78 @@ function detalleMenuServicio(s) {
   return String((s && s.nombre) || "").trim();
 }
 
+function menuItemIncluidoVambe(m, opts) {
+  if (!m) return null;
+  const mImgs = imagenesDescripcionServicioVambe(m);
+  const sinCargo = Boolean(opts && opts.sinCargoExtra);
+  return {
+    service_code: formatoNumeroSerie(numeroSerieDe(m)),
+    service_id: String(m.id || ""),
+    canonical_service_name: String(m.nombre || "").trim(),
+    detail: detalleMenuServicio(m),
+    argumento_venta: String(m.argumento_venta || "").trim() || null,
+    image_url: mImgs[0] || null,
+    image_urls: mImgs,
+    included_at_no_extra_charge: sinCargo || undefined,
+  };
+}
+
 /** Desglose de ítems incluidos en un pack/combo para menú Vambe. */
 function packContentsMenuVambe(s) {
   if (!s || !esServicioCombo(s)) return [];
   return comboItemsDe(s)
+    .map((mid) => menuItemIncluidoVambe(servicioPorId(mid), { sinCargoExtra: false }))
+    .filter(Boolean);
+}
+
+function serviciosIncluidosIdsDe(s) {
+  if (typeof serviciosIncluidosDe === "function") return serviciosIncluidosDe(s);
+  if (!s || !Array.isArray(s.servicios_incluidos)) return [];
+  return s.servicios_incluidos.map((id) => String(id || "").trim()).filter(Boolean);
+}
+
+/** Ítems que van dentro del precio de un servicio individual (sin costo aparte). */
+function packContentsServicioIncluidosVambe(s) {
+  if (!s || esServicioCombo(s)) return [];
+  const ids = serviciosIncluidosIdsDe(s);
+  return ids
+    .map((mid) => menuItemIncluidoVambe(servicioPorId(mid), { sinCargoExtra: true }))
+    .filter(Boolean);
+}
+
+function codigosServiciosIncluidosEn(s) {
+  const ids = serviciosIncluidosIdsDe(s);
+  return ids
     .map((mid) => {
       const m = servicioPorId(mid);
-      if (!m) return null;
-      const mImgs = imagenesDescripcionServicioVambe(m);
-      return {
-        service_code: formatoNumeroSerie(numeroSerieDe(m)),
-        service_id: String(m.id || ""),
-        canonical_service_name: String(m.nombre || "").trim(),
-        detail: detalleMenuServicio(m),
-        argumento_venta: String(m.argumento_venta || "").trim() || null,
-        image_url: mImgs[0] || null,
-        image_urls: mImgs,
-      };
+      return m ? formatoNumeroSerie(numeroSerieDe(m)) : null;
     })
     .filter(Boolean);
+}
+
+/** Servicios del carrito (combos + incluidos sin cargo) que ya cubren un id de catálogo. */
+function idsCubiertosPorItemsEnCarrito(idsEnCarrito) {
+  const cubiertos = new Set();
+  idsEnCarrito.forEach((id) => {
+    const s = servicioPorId(id);
+    if (!s) return;
+    if (esServicioCombo(s)) comboItemsDe(s).forEach((mid) => cubiertos.add(mid));
+    serviciosIncluidosIdsDe(s).forEach((mid) => cubiertos.add(mid));
+  });
+  return cubiertos;
+}
+
+function padresQueIncluyenServicioId(childId) {
+  const cid = String(childId || "").trim();
+  if (!cid) return [];
+  return (catalogo || [])
+    .filter((p) => p && p.id && p.activo !== false && !esServicioCombo(p))
+    .filter((p) => serviciosIncluidosIdsDe(p).includes(cid))
+    .map((p) => ({
+      service_code: formatoNumeroSerie(numeroSerieDe(p)),
+      service_id: String(p.id),
+      canonical_service_name: String(p.nombre || "").trim(),
+    }));
 }
 
 function precioPreviewMenuItem(s, vehiculo) {
@@ -2058,7 +2148,7 @@ async function vehicleMenuVambe(body) {
     const variant_hints = construirVariantHintsDescubrimiento(s, promotion_summary);
     const canonical_service_name = String(s.nombre || "").trim();
     const isCombo = esServicioCombo(s);
-    const pack_contents = isCombo ? packContentsMenuVambe(s) : [];
+    const pack_contents = isCombo ? packContentsMenuVambe(s) : packContentsServicioIncluidosVambe(s);
     const svcImgs = imagenesDescripcionServicioVambe(s);
 
     combination_promotions.forEach((cp) => {
@@ -2086,6 +2176,10 @@ async function vehicleMenuVambe(body) {
       bundled_addons: bundledAddonsMenuVambe(s, vehiculo),
       is_combo: isCombo,
       pack_contents,
+      assistant_note:
+        pack_contents.length > 0
+          ? `Incluye sin costo adicional: ${pack_contents.map((x) => x.canonical_service_name).join("; ")}. No sumes esos códigos aparte en la cotización.`
+          : null,
       sold_out: Boolean(s.agotado),
       available: !s.agotado,
       image_url: svcImgs[0] || null,
