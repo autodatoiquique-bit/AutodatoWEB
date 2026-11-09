@@ -47,6 +47,10 @@ let slideEditIndex = 0;
 let mediaEditIndex = 0;
 let fotoModeloPendiente = "";
 let colFotoPendiente = "";
+/** Foto de portada elegida antes de crear la columna (formulario «nueva»). */
+let colFotoNuevaSrc = "";
+/** Fila de variante multimarca pendiente de foto: { colId, row }. */
+let colFotoVarianteTarget = null;
 let columnaEditId = "";
 let ofertaDraft = null;
 let tarjetaColId = "";
@@ -458,18 +462,6 @@ function servicioVacio() {
   };
 }
 
-function vehiculosDeColumna(col) {
-  return [
-    {
-      marca: col.marca,
-      modelo: col.modelo,
-      ano_desde: col.ano_desde,
-      ano_hasta: col.ano_hasta,
-      combustible: col.combustible || "ambos",
-    },
-  ];
-}
-
 function htmlOpcionesCombustible(sel, vacio) {
   const vac = vacio
     ? `<option value="" ${!sel ? "selected" : ""} disabled hidden>Elige combustible</option>`
@@ -484,18 +476,533 @@ function htmlOpcionesCombustible(sel, vacio) {
 
 const COL_SEL_NUEVA_TABLERO = typeof COL_SEL_NUEVA !== "undefined" ? COL_SEL_NUEVA : "__nueva__";
 
+/** Citycars frecuentes en Iquique (2010+); misma columna multimarca. */
+const PRESET_VARIANTES_CITYCAR = [
+  { marca: "Mazda", modelo: "Demio" },
+  { marca: "Honda", modelo: "Fit" },
+  { marca: "Toyota", modelo: "Vitz" },
+  { marca: "Suzuki", modelo: "Swift" },
+  { marca: "Nissan", modelo: "Note" },
+  { marca: "Hyundai", modelo: "i10" },
+  { marca: "Kia", modelo: "Morning" },
+  { marca: "Mitsubishi", modelo: "Mirage" },
+  { marca: "Suzuki", modelo: "Baleno" },
+  { marca: "Nissan", modelo: "March" },
+];
+
+function defaultsVarianteColumna(vr) {
+  const v = vr && typeof vr === "object" ? vr : {};
+  return {
+    marca: v.marca || "",
+    modelo: v.modelo || "",
+    ano_desde: v.ano_desde != null ? v.ano_desde : ANIO_MIN,
+    ano_hasta: v.ano_hasta != null ? v.ano_hasta : null,
+    combustible: v.combustible || "bencina",
+    foto: v.foto || "",
+  };
+}
+
+function normalizarMarcaImportacionMasiva(marca) {
+  const m = String(marca || "").trim();
+  if (!m) return "";
+  const lista = typeof marcasParaAdminColumna === "function" ? marcasParaAdminColumna() : MARCAS;
+  const hit = lista.find((x) => String(x).toLowerCase() === m.toLowerCase());
+  return hit || m;
+}
+
+function inferirCombustibleDesdeNombreModelo(modelo) {
+  const n = String(modelo || "").toLowerCase();
+  if (/\b(di[eé]sel|diesel)\b/.test(n)) return "diesel";
+  if (/hybrid|h[ií]brido|e-power|epower/.test(n)) return "bencina";
+  if (/gasolina|bencina|\d\.\d+l/.test(n)) return "bencina";
+  return "bencina";
+}
+
+/** Una línea: `Marca - Modelo (2010 - 2020)` o `(... Presente)`. */
+function parsearLineaMasivaVariante(line) {
+  const t = String(line || "").trim();
+  if (!t || /^#/.test(t)) return null;
+  const m = t.match(/^(.+?)\s*-\s*(.+?)\s*\(\s*(\d{4})\s*[-–—]\s*(\d{4}|presente|actual)\s*\)\s*$/i);
+  if (!m) return null;
+  const marca = normalizarMarcaImportacionMasiva(m[1]);
+  const modelo = String(m[2] || "").trim();
+  if (!marca || !modelo) return null;
+  const ano_desde = Number(m[3]);
+  if (!Number.isFinite(ano_desde)) return null;
+  const hastaTok = String(m[4] || "").trim();
+  const sinTope = /presente|actual/i.test(hastaTok);
+  const ano_hasta = sinTope ? null : Number(hastaTok);
+  if (!sinTope && !Number.isFinite(ano_hasta)) return null;
+  return defaultsVarianteColumna({
+    marca,
+    modelo,
+    ano_desde,
+    ano_hasta,
+    combustible: inferirCombustibleDesdeNombreModelo(modelo),
+  });
+}
+
+function parsearTextoMasivoVariantes(texto) {
+  const filas = [];
+  const errores = [];
+  String(texto || "")
+    .split(/\r?\n/)
+    .forEach((line, i) => {
+      const t = line.trim();
+      if (!t) return;
+      const v = parsearLineaMasivaVariante(t);
+      if (v) filas.push(v);
+      else errores.push(i + 1);
+    });
+  return { filas, errores };
+}
+
+function claveVarianteColumnaUnica(v) {
+  const marca = String((v && v.marca) || "")
+    .trim()
+    .toLowerCase();
+  const modelo = String((v && v.modelo) || "")
+    .trim()
+    .toLowerCase();
+  return marca && modelo ? `${marca}|${modelo}` : "";
+}
+
+/** Una fila por marca+modelo; la última definición gana (p. ej. pegado masivo corrige años). */
+function fusionarVariantesPorMarcaModelo(lista) {
+  const map = new Map();
+  (lista || []).forEach((v) => {
+    const k = claveVarianteColumnaUnica(v);
+    if (!k) return;
+    const prev = map.get(k);
+    if (!prev) {
+      map.set(k, defaultsVarianteColumna(v));
+      return;
+    }
+    map.set(k, defaultsVarianteColumna({
+      ...prev,
+      ...v,
+      foto: (v && v.foto) || prev.foto || "",
+    }));
+  });
+  return [...map.values()];
+}
+
+function importarVariantesMasivasColumna(colId) {
+  const esc =
+    typeof CSS !== "undefined" && typeof CSS.escape === "function"
+      ? CSS.escape(colId)
+      : String(colId).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const ta = document.querySelector(`[data-col-masivo-texto][data-col-id="${esc}"]`);
+  const texto = ta ? ta.value : "";
+  const { filas, errores } = parsearTextoMasivoVariantes(texto);
+  if (!filas.length) {
+    alert(
+      errores.length
+        ? "No se reconoció ningún vehículo. Usa el formato: Marca - Modelo (2010 - 2020) o (2010 - Presente)."
+        : "Pega al menos una línea con el formato: Marca - Modelo (2010 - 2020)."
+    );
+    return;
+  }
+  const caja = document.querySelector(`[data-col-variantes="${colId}"]`);
+  if (!caja) return;
+  const existentes = leerVariantesColumnaDesdeDom(colId);
+  const fotosPrev = new Map();
+  existentes.forEach((v) => {
+    const k = claveVarianteColumnaUnica(v);
+    if (k && v.foto) fotosPrev.set(k, v.foto);
+  });
+  const pegado = fusionarVariantesPorMarcaModelo(filas);
+  const combinado = pegado.map((v) => {
+    const k = claveVarianteColumnaUnica(v);
+    const foto = (k && fotosPrev.get(k)) || v.foto || "";
+    return { ...v, foto };
+  });
+  caja.innerHTML = combinado.map((vr, i) => htmlFilaVarianteColumna(colId, vr, i, false)).join("");
+  reindexBotonesVarianteColumna(colId);
+  if (ta) ta.value = "";
+  const partes = [];
+  partes.push(`Lista actualizada: ${combinado.length} modelo(s) (sin duplicados en el pegado).`);
+  if (existentes.length && existentes.length !== combinado.length) {
+    partes.push(`Antes había ${existentes.length} filas; el pegado reemplaza la lista.`);
+  }
+  if (errores.length) {
+    partes.push(
+      `${errores.length} línea(s) sin formato válido (líneas: ${errores.slice(0, 8).join(", ")}${errores.length > 8 ? "…" : ""}).`
+    );
+  }
+  partes.push('Los cambios se guardan solo con «Guardar columna».');
+  alert(partes.join(" "));
+}
+
+function persistirFotosVariantesColumna(variantes) {
+  if (!Array.isArray(variantes)) return;
+  variantes.forEach((v) => {
+    if (v && v.marca && v.modelo && v.foto && typeof claveVehiculo === "function") {
+      FOTOS_MODELOS[claveVehiculo(v.marca, v.modelo)] = v.foto;
+    }
+  });
+  if (typeof persistirFotosModelos === "function") persistirFotosModelos();
+}
+
+function esControlVarianteMarca(el) {
+  return el && typeof el.matches === "function" && el.matches("[data-col-variante-marca], [data-col-variante-marca-text]");
+}
+
+function htmlOpcionesModeloVarianteColumna(marca, selected, placeholderVacio) {
+  const vacio = placeholderVacio ? `<option value="" selected disabled hidden>Elige modelo</option>` : "";
+  if (!marca) return vacio;
+  const modelos =
+    typeof modelosParaAdminColumna === "function"
+      ? modelosParaAdminColumna(marca)
+      : modelosDe(marca).filter((m) => m !== "Otro");
+  const sel = String(selected || "").trim();
+  const extra =
+    sel && !modelos.includes(sel)
+      ? `<option value="${escapeAttr(sel)}" selected>${typeof escapeText === "function" ? escapeText(sel) : sel}</option>`
+      : "";
+  return (
+    vacio +
+    extra +
+    modelos.map((m) => `<option value="${m}" ${m === sel ? "selected" : ""}>${m}</option>`).join("") +
+    `<option value="${COL_SEL_NUEVA_TABLERO}">Nuevo modelo…</option>`
+  );
+}
+
+function htmlFilaVarianteColumna(colId, vr, i, esNueva) {
+  const d = defaultsVarianteColumna(vr);
+  const marcasLista = typeof marcasParaAdminColumna === "function" ? marcasParaAdminColumna() : MARCAS;
+  const marca = d.marca;
+  const modelo = d.modelo;
+  const adelante = d.ano_hasta == null;
+  const desde = d.ano_desde;
+  const hasta = d.ano_hasta != null ? d.ano_hasta : ANIO_MAX;
+  const comb = typeof normalizarCombustible === "function" ? normalizarCombustible(d.combustible) : d.combustible;
+  const modeloOpts = htmlOpcionesModeloVarianteColumna(marca, modelo, !marca);
+  const modeloBloqueado = !marca;
+  const foto = d.foto || "";
+  return `
+    <div class="col-variante-item" data-col-variante-i="${i}">
+      <div class="col-variante-linea veh-linea" data-col-variante-i="${i}">
+        <select data-col-variante-marca="" data-col-id="${colId}" aria-label="Marca">
+          ${!marca ? `<option value="" selected disabled hidden>Marca</option>` : ""}
+          ${marcasLista.map((m) => `<option value="${m}" ${m === marca ? "selected" : ""}>${m}</option>`).join("")}
+          <option value="${COL_SEL_NUEVA_TABLERO}">Nueva marca…</option>
+        </select>
+        <div class="col-shell-lista-texto col-variante-modelo-shell" data-col-shell="variante-modelo" data-col-id="${colId}" data-col-variante-i="${i}">
+          <select data-col-variante-modelo="" data-col-kind="select" data-col-id="${colId}" data-col-variante-i="${i}" ${modeloBloqueado ? "disabled" : ""}>${modeloOpts}</select>
+          <input type="text" data-col-variante-modelo data-col-kind="text" data-col-id="${colId}" data-col-variante-i="${i}" class="col-ctl-text" hidden placeholder="Modelo" autocomplete="off" />
+        </div>
+        <button class="veh-linea-x" type="button" data-col-variante-del="1" data-col-id="${colId}" title="Quitar" ${i === 0 ? "hidden" : ""}>×</button>
+      </div>
+      <div class="col-variante-meta">
+        <select data-col-variante-desde="" data-col-id="${colId}" data-col-variante-i="${i}" aria-label="Desde año" title="Desde año">${htmlOpcionesAnio(desde, false)}</select>
+        <select data-col-variante-hasta="" data-col-id="${colId}" data-col-variante-i="${i}" aria-label="Hasta año" title="Hasta año" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta, false)}</select>
+        <label class="col-variante-adelante" title="Sin tope de año"><input type="checkbox" data-col-variante-adelante="" data-col-id="${colId}" data-col-variante-i="${i}" ${adelante ? "checked" : ""} /> +</label>
+        <select data-col-variante-combustible="" data-col-id="${colId}" data-col-variante-i="${i}" aria-label="Combustible" title="Combustible">${htmlOpcionesCombustible(comb, false)}</select>
+        <button type="button" class="col-variante-foto-btn" data-col-variante-foto="" data-col-id="${colId}" data-col-variante-i="${i}" title="Foto de perfil">${foto ? "📷" : "＋📷"}</button>
+        <span class="col-variante-foto-thumb" data-col-variante-foto-prev="">${foto ? `<img src="${escapeAttr(foto)}" alt="" />` : ""}</span>
+        <input type="hidden" data-col-variante-foto-src="" value="${escapeAttr(foto)}" />
+        <input type="hidden" data-col-variante-modelo-guardado="" value="${escapeAttr(d.modelo)}" />
+      </div>
+    </div>`;
+}
+
+function variantesInicialesColumna(col, esNueva) {
+  if (col && col.multimarca && Array.isArray(col.variantes) && col.variantes.length) return col.variantes;
+  if (esNueva) return PRESET_VARIANTES_CITYCAR.map(defaultsVarianteColumna);
+  return [{ marca: MARCAS[0], modelo: modelosDe(MARCAS[0])[0] }];
+}
+
+function htmlBloqueVariantesColumna(col, id, esNueva) {
+  const filas = variantesInicialesColumna(col, esNueva);
+  const marcasLista = typeof marcasParaAdminColumna === "function" ? marcasParaAdminColumna() : MARCAS;
+  return `
+    <div class="col-variantes-block">
+      <p class="muted col-variantes-hint">Cada fila: marca, modelo, años, combustible y foto propios.</p>
+      <div class="col-variante-masivo">
+        <label class="field"><span>Pegado masivo</span>
+          <textarea data-col-masivo-texto="" data-col-id="${id}" rows="5" class="col-masivo-textarea" placeholder="Marca - Modelo (2010 - 2020)&#10;Honda - Fit (2010 - 2020)&#10;Toyota - Vitz (2010 - Presente)"></textarea>
+        </label>
+        <button type="button" class="btn-ghost btn-sm btn-block" data-col-importar-masivo="${id}">Importar lista pegada</button>
+        <p class="muted col-masivo-ayuda">Formato: <code>Marca - Modelo (desde - hasta)</code>. El pegado <em>reemplaza</em> toda la lista (sin filas repetidas). Guarda con «Guardar columna».</p>
+      </div>
+      <div data-col-variantes="${id}">${filas.map((vr, i) => htmlFilaVarianteColumna(id, vr, i, esNueva)).join("")}</div>
+      <button type="button" class="btn-ghost btn-sm" data-col-add-variante="${id}">+ Añadir modelo</button>
+      <div class="col-variante-manual">
+        <select data-col-manual-marca="" data-col-id="${id}" aria-label="Marca manual">
+          <option value="" selected disabled hidden>Marca</option>
+          ${marcasLista.map((m) => `<option value="${m}">${m}</option>`).join("")}
+        </select>
+        <input type="text" data-col-manual-modelo="" data-col-id="${id}" placeholder="Modelo a mano (ej. Yaris)" autocomplete="off" aria-label="Modelo manual" />
+        <button type="button" class="btn-ghost btn-sm" data-col-manual-add="${id}">Agregar a la lista</button>
+      </div>
+    </div>`;
+}
+
+function variantesColumnaEstanVacias(colId) {
+  const caja = document.querySelector(`[data-col-variantes="${colId}"]`);
+  if (!caja) return true;
+  const rows = [...caja.querySelectorAll(".col-variante-item .col-variante-linea")];
+  if (!rows.length) return true;
+  return rows.every((row) => !valorVarianteColumna(row, "marca") || !valorVarianteColumna(row, "modelo"));
+}
+
+function aplicarPresetVariantesCitycar(colId) {
+  const caja = document.querySelector(`[data-col-variantes="${colId}"]`);
+  if (!caja) return;
+  caja.innerHTML = PRESET_VARIANTES_CITYCAR.map((vr, i) => htmlFilaVarianteColumna(colId, vr, i, false)).join("");
+  reindexBotonesVarianteColumna(colId);
+}
+
+function manejarClickUiColumnaTablero(t) {
+  if (!t || !t.dataset) return false;
+  if ("colImportarMasivo" in t.dataset) {
+    importarVariantesMasivasColumna(t.dataset.colImportarMasivo);
+    return true;
+  }
+  if ("colManualAdd" in t.dataset) {
+    agregarVarianteManualColumna(t.dataset.colManualAdd);
+    return true;
+  }
+  if ("colAddVariante" in t.dataset) {
+    const colId = t.dataset.colAddVariante;
+    const caja = document.querySelector(`[data-col-variantes="${colId}"]`);
+    if (!caja) return true;
+    const n = caja.querySelectorAll(".col-variante-item").length;
+    caja.insertAdjacentHTML("beforeend", htmlFilaVarianteColumna(colId, defaultsVarianteColumna({}), n, false));
+    reindexBotonesVarianteColumna(colId);
+    return true;
+  }
+  if ("colVarianteFoto" in t.dataset) {
+    const item = t.closest(".col-variante-item");
+    if (!item) return true;
+    colFotoVarianteTarget = { colId: t.dataset.colId, item };
+    colFotoPendiente = "";
+    $("col-foto-file")?.click();
+    return true;
+  }
+  if ("colVarianteDel" in t.dataset) {
+    const colId = t.dataset.colId;
+    const item = t.closest(".col-variante-item");
+    const caja = document.querySelector(`[data-col-variantes="${colId}"]`);
+    if (item && caja && caja.querySelectorAll(".col-variante-item").length > 1) item.remove();
+    reindexBotonesVarianteColumna(colId);
+    return true;
+  }
+  if ("colFoto" in t.dataset && t.closest("#modal-columna, .kanban-col-add")) {
+    colFotoPendiente = t.dataset.colFoto;
+    $("col-foto-file")?.click();
+    return true;
+  }
+  return false;
+}
+
+function agregarVarianteManualColumna(colId) {
+  const marcaEl = document.querySelector(`[data-col-manual-marca][data-col-id="${colId}"]`);
+  const modeloEl = document.querySelector(`[data-col-manual-modelo][data-col-id="${colId}"]`);
+  const marca = marcaEl ? String(marcaEl.value || "").trim() : "";
+  const modelo = modeloEl ? String(modeloEl.value || "").trim() : "";
+  if (!marca || !modelo) {
+    alert("Elige marca y escribe el modelo a mano.");
+    return;
+  }
+  if (typeof registrarMarca === "function") registrarMarca(marca);
+  if (typeof registrarModelo === "function") registrarModelo(marca, modelo);
+  const caja = document.querySelector(`[data-col-variantes="${colId}"]`);
+  if (!caja) return;
+  const n = caja.querySelectorAll(".col-variante-linea").length;
+  caja.insertAdjacentHTML("beforeend", htmlFilaVarianteColumna(colId, defaultsVarianteColumna({ marca, modelo }), n, false));
+  reindexBotonesVarianteColumna(colId);
+  if (modeloEl) modeloEl.value = "";
+}
+
+function toggleUiColumnaMultimarca(id, on) {
+  const single = document.querySelector(`[data-col-seccion-single="${id}"]`);
+  const multi = document.querySelector(`[data-col-seccion-multimarca="${id}"]`);
+  const alcance = document.querySelector(`[data-col-seccion-alcance="${id}"]`);
+  if (single) single.hidden = Boolean(on);
+  if (multi) multi.hidden = !on;
+  if (alcance) alcance.hidden = Boolean(on);
+  if (on) {
+    if (variantesColumnaEstanVacias(id)) aplicarPresetVariantesCitycar(id);
+    else sincronizarModelosVariantesColumna(id);
+  }
+}
+
+function reindexBotonesVarianteColumna(colId) {
+  const items = document.querySelectorAll(`[data-col-variantes="${colId}"] .col-variante-item`);
+  items.forEach((item, i) => {
+    item.dataset.colVarianteI = String(i);
+    const del = item.querySelector("[data-col-variante-del]");
+    if (del) del.hidden = items.length < 2;
+    item.querySelectorAll("[data-col-variante-i]").forEach((el) => {
+      el.dataset.colVarianteI = String(i);
+    });
+  });
+}
+
+function valorVarianteColumna(row, campo) {
+  if (!row) return "";
+  if (campo === "marca") {
+    const txt = row.querySelector("[data-col-variante-marca-text]");
+    if (txt) return String(txt.value || "").trim();
+    const sel = row.querySelector("[data-col-variante-marca]");
+    const v = sel ? String(sel.value || "").trim() : "";
+    return v === COL_SEL_NUEVA_TABLERO ? "" : v;
+  }
+  const item = row.closest(".col-variante-item");
+  const shell = row.querySelector('[data-col-shell="variante-modelo"]');
+  if (!shell) {
+    const hid0 = item && item.querySelector("[data-col-variante-modelo-guardado]");
+    return hid0 ? String(hid0.value || "").trim() : "";
+  }
+  const txt = shell.querySelector('[data-col-kind="text"]');
+  const sel = shell.querySelector('[data-col-kind="select"]');
+  let v = "";
+  if (txt && !txt.hidden) v = String(txt.value || "").trim();
+  else if (sel && !sel.hidden) {
+    v = String(sel.value || "").trim();
+    if (v === COL_SEL_NUEVA_TABLERO) v = "";
+  }
+  if (!v) {
+    const hid = item && item.querySelector("[data-col-variante-modelo-guardado]");
+    if (hid) v = String(hid.value || "").trim();
+  }
+  if (v && item) {
+    const hid = item.querySelector("[data-col-variante-modelo-guardado]");
+    if (hid) hid.value = v;
+  }
+  return v;
+}
+
+function leerVarianteFilaDom(item) {
+  const row = item.querySelector(".col-variante-linea") || item;
+  const adelante = Boolean(item.querySelector("[data-col-variante-adelante]") && item.querySelector("[data-col-variante-adelante]").checked);
+  const desdeEl = item.querySelector("[data-col-variante-desde]");
+  const combEl = item.querySelector("[data-col-variante-combustible]");
+  const fotoEl = item.querySelector("[data-col-variante-foto-src]");
+  const desdeRaw = desdeEl && desdeEl.value;
+  const hastaRaw = item.querySelector("[data-col-variante-hasta]") && item.querySelector("[data-col-variante-hasta]").value;
+  return {
+    marca: valorVarianteColumna(row, "marca"),
+    modelo: valorVarianteColumna(row, "modelo"),
+    ano_desde: desdeRaw !== "" && desdeRaw != null ? Number(desdeRaw) : ANIO_MIN,
+    ano_hasta: adelante ? null : hastaRaw !== "" && hastaRaw != null ? Number(hastaRaw) : null,
+    combustible: combEl && combEl.value ? combEl.value : "bencina",
+    foto: fotoEl ? String(fotoEl.value || "").trim() : "",
+  };
+}
+
+function leerVariantesColumnaDesdeDom(id) {
+  const caja = document.querySelector(`[data-col-variantes="${id}"]`);
+  if (!caja) return [];
+  return [...caja.querySelectorAll(".col-variante-item")]
+    .map((item) => leerVarianteFilaDom(item))
+    .filter((v) => v.marca && v.modelo);
+}
+
+function onColVarianteMarcaChange(colId, row, val, modeloConservar) {
+  if (!row) return;
+  if (val === COL_SEL_NUEVA_TABLERO) {
+    const sel = row.querySelector("[data-col-variante-marca]");
+    if (sel) {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "col-ctl-text";
+      input.placeholder = "Marca";
+      input.dataset.colVarianteMarcaText = "";
+      input.dataset.colId = colId;
+      sel.replaceWith(input);
+      input.focus();
+    }
+    return;
+  }
+  const selModelo = row.querySelector("[data-col-variante-modelo][data-col-kind='select']");
+  if (!selModelo) return;
+  const marca = String(val || "").trim();
+  let modeloActual = modeloConservar != null ? String(modeloConservar).trim() : "";
+  if (!modeloActual) modeloActual = valorVarianteColumna(row, "modelo");
+  if (!modeloActual && selModelo.value && selModelo.value !== COL_SEL_NUEVA_TABLERO) {
+    modeloActual = String(selModelo.value).trim();
+  }
+  const item = row.closest(".col-variante-item");
+  const hid = item && item.querySelector("[data-col-variante-modelo-guardado]");
+  if (!modeloActual && hid) modeloActual = String(hid.value || "").trim();
+  selModelo.disabled = !marca;
+  selModelo.innerHTML = htmlOpcionesModeloVarianteColumna(marca, modeloActual, !marca);
+  if (modeloActual) {
+    const opt = [...selModelo.options].find((o) => o.value === modeloActual);
+    if (opt) selModelo.value = modeloActual;
+  }
+  if (hid && modeloActual) hid.value = modeloActual;
+  if (marca && typeof registrarMarca === "function") registrarMarca(marca);
+}
+
+function sincronizarModelosVariantesColumna(colId) {
+  document.querySelectorAll(`[data-col-variantes="${colId}"] .col-variante-item`).forEach((item) => {
+    const row = item.querySelector(".col-variante-linea");
+    if (!row) return;
+    const selMarca = row.querySelector("[data-col-variante-marca]");
+    const hid = item.querySelector("[data-col-variante-modelo-guardado]");
+    const modelo = hid ? String(hid.value || "").trim() : "";
+    if (selMarca) onColVarianteMarcaChange(colId, row, selMarca.value, modelo);
+  });
+}
+
+function htmlBloqueAlcanceColumna(col, id, esNueva) {
+  const adelante = esNueva ? true : !col || col.ano_hasta == null;
+  const desde = esNueva ? ANIO_MIN : anioONull(col && col.ano_desde) ?? ANIO_MIN;
+  const hasta = esNueva ? ANIO_MAX : anioONull(col && col.ano_hasta) ?? ANIO_MAX;
+  const comb =
+    esNueva
+      ? "bencina"
+      : typeof normalizarCombustible === "function"
+        ? normalizarCombustible(col && col.combustible) || "bencina"
+        : col && col.combustible
+          ? col.combustible
+          : "bencina";
+  const fotoPrev =
+    (col && col.foto) || (esNueva && colFotoNuevaSrc) || (id === "nueva" && colFotoNuevaSrc) || "";
+  return `
+    <div class="col-bloque-alcance">
+      <label class="field"><span>Desde el año</span>
+        <select data-col-campo="desde" data-col-id="${id}">${htmlOpcionesAnio(desde, false)}</select>
+      </label>
+      <label class="field"><span>Hasta el año</span>
+        <select data-col-campo="hasta" data-col-id="${id}" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta, false)}</select>
+      </label>
+      <label class="check"><input type="checkbox" data-col-campo="adelante" data-col-id="${id}" ${adelante ? "checked" : ""} /> En adelante (sin tope)</label>
+      <label class="field"><span>Combustible</span>
+        <select data-col-campo="combustible" data-col-id="${id}">${htmlOpcionesCombustible(comb, false)}</select>
+      </label>
+      <div class="col-foto-inline">
+        <div class="col-foto-inline-prev" data-col-foto-prev="${id}">
+          ${fotoPrev ? `<img src="${escapeAttr(fotoPrev)}" alt="" />` : `<span class="muted">Sin foto de perfil</span>`}
+        </div>
+        <button type="button" class="btn-line btn-block" data-col-foto="${id}">Foto de perfil</button>
+      </div>
+    </div>`;
+}
+
 function htmlCamposColumna(col, id) {
   const esNueva = id === "nueva" && !col;
+  const multimarca = Boolean(col && col.multimarca);
+  const tituloMulti = col && col.multimarca ? col.titulo_multimarca || col.modelo : "";
   const marcasLista = typeof marcasParaAdminColumna === "function" ? marcasParaAdminColumna() : MARCAS;
-  const marca = esNueva ? "" : (col && col.marca) || marcasLista[0] || MARCAS[0];
+  const marca = esNueva ? "" : multimarca ? "" : (col && col.marca) || marcasLista[0] || MARCAS[0];
   const modelos = marca ? (typeof modelosParaAdminColumna === "function" ? modelosParaAdminColumna(marca) : modelosDe(marca).filter((m) => m !== "Otro")) : [];
-  const modelo = esNueva ? "" : (col && col.modelo) || modelos[0];
-  const adelante = esNueva ? false : !col || col.ano_hasta == null;
-  const desde = esNueva ? "" : anioONull(col && col.ano_desde) ?? ANIO_MIN;
-  const hasta = esNueva ? "" : anioONull(col && col.ano_hasta) ?? ANIO_MAX;
-  const combustible = esNueva ? "" : col && col.combustible;
+  const modelo = esNueva ? "" : multimarca ? "" : (col && col.modelo) || modelos[0];
+  const bloqueAlcance = htmlBloqueAlcanceColumna(col, id, esNueva);
   const modeloOpts = htmlOpcionesModeloColumna(id, marca, modelo, esNueva);
   return `
+    <label class="check"><input type="checkbox" data-col-campo="multimarca" data-col-id="${id}" ${multimarca ? "checked" : ""} /> Columna multimarca (varios autos, mismos precios)</label>
+    <div class="col-campo-multimarca" data-col-seccion-multimarca="${id}" ${multimarca ? "" : "hidden"}>
+      <label class="field"><span>Nombre de la columna</span>
+        <input type="text" data-col-campo="titulo-multimarca" data-col-id="${id}" value="${escapeAttr(tituloMulti)}" placeholder="Ej. Citycar Iquique" autocomplete="off" />
+      </label>
+      ${htmlBloqueVariantesColumna(col, id, esNueva)}
+    </div>
+    <div class="col-campo-single" data-col-seccion-single="${id}" ${multimarca ? "hidden" : ""}>
     <label class="field col-campo-lista-texto"><span>Marca</span>
       <div class="col-shell-lista-texto" data-col-shell="marca" data-col-id="${id}">
         <select data-col-campo="marca" data-col-kind="select" data-col-id="${id}">
@@ -512,16 +1019,8 @@ function htmlCamposColumna(col, id) {
         <input type="text" data-col-campo="modelo" data-col-kind="text" data-col-id="${id}" class="col-ctl-text" hidden placeholder="Escribe el modelo" autocomplete="off" />
       </div>
     </label>
-    <label class="field"><span>Desde el año</span>
-      <select data-col-campo="desde" data-col-id="${id}">${htmlOpcionesAnio(desde, esNueva)}</select>
-    </label>
-    <label class="field"><span>Hasta el año</span>
-      <select data-col-campo="hasta" data-col-id="${id}" ${adelante ? "disabled" : ""}>${htmlOpcionesAnio(hasta, esNueva && !adelante)}</select>
-    </label>
-    <label class="check"><input type="checkbox" data-col-campo="adelante" data-col-id="${id}" ${adelante ? "checked" : ""} /> En adelante (sin tope)</label>
-    <label class="field"><span>Combustible</span>
-      <select data-col-campo="combustible" data-col-id="${id}">${htmlOpcionesCombustible(esNueva ? "" : combustible || "ambos", esNueva)}</select>
-    </label>
+    <div data-col-seccion-alcance="${id}" ${multimarca ? "hidden" : ""}>${bloqueAlcance}</div>
+    </div>
     ${
       esNueva
         ? ""
@@ -630,16 +1129,42 @@ function leerCamposColumna(id) {
   const adelante = Boolean(q("adelante") && q("adelante").checked);
   const desdeRaw = q("desde") && q("desde").value;
   const hastaRaw = q("hasta") && q("hasta").value;
-  const { marca, modelo } = resolverMarcaModeloColumna(id);
-  return {
-    marca,
-    modelo,
+  const combustible = q("combustible") && q("combustible").value;
+  const orden_automatico_tarjetas = q("orden-auto") && q("orden-auto").value === "si" ? "si" : "no";
+  const multimarca = Boolean(q("multimarca") && q("multimarca").checked);
+  const base = {
+    multimarca,
     ano_desde: desdeRaw !== "" && desdeRaw != null ? Number(desdeRaw) : null,
     ano_hasta: adelante ? null : hastaRaw !== "" && hastaRaw != null ? Number(hastaRaw) : null,
-    combustible: q("combustible") && q("combustible").value,
+    combustible,
     adelante,
-    orden_automatico_tarjetas: q("orden-auto") && q("orden-auto").value === "si" ? "si" : "no",
+    orden_automatico_tarjetas,
   };
+  if (multimarca) {
+    const titulo = q("titulo-multimarca") ? String(q("titulo-multimarca").value || "").trim() : "";
+    const variantes = fusionarVariantesPorMarcaModelo(leerVariantesColumnaDesdeDom(id));
+    variantes.forEach((v) => {
+      if (typeof registrarMarca === "function") registrarMarca(v.marca);
+      if (typeof registrarModelo === "function") registrarModelo(v.marca, v.modelo);
+    });
+    persistirFotosVariantesColumna(variantes);
+    const alcance =
+      typeof sintetizarAlcanceColumnaDesdeVariantes === "function"
+        ? sintetizarAlcanceColumnaDesdeVariantes(variantes)
+        : { ano_desde: base.ano_desde, ano_hasta: base.ano_hasta, combustible: base.combustible || "ambos" };
+    const fotoCol = (variantes.find((v) => v.foto) || {}).foto || "";
+    return {
+      ...base,
+      ...alcance,
+      foto: fotoCol,
+      titulo_multimarca: titulo,
+      variantes,
+      marca: "Multimarca",
+      modelo: titulo || "Varios modelos",
+    };
+  }
+  const { marca, modelo } = resolverMarcaModeloColumna(id);
+  return { ...base, marca, modelo, variantes: [] };
 }
 
 async function guardarTableroNube() {
@@ -939,6 +1464,7 @@ function htmlColumnaKanban(col) {
         <button type="button" class="kanban-col-drag" draggable="true" data-kanban-col-drag="${col.id}" title="Arrastrar columna" aria-label="Arrastrar columna">⋮⋮</button>
         <div class="kanban-apex-foto">${foto ? `<img src="${foto}" alt="" />` : ""}</div>
         <div class="kanban-apex-meta">
+          ${col.multimarca ? `<span class="kanban-tag-multimarca">MULTIMARCA</span>` : ""}
           <strong>${tituloColumna(col)}</strong>
           <span>${etiquetaCombustible(col.combustible)}</span>
         </div>
@@ -1335,7 +1861,7 @@ function htmlFormColumna() {
   return `
     <section class="kanban-col kanban-col-add">
       <h3>Nueva columna</h3>
-      <p>Completa marca, modelo, años y combustible. No hay valores de ejemplo: todo queda en blanco hasta que lo elijas.</p>
+      <p>Marca/modelo único o columna <strong>multimarca</strong>: en multimarca, años, combustible y foto son <em>por cada modelo</em>.</p>
       ${htmlCamposColumna(null, "nueva")}
       <button class="btn-primary btn-block" type="button" id="btn-col-add">Agregar columna</button>
     </section>
@@ -1741,29 +2267,50 @@ function armarDragTablero() {
 
 async function agregarColumnaTablero() {
   const raw = leerCamposColumna("nueva");
-  if (!raw.marca) {
-    alert("Elige una marca de la lista o selecciona «Nueva marca…» y escribe el nombre.");
-    return;
+  if (raw.multimarca) {
+    if (!raw.titulo_multimarca) {
+      alert("Escribe un nombre para la columna multimarca (ej. Citycar Iquique).");
+      return;
+    }
+    if (!raw.variantes || !raw.variantes.length) {
+      alert("Añade al menos un modelo en la lista multimarca.");
+      return;
+    }
+  } else {
+    if (!raw.marca) {
+      alert("Elige una marca de la lista o selecciona «Nueva marca…» y escribe el nombre.");
+      return;
+    }
+    if (!raw.modelo) {
+      alert("Elige un modelo de la lista o selecciona «Nuevo modelo…» y escribe el nombre.");
+      return;
+    }
   }
-  if (!raw.modelo) {
-    alert("Elige un modelo de la lista o selecciona «Nuevo modelo…» y escribe el nombre.");
-    return;
-  }
-  if (!raw.combustible) {
-    alert("Elige combustible.");
-    return;
-  }
-  if (raw.ano_desde == null) {
-    alert("Elige desde qué año aplica esta columna.");
-    return;
-  }
-  if (!raw.adelante && raw.ano_hasta == null) {
-    alert('Elige hasta qué año, o marca "En adelante (sin tope)".');
-    return;
-  }
-  if (!raw.adelante && raw.ano_hasta != null && raw.ano_desde > raw.ano_hasta) {
-    alert("El año desde no puede ser mayor que el año hasta.");
-    return;
+  if (!raw.multimarca) {
+    if (!raw.combustible) raw.combustible = "bencina";
+    if (raw.ano_desde == null) {
+      alert("Elige desde qué año aplica esta columna.");
+      return;
+    }
+    if (!raw.adelante && raw.ano_hasta == null) {
+      alert('Elige hasta qué año, o marca "En adelante (sin tope)".');
+      return;
+    }
+    if (!raw.adelante && raw.ano_hasta != null && raw.ano_desde > raw.ano_hasta) {
+      alert("El año desde no puede ser mayor que el año hasta.");
+      return;
+    }
+  } else {
+    for (const v of raw.variantes) {
+      if (v.ano_desde == null) {
+        alert(`Elige año «desde» para ${v.marca} ${v.modelo}.`);
+        return;
+      }
+      if (v.ano_hasta != null && v.ano_desde > v.ano_hasta) {
+        alert(`El año «desde» no puede ser mayor que «hasta» en ${v.marca} ${v.modelo}.`);
+        return;
+      }
+    }
   }
   const col = normalizarColumnaTablero({
     id: `col-${Date.now()}`,
@@ -1772,6 +2319,10 @@ async function agregarColumnaTablero() {
   if (TABLERO_COLUMNAS.some((c) => claveColumnaTablero(c) === claveColumnaTablero(col))) {
     alert("Esa columna ya está en el tablero.");
     return;
+  }
+  if (colFotoNuevaSrc) {
+    aplicarFotoColumna(col, colFotoNuevaSrc);
+    colFotoNuevaSrc = "";
   }
   TABLERO_COLUMNAS.push(col);
   try {
@@ -1786,7 +2337,16 @@ async function guardarColumnaTablero(id) {
   const i = TABLERO_COLUMNAS.findIndex((c) => c.id === id);
   if (i < 0) return;
   const raw = leerCamposColumna(id);
-  if (!raw.marca || !raw.modelo) {
+  if (raw.multimarca) {
+    if (!raw.titulo_multimarca) {
+      alert("Escribe el nombre de la columna multimarca.");
+      return;
+    }
+    if (!raw.variantes || !raw.variantes.length) {
+      alert("Añade al menos un modelo en la lista multimarca.");
+      return;
+    }
+  } else if (!raw.marca || !raw.modelo) {
     alert("Elige marca y modelo.");
     return;
   }
@@ -1887,6 +2447,15 @@ function leerEditor() {
   aplicarMediaServicio(editando, mediaEditando());
   editando.vehiculos = leerVehiculosEditor();
   leerCostosEditor();
+}
+
+function aplicarServiciosIncluidosPendientesEditor() {
+  if (!editando || editando.es_combo) return;
+  if (!Array.isArray(editando.servicios_incluidos)) editando.servicios_incluidos = [];
+  const sel = $("e-incluido-pick");
+  const id = sel ? String(sel.value || "").trim() : "";
+  if (!id || id === editando.id) return;
+  if (!editando.servicios_incluidos.includes(id)) editando.servicios_incluidos.push(id);
 }
 
 function leerAnioCampo(sel) {
@@ -2417,7 +2986,9 @@ function htmlServiciosIncluidosEditor(s) {
       })
       .join("") || `<p class="muted">Ningún servicio incluido.</p>`;
   const selectOpciones = opciones.length
-    ? opciones.map((x) => `<option value="${escapeAttr(x.id)}">${escapeText(x.nombre)}</option>`).join("")
+    ? `<option value="" disabled selected hidden>Elige un servicio del catálogo</option>${opciones
+        .map((x) => `<option value="${escapeAttr(x.id)}">${escapeText(x.nombre)}</option>`)
+        .join("")}`
     : `<option value="">—</option>`;
   return `
     <div class="incluidos-list" id="e-incluidos">${rows}</div>
@@ -2425,6 +2996,7 @@ function htmlServiciosIncluidosEditor(s) {
       <select id="e-incluido-pick"${opciones.length ? "" : " disabled"}>${selectOpciones}</select>
     </label>
     <button class="btn-line btn-block" type="button" id="btn-add-incluido" ${opciones.length ? "" : "disabled"}>Agregar servicio incluido</button>
+    <p class="hint">Elige en la lista y pulsa <strong>Agregar</strong>, o guarda el servicio: la selección pendiente también se incluye.</p>
   `;
 }
 
@@ -2635,6 +3207,7 @@ function nuevoServicio() {
 
 async function guardarServicio() {
   leerEditor();
+  aplicarServiciosIncluidosPendientesEditor();
   if (!editando.nombre) {
     alert("Escribe el nombre del servicio.");
     return;
@@ -3343,15 +3916,38 @@ $("foto-modelo-file")?.addEventListener("change", async (e) => {
 });
 $("col-foto-file")?.addEventListener("change", async (e) => {
   const file = e.target.files && e.target.files[0];
-  const id = colFotoPendiente || columnaEditId;
   e.target.value = "";
-  colFotoPendiente = "";
-  if (!file || !id) return;
-  const col = TABLERO_COLUMNAS.find((c) => c.id === id);
-  if (!col) return;
+  if (!file) return;
   try {
     let src = await leerImagen(file, 1400);
     if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+    if (colFotoVarianteTarget && colFotoVarianteTarget.item) {
+      const item = colFotoVarianteTarget.item;
+      const hidden = item.querySelector("[data-col-variante-foto-src]");
+      const thumb = item.querySelector("[data-col-variante-foto-prev]");
+      const btn = item.querySelector("[data-col-variante-foto]");
+      if (hidden) hidden.value = src;
+      if (thumb) thumb.innerHTML = `<img src="${escapeAttr(src)}" alt="" />`;
+      if (btn) btn.textContent = "📷";
+      const v = leerVarianteFilaDom(item);
+      if (v.marca && v.modelo) {
+        FOTOS_MODELOS[claveVehiculo(v.marca, v.modelo)] = src;
+        persistirFotosModelos();
+      }
+      colFotoVarianteTarget = null;
+      return;
+    }
+    const id = colFotoPendiente || columnaEditId;
+    colFotoPendiente = "";
+    if (!id) return;
+    if (id === "nueva") {
+      colFotoNuevaSrc = src;
+      const prev = document.querySelector('[data-col-foto-prev="nueva"]');
+      if (prev) prev.innerHTML = `<img src="${escapeAttr(src)}" alt="" />`;
+      return;
+    }
+    const col = TABLERO_COLUMNAS.find((c) => c.id === id);
+    if (!col) return;
     aplicarFotoColumna(col, src);
     await guardarTableroNube();
     pintarCarnetColumna(col);
@@ -3373,6 +3969,11 @@ $("btn-salir").addEventListener("click", async () => {
   }
   editando = null;
   mostrarAcceso();
+});
+
+document.addEventListener("click", (e) => {
+  const btnCol = e.target.closest("button");
+  if (btnCol && manejarClickUiColumnaTablero(btnCol)) return;
 });
 
 $("stage").addEventListener("click", (e) => {
@@ -3547,11 +4148,6 @@ $("stage").addEventListener("click", (e) => {
     guardarColumnaTablero(t.dataset.kanbanGuardarCol);
     return;
   }
-  if (t.dataset.colFoto) {
-    colFotoPendiente = t.dataset.colFoto;
-    $("col-foto-file")?.click();
-    return;
-  }
   if (t.dataset.kanbanServicio) {
     abrirServicio(t.dataset.kanbanServicio);
     return;
@@ -3647,11 +4243,12 @@ $("stage").addEventListener("click", (e) => {
   if (t.id === "btn-add-incluido") {
     leerEditor();
     const sel = $("e-incluido-pick");
-    const id = sel && String(sel.value || "").trim();
-    if (!id || !editando) return;
-    if (!Array.isArray(editando.servicios_incluidos)) editando.servicios_incluidos = [];
-    if (editando.servicios_incluidos.includes(id)) return;
-    editando.servicios_incluidos.push(id);
+    const id = sel ? String(sel.value || "").trim() : "";
+    if (!id) {
+      alert("Elige un servicio en la lista antes de agregar.");
+      return;
+    }
+    aplicarServiciosIncluidosPendientesEditor();
     renderEditor();
     return;
   }
@@ -3830,9 +4427,30 @@ $("stage").addEventListener("change", async (e) => {
   if (e.target.dataset.colKind === "select" && (e.target.dataset.colCampo === "marca" || e.target.dataset.colCampo === "modelo")) {
     onColCampoSelectChange(e.target.dataset.colId, e.target.dataset.colCampo, e.target.value);
   }
+  if (e.target.dataset.colCampo === "multimarca") {
+    toggleUiColumnaMultimarca(e.target.dataset.colId, e.target.checked);
+  }
   if (e.target.dataset.colCampo === "adelante") {
     const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);
     if (hasta) hasta.disabled = e.target.checked;
+  }
+  if (esControlVarianteMarca(e.target)) {
+    onColVarianteMarcaChange(e.target.dataset.colId, e.target.closest(".col-variante-linea"), e.target.value);
+  }
+  if (e.target.dataset.colKind === "select" && "colVarianteModelo" in e.target.dataset) {
+    if (e.target.value === COL_SEL_NUEVA_TABLERO) {
+      const shell = e.target.closest('[data-col-shell="variante-modelo"]');
+      if (shell) {
+        const sel = shell.querySelector('[data-col-kind="select"]');
+        const txt = shell.querySelector('[data-col-kind="text"]');
+        if (sel && txt) {
+          sel.hidden = true;
+          txt.hidden = false;
+          txt.value = "";
+          txt.focus();
+        }
+      }
+    }
   }
   if (e.target.id === "e-tiempo") pintarCalculadoraEditor();
   if (e.target.id === "e-oferta-fija") {
@@ -4034,18 +4652,76 @@ $("btn-tarjeta-aceptar")?.addEventListener("click", () => {
   if (tarjetaModalModo === "portadas") asignarPortadasAColumna([...tarjetaSeleccion], tarjetaColId);
   else asignarServiciosAColumna([...tarjetaSeleccion], tarjetaColId);
 });
+$("modal-columna")?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const el = e.target;
+  if (el && el.matches && el.matches("[data-col-manual-modelo]")) {
+    const colId = el.dataset.colId;
+    if (colId) {
+      e.preventDefault();
+      agregarVarianteManualColumna(colId);
+    }
+  }
+});
+
 $("modal-columna")?.addEventListener("input", (e) => {
   if (e.target.dataset.colKind === "text" && e.target.dataset.colCampo === "marca") {
     onColMarcaTextoInput(e.target.dataset.colId, e.target.value);
   }
 });
 $("modal-columna")?.addEventListener("change", (e) => {
+  if (e.target.dataset.colCampo === "multimarca") {
+    toggleUiColumnaMultimarca(e.target.dataset.colId, e.target.checked);
+  }
   if (e.target.dataset.colKind === "select" && (e.target.dataset.colCampo === "marca" || e.target.dataset.colCampo === "modelo")) {
     onColCampoSelectChange(e.target.dataset.colId, e.target.dataset.colCampo, e.target.value);
+  }
+  if (esControlVarianteMarca(e.target)) {
+    onColVarianteMarcaChange(e.target.dataset.colId, e.target.closest(".col-variante-linea"), e.target.value);
+  }
+  if (e.target.dataset.colKind === "select" && "colVarianteModelo" in e.target.dataset && e.target.value === COL_SEL_NUEVA_TABLERO) {
+    const shell = e.target.closest('[data-col-shell="variante-modelo"]');
+    if (shell) {
+      const sel = shell.querySelector('[data-col-kind="select"]');
+      const txt = shell.querySelector('[data-col-kind="text"]');
+      if (sel && txt) {
+        sel.hidden = true;
+        txt.hidden = false;
+        txt.value = "";
+        txt.focus();
+      }
+    }
   }
   if (e.target.dataset.colCampo === "adelante") {
     const hasta = document.querySelector(`[data-col-campo="hasta"][data-col-id="${e.target.dataset.colId}"]`);
     if (hasta) hasta.disabled = e.target.checked;
+  }
+  if (e.target.matches && e.target.matches("[data-col-variante-adelante]")) {
+    const item = e.target.closest(".col-variante-item");
+    const hasta = item && item.querySelector("[data-col-variante-hasta]");
+    if (hasta) hasta.disabled = e.target.checked;
+  }
+});
+
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (!t || !t.dataset) return;
+  if (t.dataset.colCampo === "multimarca" && t.dataset.colId) {
+    toggleUiColumnaMultimarca(t.dataset.colId, t.checked);
+  }
+  if (esControlVarianteMarca(t) && t.dataset.colId) {
+    onColVarianteMarcaChange(t.dataset.colId, t.closest(".col-variante-linea"), t.value);
+  }
+  if (t.dataset.colKind === "select" && "colVarianteModelo" in t.dataset) {
+    const item = t.closest(".col-variante-item");
+    const hid = item && item.querySelector("[data-col-variante-modelo-guardado]");
+    const v = String(t.value || "").trim();
+    if (hid && v && v !== COL_SEL_NUEVA_TABLERO) hid.value = v;
+  }
+  if (t.matches && t.matches("[data-col-variante-adelante]")) {
+    const item = t.closest(".col-variante-item");
+    const hasta = item && item.querySelector("[data-col-variante-hasta]");
+    if (hasta) hasta.disabled = t.checked;
   }
 });
 

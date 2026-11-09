@@ -114,6 +114,14 @@
 
     function vehiculoEnColumna(v, col) {
       if (!v || !col || !v.marca || !v.modelo) return false;
+      if (col.multimarca && Array.isArray(col.variantes) && col.variantes.length) {
+        return col.variantes.some((vr) => {
+          if (String(v.marca).toLowerCase() !== String(vr.marca).toLowerCase()) return false;
+          if (String(v.modelo).toLowerCase() !== String(vr.modelo).toLowerCase()) return false;
+          if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, vr)) return false;
+          return combustibleCoincide(v.combustible, vr.combustible);
+        });
+      }
       if (String(v.marca).toLowerCase() !== String(col.marca).toLowerCase()) return false;
       if (String(v.modelo).toLowerCase() !== String(col.modelo).toLowerCase()) return false;
       if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, col)) return false;

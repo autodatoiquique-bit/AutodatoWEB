@@ -3,14 +3,14 @@ const DETALLE_CACHE_KEY = "autodato_servicio_detalle";
 
 const MARCAS = ["Hyundai", "Kia", "Mazda", "Suzuki", "Nissan", "Toyota", "Mitsubishi", "Honda"];
 const MODELOS = {
-  Hyundai: ["Santa Fe", "Tucson", "Maxcruz", "Accent", "i30", "Elantra", "Porter", "Creta", "Veloster", "i40", "Palisade", "Otro"],
-  Kia: ["Sportage", "Sorento", "Soul", "Carnival", "Bongo", "Otro"],
-  Mitsubishi: ["Delica", "RVR"],
-  Nissan: ["Tiida", "Note"],
+  Hyundai: ["Santa Fe", "Tucson", "Maxcruz", "Accent", "i10", "i30", "Elantra", "Porter", "Creta", "Veloster", "i40", "Palisade", "Otro"],
+  Kia: ["Sportage", "Sorento", "Soul", "Carnival", "Bongo", "Morning", "Otro"],
+  Mitsubishi: ["Delica", "RVR", "Mirage"],
+  Nissan: ["Tiida", "Note", "March"],
   Toyota: ["Vitz"],
   Mazda: ["Axela", "Demio", "CX3", "CX5"],
-  Suzuki: ["Otro"],
-  Honda: ["Otro"],
+  Suzuki: ["Swift", "Baleno", "Otro"],
+  Honda: ["Fit", "Otro"],
 };
 const ANIO_MIN = 2010;
 const ANIO_MAX = new Date().getFullYear();
@@ -302,17 +302,72 @@ function servicioEnCanal(s, canal) {
   return Boolean(c[canal]);
 }
 
+function normalizarVariantesColumna(list, colBase) {
+  if (!Array.isArray(list)) return [];
+  const base = colBase && typeof colBase === "object" ? colBase : {};
+  const out = list
+    .map((v) => {
+      const marca = String((v && v.marca) || "").trim();
+      const modelo = String((v && v.modelo) || "").trim();
+      if (!marca || !modelo) return null;
+      return {
+        marca,
+        modelo,
+        ano_desde: anioONull(v.ano_desde != null ? v.ano_desde : base.ano_desde),
+        ano_hasta: anioONull(v.ano_hasta != null ? v.ano_hasta : base.ano_hasta),
+        combustible: normalizarCombustible(v.combustible != null ? v.combustible : base.combustible),
+        foto: String(v.foto || ""),
+      };
+    })
+    .filter(Boolean);
+  const map = new Map();
+  out.forEach((v) => {
+    const k = `${String(v.marca).toLowerCase()}|${String(v.modelo).toLowerCase()}`;
+    map.set(k, map.has(k) ? { ...map.get(k), ...v, foto: v.foto || map.get(k).foto } : v);
+  });
+  return [...map.values()];
+}
+
 function normalizarColumnaTablero(c) {
-  if (!c || !c.marca || !c.modelo) return null;
+  if (!c) return null;
   const d = anioONull(c.ano_desde);
   const h = anioONull(c.ano_hasta);
+  const combustible = normalizarCombustible(c.combustible);
+  const multimarca = Boolean(c.multimarca);
+  if (multimarca) {
+    const titulo = String(c.titulo_multimarca || c.modelo || "Varios modelos").trim();
+    const variantes = normalizarVariantesColumna(c.variantes, { ano_desde: d, ano_hasta: h, combustible });
+    if (!titulo || !variantes.length) return null;
+    const alcance = sintetizarAlcanceColumnaDesdeVariantes(variantes);
+    const col = {
+      id: String(c.id || `col-multi-${titulo}-${alcance.ano_desde || ""}-${alcance.ano_hasta || ""}`),
+      multimarca: true,
+      titulo_multimarca: titulo,
+      marca: "Multimarca",
+      modelo: titulo,
+      ano_desde: alcance.ano_desde,
+      ano_hasta: alcance.ano_hasta,
+      combustible: alcance.combustible,
+      variantes,
+      foto: String(c.foto || ""),
+      servicios: idsDeColumna(c, "servicios"),
+      portadas: idsDeColumna(c, "portadas"),
+      orden_tarjetas: Array.isArray(c.orden_tarjetas) ? c.orden_tarjetas.map(String) : [],
+      ocultos: Array.isArray(c.ocultos) ? c.ocultos.map(String) : [],
+    };
+    col.orden_automatico_tarjetas = normalizarOrdenAutomaticoTarjetasCol(c.orden_automatico_tarjetas);
+    return col;
+  }
+  if (!c.marca || !c.modelo) return null;
   const col = {
     id: String(c.id || `col-${c.marca}-${c.modelo}-${d || ""}-${h || ""}`),
+    multimarca: false,
     marca: String(c.marca),
     modelo: String(c.modelo),
     ano_desde: d,
     ano_hasta: h,
-    combustible: normalizarCombustible(c.combustible),
+    combustible,
+    variantes: [],
     foto: String(c.foto || ""),
     servicios: idsDeColumna(c, "servicios"),
     portadas: idsDeColumna(c, "portadas"),
@@ -324,7 +379,42 @@ function normalizarColumnaTablero(c) {
 }
 
 function claveColumnaTablero(c) {
-  return `${c.marca}|${c.modelo}|${c.ano_desde || ""}|${c.ano_hasta || ""}|${normalizarCombustible(c && c.combustible)}`;
+  if (!c) return "";
+  if (c.multimarca) {
+    const vars = (c.variantes || [])
+      .map((v) => `${v.marca}|${v.modelo}`)
+      .sort()
+      .join(",");
+    return `multi|${c.titulo_multimarca || c.modelo}|${vars}|${c.ano_desde || ""}|${c.ano_hasta || ""}|${normalizarCombustible(c.combustible)}`;
+  }
+  return `${c.marca}|${c.modelo}|${c.ano_desde || ""}|${c.ano_hasta || ""}|${normalizarCombustible(c.combustible)}`;
+}
+
+function sintetizarAlcanceColumnaDesdeVariantes(variantes) {
+  if (!Array.isArray(variantes) || !variantes.length) {
+    return { ano_desde: null, ano_hasta: null, combustible: "ambos" };
+  }
+  const desde = variantes.map((v) => v.ano_desde).filter((x) => x != null);
+  const hasta = variantes.map((v) => v.ano_hasta).filter((x) => x != null);
+  const combs = [...new Set(variantes.map((v) => normalizarCombustible(v.combustible)))];
+  return {
+    ano_desde: desde.length ? Math.min(...desde) : ANIO_MIN,
+    ano_hasta: variantes.some((v) => v.ano_hasta == null) ? null : hasta.length ? Math.max(...hasta) : null,
+    combustible: combs.length === 1 ? combs[0] : "ambos",
+  };
+}
+
+function varianteCoincideVehiculo(v, vr) {
+  if (!v || !vr || !vr.marca || !vr.modelo) return false;
+  if (String(v.marca).toLowerCase() !== String(vr.marca).toLowerCase()) return false;
+  if (String(v.modelo).toLowerCase() !== String(vr.modelo).toLowerCase()) return false;
+  if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, vr)) return false;
+  return combustibleCoincide(v.combustible, vr.combustible);
+}
+
+function varianteDeVehiculoEnColumna(v, col) {
+  if (!v || !col || !col.multimarca || !Array.isArray(col.variantes)) return null;
+  return col.variantes.find((vr) => varianteCoincideVehiculo(v, vr)) || null;
 }
 
 function aniosSeSolapan(a, b) {
@@ -337,6 +427,14 @@ function aniosSeSolapan(a, b) {
 
 function destinoEnColumna(dest, col) {
   if (!dest || !col) return false;
+  if (col.multimarca && Array.isArray(col.variantes) && col.variantes.length) {
+    return col.variantes.some((vr) => {
+      if (dest.marca !== vr.marca) return false;
+      if (dest.modelo !== "*" && dest.modelo !== vr.modelo) return false;
+      if (!aniosSeSolapan(dest, vr)) return false;
+      return combustibleCoincide(dest.combustible, vr.combustible);
+    });
+  }
   if (dest.marca !== col.marca) return false;
   if (dest.modelo !== col.modelo) return false;
   if (!aniosSeSolapan(dest, col)) return false;
@@ -345,6 +443,10 @@ function destinoEnColumna(dest, col) {
 
 function fotoPortadaColumna(col) {
   if (col && col.foto) return col.foto;
+  if (col && col.multimarca && Array.isArray(col.variantes)) {
+    const conFoto = col.variantes.find((vr) => vr && vr.foto);
+    if (conFoto) return conFoto.foto;
+  }
   const slides = portadasFlyerDeColumna(col);
   if (slides[0] && slides[0].foto) return slides[0].foto;
   return fotoModeloDe(col && col.marca, col && col.modelo);
@@ -352,10 +454,35 @@ function fotoPortadaColumna(col) {
 
 function vehiculoEnColumna(v, col) {
   if (!v || !col || !v.marca || !v.modelo) return false;
+  if (col.multimarca && Array.isArray(col.variantes) && col.variantes.length) {
+    return col.variantes.some((vr) => varianteCoincideVehiculo(v, vr));
+  }
   if (String(v.marca).toLowerCase() !== String(col.marca).toLowerCase()) return false;
   if (String(v.modelo).toLowerCase() !== String(col.modelo).toLowerCase()) return false;
   if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, col)) return false;
   return combustibleCoincide(v.combustible, col.combustible);
+}
+
+function vehiculosDeColumna(col) {
+  if (!col) return [];
+  if (col.multimarca && Array.isArray(col.variantes) && col.variantes.length) {
+    return col.variantes.map((v) => ({
+      marca: v.marca,
+      modelo: v.modelo,
+      ano_desde: v.ano_desde != null ? v.ano_desde : col.ano_desde,
+      ano_hasta: v.ano_hasta != null ? v.ano_hasta : col.ano_hasta,
+      combustible: v.combustible || col.combustible || "ambos",
+    }));
+  }
+  return [
+    {
+      marca: col.marca,
+      modelo: col.modelo,
+      ano_desde: col.ano_desde,
+      ano_hasta: col.ano_hasta,
+      combustible: col.combustible || "ambos",
+    },
+  ];
 }
 
 function columnaDeVehiculo(v) {
@@ -680,8 +807,10 @@ function etiquetaColumnaAnios(col) {
 
 function tituloColumna(col) {
   if (!col) return "";
+  const nombre = col.multimarca ? col.titulo_multimarca || col.modelo : `${col.marca} ${col.modelo}`;
+  if (col.multimarca) return nombre;
   const anios = etiquetaColumnaAnios(col);
-  return anios ? `${col.marca} ${col.modelo} ${anios}` : `${col.marca} ${col.modelo}`;
+  return anios ? `${nombre} ${anios}` : nombre;
 }
 
 function normalizarVehiculos(lista) {

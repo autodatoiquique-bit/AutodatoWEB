@@ -704,6 +704,35 @@ describe("Vambe pricing", () => {
     assert.equal(out.items.length, 2);
   });
 
+  test("reprice_remove con catálogo desactualizado vacía el carrito", async () => {
+    cotizacionesMem.clear();
+    quoteSeq = 0;
+    const ap = reloadAsistente();
+    const q = await ap.cotizarVambeInterno({
+      action: "quote",
+      vehicle: vehicleHyundai,
+      service_codes: ["0003"],
+      channel: "vambe",
+    });
+    const row = cotizacionesMem.get(q.quote_id);
+    row.catalog_version = "catalog-hash-anterior";
+    cotizacionesMem.set(q.quote_id, row);
+    const out = await ap.cotizarVambeInterno({
+      action: "reprice_remove",
+      quote_id: q.quote_id,
+      remove_service_code: "0003",
+      channel: "vambe",
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.items.length, 0);
+    assert.equal(out.total, 0);
+    assert.equal(out.cart_empty, true);
+    assert.ok(out.warnings.some((w) => w.code === "QUOTE_STALE_CATALOG"));
+    assert.ok(out.warnings.some((w) => w.code === "QUOTE_CART_EMPTY"));
+    const saved = cotizacionesMem.get(q.quote_id);
+    assert.ok(saved.catalog_version && saved.catalog_version !== "catalog-hash-anterior");
+  });
+
   test("reprice_remove último servicio deja carrito en $0", async () => {
     cotizacionesMem.clear();
     quoteSeq = 0;
@@ -956,6 +985,44 @@ describe("Vambe pricing", () => {
     });
     assert.equal(b.warnings.some((w) => w.code === "IDEMPOTENCY_REPLAY"), true);
     assert.equal(b.items.length, 1);
+  });
+
+  test("vehicle-menu resuelve columna multimarca", async () => {
+    const extrasBase = buildExtras();
+    const columnas = [
+      ...extrasBase._tablero_columnas,
+      {
+        id: "col-citycar",
+        multimarca: true,
+        titulo_multimarca: "Citycar Iquique",
+        ano_desde: 2010,
+        ano_hasta: 2026,
+        combustible: "ambos",
+        variantes: [
+          { marca: "Mazda", modelo: "Demio" },
+          { marca: "Honda", modelo: "Fit" },
+          { marca: "Toyota", modelo: "Vitz" },
+        ],
+        servicios: extrasBase._tablero_columnas[0].servicios,
+        ocultos: [],
+        portadas: [],
+        orden_tarjetas: ["s:a1", "s:a3"],
+      },
+    ];
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch({ columnas }));
+    const ap = reloadAsistente();
+    const out = await ap.vehicleMenuVambe({
+      brand: "Mazda",
+      model: "Demio",
+      year: 2015,
+      fuel: "bencina",
+    });
+    assert.equal(out.ok, true);
+    assert.match(out.column_label, /Citycar Iquique/);
+    assert.equal(out.column.multimarca, true);
+    assert.ok(out.column.covered_vehicles.some((v) => v.brand === "Mazda" && v.model === "Demio"));
+    assert.equal(out.column.brand, "Mazda");
+    assert.equal(out.column.model, "Demio");
   });
 
   test("vehicle-menu devuelve servicios de columna con rank y campos Vambe", async () => {

@@ -959,6 +959,128 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: 0 1px 0 #091e4240;
 }
 .kanban-add-card:hover { background: #ffd000; }
+.kanban-tag-multimarca {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: #ffc400;
+  color: #172b4d;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+.col-variantes-block { margin: 8px 0 4px; }
+.col-variantes-hint { font-size: 0.78rem; margin: 0 0 6px; }
+.col-variante-item {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #dfe1e6;
+}
+.col-variante-item:last-child { border-bottom: none; }
+.col-variante-linea select { max-width: 9.5rem; font-size: 0.82rem; }
+.col-variante-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 4px;
+  padding-left: 2px;
+}
+.col-variante-meta select {
+  max-width: 4.6rem;
+  font-size: 0.72rem;
+  padding: 4px 2px;
+}
+.col-variante-adelante {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  margin: 0;
+  cursor: pointer;
+}
+.col-variante-adelante input { margin: 0; }
+.col-variante-foto-btn {
+  font-size: 0.75rem;
+  padding: 4px 6px;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.col-variante-foto-thumb img {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.col-campo-multimarca .field input[type="text"] { width: 100%; }
+.col-variante-manual {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #dfe1e6;
+}
+.col-variante-manual input[type="text"] {
+  flex: 1 1 8rem;
+  min-width: 6rem;
+  font-size: 0.82rem;
+  padding: 6px 8px;
+}
+.col-variante-manual select { max-width: 9.5rem; font-size: 0.82rem; }
+.col-variante-masivo {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dfe1e6;
+}
+.col-masivo-textarea {
+  width: 100%;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 4.5rem;
+}
+.col-masivo-ayuda {
+  font-size: 0.72rem;
+  margin: 6px 0 0;
+}
+.col-masivo-ayuda code {
+  font-size: 0.7rem;
+  background: #f4f5f7;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.col-bloque-alcance {
+  margin: 8px 0 10px;
+  padding: 8px 0 4px;
+  border-bottom: 1px solid #dfe1e6;
+}
+.col-bloque-alcance .field { margin-top: 6px; }
+.col-foto-inline { margin-top: 8px; }
+.col-foto-inline-prev {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f5f7;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.col-foto-inline-prev img {
+  max-width: 100%;
+  max-height: 72px;
+  object-fit: contain;
+}
+.kanban-col-add .col-bloque-alcance .field select { width: 100%; }
+
 .kanban-col-add {
   height: auto;
   max-height: 100%;

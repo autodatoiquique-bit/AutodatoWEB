@@ -369,15 +369,68 @@ function filaAServicio(row, comps) {
   };
 }
 
+function normalizarVariantesColumnaVambe(list, colBase) {
+  if (!Array.isArray(list)) return [];
+  const base = colBase && typeof colBase === "object" ? colBase : {};
+  return list
+    .map((v) => {
+      const marca = String((v && v.marca) || "").trim();
+      const modelo = String((v && v.modelo) || "").trim();
+      if (!marca || !modelo) return null;
+      return {
+        marca,
+        modelo,
+        ano_desde: anioONull(v.ano_desde != null ? v.ano_desde : base.ano_desde),
+        ano_hasta: anioONull(v.ano_hasta != null ? v.ano_hasta : base.ano_hasta),
+        combustible: normalizarCombustible(v.combustible != null ? v.combustible : base.combustible),
+        foto: String(v.foto || "").trim() || null,
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizarColumnaTablero(c) {
-  if (!c || !c.marca) return null;
+  if (!c) return null;
+  const d = anioONull(c.ano_desde);
+  const h = anioONull(c.ano_hasta);
+  const combustible = normalizarCombustible(c.combustible);
+  if (c.multimarca) {
+    const titulo = String(c.titulo_multimarca || c.modelo || "").trim();
+    const variantes = normalizarVariantesColumnaVambe(c.variantes, { ano_desde: d, ano_hasta: h, combustible });
+    if (!titulo || !variantes.length) return null;
+    const desdeL = variantes.map((x) => x.ano_desde).filter((x) => x != null);
+    const hastaL = variantes.map((x) => x.ano_hasta).filter((x) => x != null);
+    const combs = [...new Set(variantes.map((x) => x.combustible))];
+    const ano_desde = desdeL.length ? Math.min(...desdeL) : d;
+    const ano_hasta = variantes.some((x) => x.ano_hasta == null) ? null : hastaL.length ? Math.max(...hastaL) : h;
+    const combCol = combs.length === 1 ? combs[0] : "ambos";
+    return {
+      id: String(c.id || ""),
+      multimarca: true,
+      titulo_multimarca: titulo,
+      marca: "Multimarca",
+      modelo: titulo,
+      ano_desde,
+      ano_hasta,
+      combustible: combCol,
+      variantes,
+      servicios: Array.isArray(c.servicios) ? c.servicios.map(String) : [],
+      ocultos: Array.isArray(c.ocultos) ? c.ocultos : [],
+      portadas: Array.isArray(c.portadas) ? c.portadas : [],
+      orden_tarjetas: Array.isArray(c.orden_tarjetas) ? c.orden_tarjetas : [],
+      foto: String(c.foto || "").trim() || null,
+    };
+  }
+  if (!c.marca) return null;
   return {
     id: String(c.id || ""),
+    multimarca: false,
     marca: c.marca,
     modelo: c.modelo,
-    ano_desde: anioONull(c.ano_desde),
-    ano_hasta: anioONull(c.ano_hasta),
-    combustible: normalizarCombustible(c.combustible),
+    ano_desde: d,
+    ano_hasta: h,
+    combustible,
+    variantes: [],
     servicios: Array.isArray(c.servicios) ? c.servicios.map(String) : [],
     ocultos: Array.isArray(c.ocultos) ? c.ocultos : [],
     portadas: Array.isArray(c.portadas) ? c.portadas : [],
@@ -1196,6 +1249,14 @@ function fotoModeloVambe(marca, modelo) {
 function fotoPerfilVehiculoVambe(v) {
   if (!v || !v.marca || !v.modelo) return null;
   const col = pe && pe.columnaDeVehiculo ? pe.columnaDeVehiculo(v) : null;
+  if (col && col.multimarca && Array.isArray(col.variantes)) {
+    const vr = col.variantes.find(
+      (x) =>
+        String(x.marca).toLowerCase() === String(v.marca).toLowerCase() &&
+        String(x.modelo).toLowerCase() === String(v.modelo).toLowerCase()
+    );
+    if (vr && vr.foto) return vr.foto;
+  }
   if (col && col.foto) return col.foto;
   const fm = fotoModeloVambe(v.marca, v.modelo);
   return fm || null;
@@ -1909,10 +1970,19 @@ function etiquetaColumnaVambe(col) {
   const combRaw = String(col.combustible || "ambos").toLowerCase();
   const comb =
     combRaw === "diesel" ? "Diésel" : combRaw === "bencina" ? "Bencina" : combRaw === "ambos" ? "Ambos" : combRaw;
-  const parts = [`${col.marca} ${col.modelo}`.trim()];
+  const nombre = col.multimarca ? col.titulo_multimarca || col.modelo : `${col.marca} ${col.modelo}`.trim();
+  const parts = [nombre];
   if (rango) parts.push(rango);
   parts.push(comb);
   return parts.join(" · ");
+}
+
+function vehiculosCubiertosColumnaVambe(col) {
+  if (!col || !col.multimarca || !Array.isArray(col.variantes)) return null;
+  return col.variantes.map((v) => ({
+    brand: v.marca,
+    model: v.modelo,
+  }));
 }
 
 function detalleMenuServicio(s) {
@@ -2222,11 +2292,14 @@ async function vehicleMenuVambe(body) {
     column_label: etiquetaColumnaVambe(colWork),
     column: {
       id: column_id,
-      brand: colWork.marca,
-      model: colWork.modelo,
+      brand: colWork.multimarca ? vehiculo.marca : colWork.marca,
+      model: colWork.multimarca ? vehiculo.modelo : colWork.modelo,
       year_from: colWork.ano_desde != null ? colWork.ano_desde : null,
       year_to: colWork.ano_hasta != null ? colWork.ano_hasta : null,
       fuel: colWork.combustible || "ambos",
+      multimarca: Boolean(colWork.multimarca),
+      title: colWork.multimarca ? colWork.titulo_multimarca || colWork.modelo : null,
+      covered_vehicles: vehiculosCubiertosColumnaVambe(colWork),
     },
     disambiguation_needed,
     service_count: services.length,
@@ -2496,13 +2569,8 @@ async function cotizarVambeInterno(body) {
     const vErr = validarVehiculoNormalizadoVambe(vehiculo, scope, existing.id);
     if (vErr) return { ...vErr, quote_id: vErr.quote_id != null ? vErr.quote_id : existing.id };
 
-    if (existing.catalog_version && catalogVersionHash && existing.catalog_version !== catalogVersionHash) {
-      return errorVambe(
-        "QUOTE_STALE_CATALOG",
-        "El catálogo cambió desde esta cotización. Crea una cotización nueva (quote).",
-        { quote_id: existing.id, warnings: [] }
-      );
-    }
+    const catalogStale =
+      Boolean(existing.catalog_version && catalogVersionHash && existing.catalog_version !== catalogVersionHash);
     const expMs = existing.expires_at ? new Date(existing.expires_at).getTime() : null;
     if (expMs && Date.now() > expMs) {
       return errorVambe("QUOTE_EXPIRED", "La cotización expiró.", { quote_id: existing.id });
@@ -2540,6 +2608,12 @@ async function cotizarVambeInterno(body) {
     let carritoFiltrado = [];
     let errores = [];
     let warnings = [...(wElig || [])];
+    if (catalogStale) {
+      warnings.push({
+        code: "QUOTE_STALE_CATALOG",
+        message: "El catálogo se actualizó; los precios se recalculan con la versión vigente.",
+      });
+    }
     let tot = { subtotal_lista: 0, total_pagado: 0, ahorro_total: 0 };
     let items = [];
     let suggested = [];
