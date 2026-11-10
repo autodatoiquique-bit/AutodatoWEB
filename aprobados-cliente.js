@@ -631,8 +631,29 @@ function cerrarAvisoCatalogoAprobados() {
   document.body.classList.remove("aprobados-aviso-on");
 }
 
+let aprobadoSlugPendienteAviso = "";
+
+function prepararDetalleAprobadoConAviso(slug) {
+  aprobadoSlugPendienteAviso = String(slug || "").trim();
+  if (typeof state !== "undefined") {
+    state.vista = "aprobado-detalle";
+    state.aprobadoSlug = aprobadoSlugPendienteAviso;
+  }
+  document.body.classList.add("en-aprobados");
+  document.body.classList.remove("en-portada");
+  if ($("stage")) {
+    $("stage").innerHTML = `<section class="panel aprobados-shell" aria-hidden="true"></section>`;
+  }
+  if (typeof marcarMenu === "function") marcarMenu();
+  if (typeof syncCromo === "function") syncCromo();
+  mostrarAvisoCatalogoAprobados();
+}
+
 function continuarAvisoCatalogoAprobados() {
+  const slug = aprobadoSlugPendienteAviso;
+  aprobadoSlugPendienteAviso = "";
   cerrarAvisoCatalogoAprobados();
+  if (slug) void abrirAprobadoPorSlug(slug);
 }
 
 async function renderVitrinaAprobados() {

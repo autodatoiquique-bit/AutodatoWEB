@@ -4459,6 +4459,8 @@ async function arrancar() {
   if (typeof hidratarCatalogoClienteLocal === "function") hidratarCatalogoClienteLocal();
   hidratar();
   const rutaAprob = typeof rutaAprobadoInicial === "function" ? rutaAprobadoInicial() : null;
+  const entradaQrAprobado =
+    rutaAprob && rutaAprob.vista === "aprobado-detalle" && String(rutaAprob.slug || "").trim();
   if (rutaAprob) {
     state.vista = rutaAprob.vista;
     state.aprobadoSlug = rutaAprob.slug || "";
@@ -4467,8 +4469,15 @@ async function arrancar() {
   const entrada = aplicarVehiculoDesdeUrlAlInicio();
   pintarDatosFicha();
   pintarEnlacesContactoMenu();
-  if (typeof cerrarAvisoCatalogoAprobados === "function") cerrarAvisoCatalogoAprobados();
-  renderVista({ quedarse: true });
+  if (
+    entradaQrAprobado &&
+    typeof prepararDetalleAprobadoConAviso === "function"
+  ) {
+    prepararDetalleAprobadoConAviso(rutaAprob.slug);
+  } else {
+    if (typeof cerrarAvisoCatalogoAprobados === "function") cerrarAvisoCatalogoAprobados();
+    renderVista({ quedarse: true });
+  }
   aplicarLogos();
   renderTotales(false);
   pistaMenuDesplazable();

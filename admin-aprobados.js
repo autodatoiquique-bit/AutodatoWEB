@@ -635,49 +635,53 @@ async function construirPdfQrAprobado() {
   const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" });
   const pageW = 8.5;
   const cx = pageW / 2;
-  const marcoW = 6.35;
-  const marcoH = 8.15;
+  const marcoW = 7.85;
+  const marcoH = 10.15;
   const marcoX = (pageW - marcoW) / 2;
-  const marcoY = 1.38;
+  const marcoY = 0.42;
 
   pdf.setFillColor(255, 208, 0);
-  pdf.roundedRect(marcoX - 0.08, marcoY - 0.08, marcoW + 0.16, marcoH + 0.16, 0.3, 0.3, "F");
+  pdf.roundedRect(marcoX - 0.1, marcoY - 0.1, marcoW + 0.2, marcoH + 0.2, 0.32, 0.32, "F");
   pdf.setDrawColor(17, 17, 17);
-  pdf.setLineWidth(0.04);
-  pdf.roundedRect(marcoX, marcoY, marcoW, marcoH, 0.27, 0.27, "S");
+  pdf.setLineWidth(0.045);
+  pdf.roundedRect(marcoX, marcoY, marcoW, marcoH, 0.28, 0.28, "S");
   pdf.setFillColor(255, 254, 246);
-  pdf.roundedRect(marcoX + 0.07, marcoY + 0.07, marcoW - 0.14, marcoH - 0.14, 0.23, 0.23, "F");
+  pdf.roundedRect(marcoX + 0.08, marcoY + 0.08, marcoW - 0.16, marcoH - 0.16, 0.24, 0.24, "F");
 
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(26);
+  pdf.setFontSize(28);
   pdf.setTextColor(17, 17, 17);
-  pdf.text("REVISADO POR", cx, marcoY + 0.78, { align: "center" });
+  const titulo = "REVISADO Y APROBADO POR";
+  const tituloLineas = pdf.splitTextToSize(titulo, marcoW - 0.55);
+  pdf.text(tituloLineas, cx, marcoY + 0.72, { align: "center" });
+  const tituloH = tituloLineas.length * 0.34;
 
-  const logoW = 2.7;
+  const logoW = 5.2;
   const logoH = await promedioAltoLogoDataUrl(logoData, logoW);
-  pdf.addImage(logoData, "JPEG", cx - logoW / 2, marcoY + 0.98, logoW, logoH);
+  const logoY = marcoY + 0.72 + tituloH + 0.18;
+  pdf.addImage(logoData, "JPEG", cx - logoW / 2, logoY, logoW, logoH);
 
-  const qrSize = 2.5;
+  const qrSize = Math.min(4.35, marcoW - 1.1);
   const qrX = cx - qrSize / 2;
-  const qrY = marcoY + 1.05 + logoH + 0.35;
+  const qrY = logoY + logoH + 0.32;
   pdf.setFillColor(255, 255, 255);
-  pdf.setDrawColor(224, 224, 224);
-  pdf.setLineWidth(0.02);
-  pdf.roundedRect(qrX - 0.11, qrY - 0.11, qrSize + 0.22, qrSize + 0.22, 0.14, 0.14, "FD");
+  pdf.setDrawColor(200, 200, 200);
+  pdf.setLineWidth(0.025);
+  pdf.roundedRect(qrX - 0.14, qrY - 0.14, qrSize + 0.28, qrSize + 0.28, 0.16, 0.16, "FD");
   pdf.addImage(qrData, "PNG", qrX, qrY, qrSize, qrSize);
 
   const folio = aprobadoEditando && aprobadoEditando.folio != null ? aprobadoEditando.folio : "";
-  let ty = qrY + qrSize + 0.42;
+  let ty = qrY + qrSize + 0.5;
   if (folio !== "" && folio != null) {
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
+    pdf.setFontSize(18);
     pdf.setTextColor(51, 51, 51);
     pdf.text(`Folio ${folio}`, cx, ty, { align: "center" });
-    ty += 0.28;
+    ty += 0.38;
   }
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10);
-  pdf.setTextColor(92, 92, 92);
+  pdf.setFontSize(14);
+  pdf.setTextColor(70, 70, 70);
   pdf.text("Escanea para ver la ficha del vehículo", cx, ty, { align: "center" });
 
   return pdf;
@@ -717,8 +721,8 @@ async function pintarQrAprobado(url) {
     nodo.innerHTML = "";
     new QRCode(nodo, {
       text: String(url || "").trim(),
-      width: 256,
-      height: 256,
+      width: 320,
+      height: 320,
       correctLevel: QRCode.CorrectLevel.M,
     });
     requestAnimationFrame(() => sincronizarHojaQrAprobado());

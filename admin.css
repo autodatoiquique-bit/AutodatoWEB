@@ -1056,7 +1056,7 @@ button { font-family: inherit; cursor: pointer; }
   box-sizing: border-box;
   width: 8.5in;
   height: 11in;
-  padding: 0.55in 0.5in;
+  padding: 0.38in 0.32in;
   background: #fff;
   color: #111;
   display: flex;
@@ -1066,33 +1066,33 @@ button { font-family: inherit; cursor: pointer; }
 }
 .aprobado-qr-hoja-marco-outer {
   width: 100%;
-  max-width: 6.75in;
-  padding: 6px;
+  max-width: 7.85in;
+  padding: 8px;
   background: #ffd000;
   border: 3px solid #111;
   border-radius: 34px;
   box-sizing: border-box;
 }
 .aprobado-qr-hoja-marco {
-  padding: 0.5in 0.42in 0.55in;
+  padding: 0.42in 0.36in 0.48in;
   border-radius: 26px;
   text-align: center;
   background: #fffef6;
 }
 .aprobado-qr-hoja-kicker {
-  margin: 0 0 0.28in;
-  font-size: 2.45rem;
+  margin: 0 0 0.22in;
+  font-size: 2.85rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  line-height: 1.05;
+  letter-spacing: 0.04em;
+  line-height: 1.08;
   color: #111;
 }
 .aprobado-qr-hoja-logo {
-  width: 2.75in;
-  max-width: 88%;
+  width: 5in;
+  max-width: 92%;
   height: auto;
   display: block;
-  margin: 0 auto 0.38in;
+  margin: 0 auto 0.32in;
   border-radius: 12px;
 }
 .aprobado-qr-hoja-qr {
@@ -1104,19 +1104,19 @@ button { font-family: inherit; cursor: pointer; }
 }
 .aprobado-qr-hoja-qr img,
 .aprobado-qr-hoja-qr canvas {
-  width: 2.55in !important;
-  height: 2.55in !important;
+  width: 4.1in !important;
+  height: 4.1in !important;
   display: block !important;
 }
 .aprobado-qr-hoja-folio {
-  margin: 0.22in 0 0;
-  font-size: 1rem;
+  margin: 0.24in 0 0;
+  font-size: 1.35rem;
   font-weight: 800;
   color: #333;
 }
 .aprobado-qr-hoja-hint {
-  margin: 0.18in 0 0;
-  font-size: 0.92rem;
+  margin: 0.16in 0 0;
+  font-size: 1.15rem;
   font-weight: 600;
   color: #5c5c5c;
 }
