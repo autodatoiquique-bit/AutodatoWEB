@@ -1229,6 +1229,52 @@ app.get("/admin", (_req, res) => {
   res.redirect(302, "/admin.html");
 });
 
+app.get("/aprobados", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+app.get("/aprobado/:slug", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+app.get("/api/geocode", async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ ok: false, error: "Falta q" });
+  try {
+    let lat = null;
+    let lng = null;
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=es`;
+    const pr = await fetch(photonUrl);
+    if (pr.ok) {
+      const pdata = await pr.json();
+      const f = pdata.features && pdata.features[0];
+      if (f && f.geometry && Array.isArray(f.geometry.coordinates)) {
+        lng = Number(f.geometry.coordinates[0]);
+        lat = Number(f.geometry.coordinates[1]);
+      }
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+      const nr = await fetch(nomUrl, {
+        headers: { "User-Agent": "AutoDatoWeb/1.0 (autodato.cl; contacto@autodato.cl)" },
+      });
+      if (nr.ok) {
+        const rows = await nr.json();
+        const hit = rows && rows[0];
+        if (hit) {
+          lat = Number(hit.lat);
+          lng = Number(hit.lon);
+        }
+      }
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(404).json({ ok: false, error: "Sin resultados" });
+    }
+    res.json({ ok: true, lat, lng, q });
+  } catch (e) {
+    res.status(503).json({ ok: false, error: String((e && e.message) || e) });
+  }
+});
+
 app.use(express.static(path.join(__dirname)));
 
 app.listen(puerto, () => {

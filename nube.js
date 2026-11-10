@@ -723,6 +723,259 @@ async function nubeGuardarPortada(lista) {
   if (error) throw error;
 }
 
+function jsonListaAprobado(v) {
+  if (Array.isArray(v)) return v.filter((x) => x && typeof x === "object");
+  if (typeof v === "string") {
+    try {
+      const j = JSON.parse(v);
+      return Array.isArray(j) ? jsonListaAprobado(j) : [];
+    } catch (_e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function jsonIdsEquipamientoAprobado(v) {
+  if (Array.isArray(v)) {
+    return v
+      .map((x) => (typeof x === "string" ? x : x && typeof x === "object" && x.id != null ? String(x.id) : ""))
+      .map((s) => String(s || "").trim())
+      .filter(Boolean);
+  }
+  if (typeof v === "string") {
+    try {
+      const j = JSON.parse(v);
+      return jsonIdsEquipamientoAprobado(j);
+    } catch (_e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function jsonObjetoAprobado(v) {
+  if (v && typeof v === "object" && !Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    try {
+      const j = JSON.parse(v);
+      return j && typeof j === "object" && !Array.isArray(j) ? j : {};
+    } catch (_e) {
+      return {};
+    }
+  }
+  return {};
+}
+
+function numOpcionalAprobado(v) {
+  return v != null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : null;
+}
+
+function filaAVehiculoAprobado(row) {
+  if (!row || typeof row !== "object") return null;
+  const informe = jsonObjetoAprobado(row.informe);
+  return {
+    id: row.id,
+    public_slug: String(row.public_slug || "").trim(),
+    marca: String(row.marca || "").trim(),
+    modelo: String(row.modelo || "").trim(),
+    version: String(row.version || "").trim(),
+    ano: numOpcionalAprobado(row.ano),
+    patente: row.patente ? String(row.patente).trim().toUpperCase() : "",
+    color: String(row.color || "").trim(),
+    carroceria: String(row.carroceria || "").trim(),
+    transmision: String(row.transmision || "").trim(),
+    combustible: String(row.combustible || "").trim(),
+    traccion: String(row.traccion || "").trim(),
+    cilindrada: String(row.cilindrada || "").trim(),
+    modelo_motor: String(row.modelo_motor || "").trim(),
+    airbags: numOpcionalAprobado(row.airbags),
+    asientos: numOpcionalAprobado(row.asientos),
+    duenos: numOpcionalAprobado(row.duenos),
+    folio: numOpcionalAprobado(row.folio),
+    vendedor_nombre: String(row.vendedor_nombre || "").trim(),
+    vendedor_telefono: String(row.vendedor_telefono || "").trim(),
+    whatsapp_contacto: String(row.whatsapp_contacto || "").trim(),
+    kilometraje: numOpcionalAprobado(row.kilometraje),
+    kilometraje_tablero: numOpcionalAprobado(row.kilometraje_tablero),
+    kilometraje_real: numOpcionalAprobado(row.kilometraje_real),
+    precio_referencia: numOpcionalAprobado(row.precio_referencia),
+    precio_financiado: numOpcionalAprobado(row.precio_financiado),
+    cuota_referencia: numOpcionalAprobado(row.cuota_referencia),
+    ahorro_referencia: numOpcionalAprobado(row.ahorro_referencia),
+    garantia_vendedor: Boolean(row.garantia_vendedor),
+    origen: String(row.origen || "").trim(),
+    ubicacion_nombre: String(row.ubicacion_nombre || "").trim(),
+    ubicacion_direccion: String(row.ubicacion_direccion || "").trim(),
+    ubicacion_maps: String(row.ubicacion_maps || "").trim(),
+    descripcion: String(row.descripcion || "").trim(),
+    equipamiento: jsonIdsEquipamientoAprobado(row.equipamiento),
+    video_url: String(row.video_url || "").trim(),
+    estado: String(row.estado || "borrador").trim() || "borrador",
+    notas_internas: String(row.notas_internas || "").trim(),
+    foto_portada: String(row.foto_portada || "").trim(),
+    galeria: jsonListaAprobado(row.galeria),
+    detalles_esteticos: jsonListaAprobado(row.detalles_esteticos),
+    informe,
+    aprobado_at: row.aprobado_at || null,
+    vigente_hasta: row.vigente_hasta || null,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+  };
+}
+
+/** Admin: listado completo (requiere sesión). */
+async function nubeListarVehiculosAprobados() {
+  const sb = clienteNube();
+  const { data, error } = await sb.from("vehiculos_aprobados").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []).map(filaAVehiculoAprobado).filter(Boolean);
+}
+
+/** Admin: crear o actualizar ficha. */
+async function nubeGuardarVehiculoAprobado(datos) {
+  const sb = clienteNube();
+  const d = datos && typeof datos === "object" ? datos : {};
+  const rowId = String(d.id || "").trim();
+  const marca = String(d.marca || "").trim();
+  const modelo = String(d.modelo || "").trim();
+  if (!marca || !modelo) throw new Error("Marca y modelo son obligatorios.");
+
+  const galeria = jsonListaAprobado(d.galeria).map((it, i) => ({
+    url: String((it && it.url) || "").trim(),
+    orden: Number.isFinite(Number(it && it.orden)) ? Number(it.orden) : i,
+  })).filter((it) => it.url);
+  const detalles = jsonListaAprobado(d.detalles_esteticos).map((it) => ({
+    url: String((it && it.url) || "").trim(),
+    caption: String((it && it.caption) || "").trim(),
+  })).filter((it) => it.url);
+  const informeIn = jsonObjetoAprobado(d.informe);
+  const escaner = jsonListaAprobado(informeIn.escaner_imagenes)
+    .map((it) => (typeof it === "string" ? { url: it } : it))
+    .map((it) => ({ url: String((it && it.url) || "").trim() }))
+    .filter((it) => it.url);
+
+  let fotoPortada = String(d.foto_portada || "").trim();
+  if (!fotoPortada && galeria.length) fotoPortada = galeria[0].url;
+
+  const patch = {
+    marca,
+    modelo,
+    version: String(d.version || "").trim() || null,
+    ano: numOpcionalAprobado(d.ano),
+    patente: d.patente ? String(d.patente).trim().toUpperCase() : null,
+    color: String(d.color || "").trim() || null,
+    carroceria: String(d.carroceria || "").trim() || null,
+    transmision: String(d.transmision || "").trim() || null,
+    combustible: String(d.combustible || "").trim() || null,
+    traccion: String(d.traccion || "").trim() || null,
+    cilindrada: String(d.cilindrada || "").trim() || null,
+    modelo_motor: String(d.modelo_motor || "").trim() || null,
+    airbags: numOpcionalAprobado(d.airbags),
+    asientos: numOpcionalAprobado(d.asientos),
+    duenos: numOpcionalAprobado(d.duenos),
+    vendedor_nombre: String(d.vendedor_nombre || "").trim() || null,
+    vendedor_telefono: String(d.vendedor_telefono || "").trim() || null,
+    whatsapp_contacto: String(d.whatsapp_contacto || "").trim() || null,
+    kilometraje_tablero: numOpcionalAprobado(d.kilometraje_tablero),
+    kilometraje_real: numOpcionalAprobado(d.kilometraje_real),
+    kilometraje:
+      numOpcionalAprobado(d.kilometraje_real) != null
+        ? numOpcionalAprobado(d.kilometraje_real)
+        : numOpcionalAprobado(d.kilometraje_tablero),
+    precio_referencia: numOpcionalAprobado(d.precio_referencia) != null ? Math.round(Number(d.precio_referencia)) : null,
+    precio_financiado: numOpcionalAprobado(d.precio_financiado) != null ? Math.round(Number(d.precio_financiado)) : null,
+    cuota_referencia: numOpcionalAprobado(d.cuota_referencia) != null ? Math.round(Number(d.cuota_referencia)) : null,
+    ahorro_referencia: numOpcionalAprobado(d.ahorro_referencia) != null ? Math.round(Number(d.ahorro_referencia)) : null,
+    garantia_vendedor: Boolean(d.garantia_vendedor),
+    origen: String(d.origen || "").trim() || null,
+    ubicacion_nombre: String(d.ubicacion_nombre || "").trim() || null,
+    ubicacion_direccion: String(d.ubicacion_direccion || "").trim() || null,
+    ubicacion_maps: String(d.ubicacion_maps || "").trim() || null,
+    descripcion: String(d.descripcion || "").trim() || null,
+    equipamiento: jsonIdsEquipamientoAprobado(d.equipamiento),
+    video_url: String(d.video_url || "").trim() || null,
+    estado: String(d.estado || "borrador").trim() || "borrador",
+    notas_internas: String(d.notas_internas || "").trim() || null,
+    foto_portada: fotoPortada || null,
+    galeria,
+    detalles_esteticos: detalles,
+    informe: {
+      ...informeIn,
+      escaner_imagenes: escaner,
+      informe_pdf: String(informeIn.informe_pdf || "").trim() || null,
+      carroceria_estetica: String(informeIn.carroceria_estetica || "").trim() || null,
+      chasis_bajos: String(informeIn.chasis_bajos || "").trim() || null,
+      suspension: String(informeIn.suspension || "").trim() || null,
+      direccion: String(informeIn.direccion || "").trim() || null,
+      frenos: String(informeIn.frenos || "").trim() || null,
+      motor: String(informeIn.motor || "").trim() || null,
+      escaner_automotriz: String(informeIn.escaner_automotriz || "").trim() || null,
+      desempeno_ruta: String(informeIn.desempeno_ruta || "").trim() || null,
+      conclusion: String(informeIn.conclusion || "").trim() || null,
+      observaciones_tecnicas: String(informeIn.observaciones_tecnicas || "").trim() || null,
+      mapa_imagen: String(informeIn.mapa_imagen || "").trim() || null,
+      mapa_off_x: Number(informeIn.mapa_off_x) || 0,
+      mapa_off_y: Number(informeIn.mapa_off_y) || 0,
+      mapa_zoom: Number(informeIn.mapa_zoom) > 0 ? Number(informeIn.mapa_zoom) : 1,
+    },
+    updated_at: new Date().toISOString(),
+  };
+
+  if (String(d.estado || "") === "aprobado" && d.aprobado_at) {
+    patch.aprobado_at = d.aprobado_at;
+  } else if (String(d.estado || "") === "aprobado" && !d.aprobado_at) {
+    patch.aprobado_at = new Date().toISOString();
+  }
+
+  if (d.vigente_hasta) patch.vigente_hasta = d.vigente_hasta;
+
+  if (rowId) {
+    const { data, error } = await sb.from("vehiculos_aprobados").update(patch).eq("id", rowId).select().single();
+    if (error) throw error;
+    return filaAVehiculoAprobado(data);
+  }
+
+  const slug =
+    String(d.public_slug || "").trim() ||
+    `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toLowerCase();
+  const insert = {
+    ...patch,
+    public_slug: slug,
+    created_at: new Date().toISOString(),
+  };
+  const { data, error } = await sb.from("vehiculos_aprobados").insert(insert).select().single();
+  if (error) throw error;
+  return filaAVehiculoAprobado(data);
+}
+
+/** Público: vitrina (solo filas visibles por RLS, estado aprobado). */
+async function nubeListarAprobadosPublicos() {
+  const sb = clienteNube();
+  if (!sb) return [];
+  const { data, error } = await sb
+    .from("vehiculos_aprobados")
+    .select(
+      "id, public_slug, folio, marca, modelo, version, ano, color, carroceria, transmision, combustible, traccion, kilometraje, kilometraje_tablero, kilometraje_real, precio_referencia, precio_financiado, cuota_referencia, ahorro_referencia, garantia_vendedor, foto_portada, galeria, ubicacion_nombre, ubicacion_direccion, vendedor_nombre, whatsapp_contacto, vendedor_telefono, created_at"
+    )
+    .eq("estado", "aprobado")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (Array.isArray(data) ? data : []).map(filaAVehiculoAprobado).filter(Boolean);
+}
+
+/** Público: ficha por slug (QR). */
+async function nubeAprobadoPublicoPorSlug(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return null;
+  const sb = clienteNube();
+  if (!sb) return null;
+  const { data, error } = await sb.from("vehiculos_aprobados").select("*").eq("public_slug", s).maybeSingle();
+  if (error) throw error;
+  if (!data || String(data.estado || "") !== "aprobado") return null;
+  return filaAVehiculoAprobado(data);
+}
+
 async function nubeLogin(email, password) {
   const { error } = await clienteNube().auth.signInWithPassword({ email, password });
   if (error) throw error;

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=flota-duplicados1" />
+  <link rel="stylesheet" href="admin.css?v=aprobados10" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -62,6 +62,7 @@
         <button class="btn-yellow" type="button" id="btn-datos-taller">Datos taller</button>
         <button class="btn-yellow" type="button" id="btn-servicios">Servicios</button>
         <button class="btn-yellow" type="button" id="btn-combos">Crear combos</button>
+        <button class="btn-yellow" type="button" id="btn-aprobados-autodato">Aprobados AutoDato</button>
         <button class="btn-yellow" type="button" id="btn-tickets-creados">TICKETS CREADOS</button>
       </nav>
       <input id="foto-modelo-file" type="file" accept="image/*" hidden />
@@ -302,6 +303,11 @@
     </div>
   </div>
 
+  <input id="aprobado-file-galeria" type="file" accept="image/*" multiple hidden />
+  <input id="aprobado-file-estetica" type="file" accept="image/*" multiple hidden />
+  <input id="aprobado-file-escaner" type="file" accept="image/*" multiple hidden />
+  <input id="aprobado-file-mapa-shot" type="file" accept="image/*" hidden />
+
   <div id="modal-combo" class="modal" hidden>
     <div class="modal-card">
       <button class="x" type="button" id="cerrar-combo">×</button>
@@ -323,12 +329,14 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="nube.js?v=familias-vambe1"></script>
+  <script src="nube.js?v=aprobados5"></script>
   <script src="catalogo.js?v=familias-vambe1"></script>
   <script src="flotas.js?v=flota-kanban-busq1"></script>
   <script src="admin.js?v=familias-vambe1"></script>
   <script src="admin-combos.js?v=portada-preview-boton1"></script>
   <script src="admin-flotas.js?v=flota-duplicados1"></script>
   <script src="admin-tickets.js?v=7"></script>
+  <script src="aprobados-equipamiento.js?v=1"></script>
+  <script src="admin-aprobados.js?v=14"></script>
 </body>
 </html>

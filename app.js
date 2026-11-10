@@ -42,6 +42,7 @@ const state = {
   flotaBienvenida: "",
   flotaServicioDetalleId: "",
   areaFlotas: false,
+  aprobadoSlug: "",
 };
 
 let quitarPendiente = null;
@@ -526,6 +527,13 @@ function syncCromo() {
     (state.vista === "carrito-agenda" ||
       (state.vista === "agendamiento" && state.carrito.length && (vehiculoOk() || carritoSoloFlota())));
   document.body.classList.toggle("en-agenda-datos", datosAgenda);
+  document.body.classList.toggle(
+    "en-aprobados",
+    state.vista === "aprobados" || state.vista === "aprobado-detalle"
+  );
+  const enAprobados = state.vista === "aprobados" || state.vista === "aprobado-detalle";
+  const kpiStack = document.querySelector(".top-bar-cliente .kpi-stack");
+  if (kpiStack) kpiStack.hidden = enAprobados;
   if (state.areaFlotas && carritoSoloFlota()) state.areaFlotas = true;
   syncAreaFlotasUi();
 }
@@ -539,7 +547,9 @@ function marcarMenu() {
         ((state.vista.startsWith("flotas") || state.vista === "flotas-servicio-detalle") &&
           btn.dataset.vista === "flotas") ||
         ((state.vista === "oferta-detalle" || state.vista === "filtro-oferta") && btn.dataset.vista === state.origenLista) ||
-        (state.vista === "carrito-agenda" && btn.dataset.vista === "agendamiento"));
+        (state.vista === "carrito-agenda" && btn.dataset.vista === "agendamiento") ||
+        (btn.dataset.vista === "aprobados" &&
+          (state.vista === "aprobados" || state.vista === "aprobado-detalle")));
     btn.classList.toggle("is-on", on);
   });
   const inf = document.querySelector('.menu [data-open="informe"]');
@@ -2816,6 +2826,8 @@ function renderVista(opts = {}) {
   else if (state.vista === "flotas-categorias") renderFlotaCategorias();
   else if (state.vista === "flotas-servicios") renderFlotaServicios();
   else if (state.vista === "flotas-servicio-detalle") renderFlotaServicioDetalle();
+  else if (state.vista === "aprobados") void renderVitrinaAprobados();
+  else if (state.vista === "aprobado-detalle") void renderDetalleAprobadoPublico(state.aprobadoSlug);
   else renderInfo(state.vista);
   if (!opts.quedarse) irAContenido();
 }
@@ -4028,7 +4040,7 @@ document.addEventListener(
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], [data-abrir-aprobado-slug], [data-volver-aprobados], [data-aprobado-foto-dir], [data-aprobado-foto-idx], [data-aprobado-zoom-main], [data-aprobado-ampliar-url], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -4090,6 +4102,13 @@ document.addEventListener("click", (e) => {
     }
     if (t.dataset.vista === "flotas") {
       void abrirVistaFlotas();
+    } else if (t.dataset.vista === "aprobados") {
+      state.aprobadoSlug = "";
+      state.vista = "aprobados";
+      if (typeof history !== "undefined" && history.replaceState) {
+        history.replaceState({ vista: "aprobados" }, "", "/aprobados");
+      }
+      renderVista();
     } else if (["ofertas", "mantencion", "diagnostico"].includes(t.dataset.vista)) {
       void abrirVistaCatalogo(t.dataset.vista);
     } else {
@@ -4115,6 +4134,18 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-guardar-ticket")) descargarTicket();
   if (t.hasAttribute("data-compartir-ticket")) compartirTicket();
   if (t.dataset.portadaOferta) void iniciarOfertaDesdePortada(t.dataset.portadaOferta);
+  if (t.dataset.abrirAprobadoSlug) void abrirAprobadoPorSlug(t.dataset.abrirAprobadoSlug);
+  if (t.hasAttribute("data-volver-aprobados")) navegarAprobadosVitrina();
+  if (t.hasAttribute("data-aprobado-zoom-main")) {
+    if (typeof abrirLightboxGaleriaPrincipalAprobado === "function") abrirLightboxGaleriaPrincipalAprobado();
+  }
+  if (t.dataset.aprobadoAmpliarUrl) {
+    if (typeof abrirLightboxUrlAprobado === "function") abrirLightboxUrlAprobado(t.dataset.aprobadoAmpliarUrl);
+  }
+  if (t.dataset.aprobadoFotoDir) cambiarFotoAprobado(Number(t.dataset.aprobadoFotoDir));
+  if (t.dataset.aprobadoFotoIdx != null && t.dataset.aprobadoFotoIdx !== "") {
+    if (typeof irFotoAprobadoIdx === "function") irFotoAprobadoIdx(Number(t.dataset.aprobadoFotoIdx));
+  }
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-cerrar-ticket-error")) cerrarModalErrorTicket();
@@ -4419,6 +4450,11 @@ async function arrancar() {
   if (typeof hidratarPortadaLocal === "function") hidratarPortadaLocal();
   if (typeof hidratarCatalogoClienteLocal === "function") hidratarCatalogoClienteLocal();
   hidratar();
+  const rutaAprob = typeof rutaAprobadoInicial === "function" ? rutaAprobadoInicial() : null;
+  if (rutaAprob) {
+    state.vista = rutaAprob.vista;
+    state.aprobadoSlug = rutaAprob.slug || "";
+  }
   const flotaAcceso = tokenFlotaAccesoDesdeQuery();
   const entrada = aplicarVehiculoDesdeUrlAlInicio();
   pintarDatosFicha();
