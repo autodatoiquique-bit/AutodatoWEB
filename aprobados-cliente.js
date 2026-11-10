@@ -4,6 +4,7 @@
 "use strict";
 
 const aprobadosUi = { lista: [], detalle: null, fotoIdx: 0 };
+const APROBADOS_AVISO_SESION_KEY = "autodato_aprobados_aviso_v1";
 
 function fotosAprobado(v) {
   if (!v) return [];
@@ -617,6 +618,44 @@ function pintarVitrinaAprobados() {
   }
 }
 
+function aprobadosAvisoCatalogoVisto() {
+  try {
+    return sessionStorage.getItem(APROBADOS_AVISO_SESION_KEY) === "1";
+  } catch (_e) {
+    return false;
+  }
+}
+
+function marcarAprobadosAvisoCatalogoVisto() {
+  try {
+    sessionStorage.setItem(APROBADOS_AVISO_SESION_KEY, "1");
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
+function mostrarAvisoCatalogoAprobados() {
+  if (aprobadosAvisoCatalogoVisto()) {
+    cerrarAvisoCatalogoAprobados();
+    return;
+  }
+  const el = $("modal-aprobados-aviso");
+  if (!el) return;
+  el.hidden = false;
+  document.body.classList.add("aprobados-aviso-on");
+}
+
+function cerrarAvisoCatalogoAprobados() {
+  const el = $("modal-aprobados-aviso");
+  if (el) el.hidden = true;
+  document.body.classList.remove("aprobados-aviso-on");
+}
+
+function continuarAvisoCatalogoAprobados() {
+  marcarAprobadosAvisoCatalogoVisto();
+  cerrarAvisoCatalogoAprobados();
+}
+
 async function renderVitrinaAprobados() {
   document.body.classList.add("en-aprobados");
   document.body.classList.remove("en-portada");
@@ -644,6 +683,7 @@ async function renderVitrinaAprobados() {
       box.innerHTML = `<p class="muted">No pudimos cargar la vitrina. Revisa la conexión.</p>`;
     }
   }
+  mostrarAvisoCatalogoAprobados();
 }
 
 async function abrirAprobadoPorSlug(slug) {
@@ -990,3 +1030,9 @@ function rutaAprobadoInicial() {
   if (/^\/aprobados\/?$/i.test(path)) return { vista: "aprobados", slug: "" };
   return null;
 }
+
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-aprobados-aviso-continuar]")) {
+    continuarAvisoCatalogoAprobados();
+  }
+});

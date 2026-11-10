@@ -2165,6 +2165,52 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 }
 
 /* —— Aprobados AutoDato (vitrina móvil) —— */
+.modal-aprobados-aviso {
+  z-index: 120;
+  padding: 16px;
+  align-items: flex-end;
+}
+@media (min-width: 520px) {
+  .modal-aprobados-aviso {
+    align-items: center;
+  }
+}
+.modal-aprobados-aviso-card {
+  max-width: 440px;
+  width: 100%;
+  max-height: min(92vh, 720px);
+  overflow: auto;
+  text-align: left;
+  border-radius: 20px;
+  padding: 22px 20px 20px;
+}
+.modal-aprobados-aviso-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+}
+.aprobados-aviso-eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.modal-aprobados-aviso-cuerpo p {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.modal-aprobados-aviso-cuerpo p:last-child {
+  margin-bottom: 18px;
+}
+body.aprobados-aviso-on {
+  overflow: hidden;
+}
+
 body.en-aprobados .stage {
   background: #f4f4f4;
 }
