@@ -280,7 +280,10 @@ async function solicitarEnlaceRecuperacionClave() {
     }
   } catch (e) {
     if (err) {
-      err.textContent = String((e && e.message) || e || "No se pudo enviar el correo.");
+      const msg = String((e && e.message) || e || "No se pudo enviar el correo.");
+      err.textContent = /rate limit/i.test(msg)
+        ? "Supabase limitó los correos por hoy. Espera unos 60 minutos o define la clave directo en Supabase → Users (sin correo)."
+        : msg;
       err.hidden = false;
     }
   }
