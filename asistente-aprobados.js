@@ -294,6 +294,7 @@ function vehiculoParaVambe(row, matchedBy) {
     kilometraje_tablero: kmTab,
     kilometraje_real: kmReal,
     revisado_por: String(row.revisado_por || "").trim() || null,
+    revisado_whatsapp: String(row.revisado_whatsapp || "").trim() || null,
     garantia_vendedor: Boolean(row.garantia_vendedor),
     vendedor: {
       nombre: String(row.vendedor_nombre || "").trim() || null,

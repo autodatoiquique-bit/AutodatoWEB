@@ -282,6 +282,26 @@ function youtubeEmbedUrl(url) {
   return "";
 }
 
+function normalizarWhatsappChile(raw) {
+  const d = String(raw || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("56")) return d;
+  if (d.length === 9) return `56${d}`;
+  return d;
+}
+
+function whatsappCertificadorAprobado(v) {
+  if (!v) return "";
+  return normalizarWhatsappChile(v.revisado_whatsapp);
+}
+
+function textoWhatsappCertificadorAprobado(v) {
+  const titulo = tituloLargoAprobado(v);
+  const folio = v && v.folio != null ? ` (folio ${v.folio})` : "";
+  const tec = v && String(v.revisado_por || "").trim();
+  return `Hola${tec ? ` ${tec}` : ""}, consulto por la revisión certificada AutoDato del vehículo ${titulo}${folio}.`;
+}
+
 function whatsappAprobado(v) {
   if (!v) return "";
   const raw = String(v.whatsapp_contacto || v.vendedor_telefono || "").replace(/\D/g, "");
@@ -488,9 +508,24 @@ function htmlBadgeAprobado(v, compact) {
     return `<span class="aprobados-badge-sello">Aprobado por AutoDato</span>`;
   }
   const tec = v && String(v.revisado_por || "").trim();
+  const waTec = whatsappCertificadorAprobado(v);
+  const waHrefTec = waTec
+    ? `https://wa.me/${waTec}?text=${encodeURIComponent(textoWhatsappCertificadorAprobado(v))}`
+    : "";
   return `<div class="aprobados-sello-block">
     <span class="aprobados-badge-sello">Aprobado por AutoDato</span>
-    ${tec ? `<p class="aprobados-revisado-por">Revisado por <strong>${escapeHtml(tec)}</strong></p>` : ""}
+    ${
+      tec
+        ? `<p class="aprobados-revisado-por">
+            <span class="aprobados-revisado-por-txt">Revisado por <strong>${escapeHtml(tec)}</strong></span>
+            ${
+              waHrefTec
+                ? `<a class="aprobados-revisado-wa" href="${escapeAttr(waHrefTec)}" target="_blank" rel="noopener noreferrer" aria-label="Contactar al certificador por WhatsApp"><img src="imagenes/icono-whatsapp.png?v=alfa1" width="22" height="22" alt="" /></a>`
+                : ""
+            }
+          </p>`
+        : ""
+    }
   </div>`;
 }
 
@@ -806,6 +841,7 @@ function htmlDetalleAprobado(v) {
       <a class="aprobados-que-es-autodato btn-block" href="${escapeAttr(APROBADO_URL_QUE_ES_AUTODATO)}" target="_blank" rel="noopener noreferrer">
         QUÉ ES AUTODATO?
       </a>
+      <button type="button" class="aprobados-volver-catalogo btn-block" data-volver-aprobados>Volver al catálogo</button>
       <p class="aprobados-legal">AutoDato certifica la revisión; la venta es entre comprador y automotora.</p>
     </section>`;
 }

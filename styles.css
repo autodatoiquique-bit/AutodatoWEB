@@ -2295,10 +2295,37 @@ body.en-aprobados .panel.aprobados-shell {
   font-size: 0.84rem;
   color: var(--muted);
   font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
 }
 .aprobados-revisado-por strong {
   color: var(--ink);
   font-weight: 800;
+}
+.aprobados-revisado-wa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #25d366;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35);
+  flex-shrink: 0;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.aprobados-revisado-wa:hover {
+  filter: brightness(1.05);
+}
+.aprobados-revisado-wa:active {
+  transform: scale(0.96);
+}
+.aprobados-revisado-wa img {
+  display: block;
+  width: 22px;
+  height: 22px;
 }
 .aprobados-chasis-check {
   margin: 12px 0 4px;
@@ -2862,6 +2889,26 @@ body.en-aprobados .panel.aprobados-shell {
   filter: brightness(1.04);
 }
 .aprobados-que-es-autodato:active {
+  transform: scale(0.99);
+}
+.aprobados-volver-catalogo {
+  margin-top: 10px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 2px solid rgba(17, 17, 17, 0.14);
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 800;
+  width: 100%;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.aprobados-volver-catalogo:hover {
+  background: var(--bg-soft, #f6f7f9);
+}
+.aprobados-volver-catalogo:active {
   transform: scale(0.99);
 }
 .aprobados-legal {
