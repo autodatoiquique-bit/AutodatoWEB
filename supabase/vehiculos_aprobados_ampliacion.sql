@@ -23,12 +23,14 @@ alter table vehiculos_aprobados add column if not exists galeria jsonb not null 
 alter table vehiculos_aprobados add column if not exists detalles_esteticos jsonb not null default '[]'::jsonb;
 alter table vehiculos_aprobados add column if not exists cilindrada text;
 alter table vehiculos_aprobados add column if not exists modelo_motor text;
+alter table vehiculos_aprobados add column if not exists numero_chasis text;
 alter table vehiculos_aprobados add column if not exists equipamiento jsonb not null default '[]'::jsonb;
 
 comment on column vehiculos_aprobados.origen is 'País de importación (Japón, Corea, etc.)';
 comment on column vehiculos_aprobados.equipamiento is 'Array JSON de ids de equipamiento marcados en admin';
 comment on column vehiculos_aprobados.cilindrada is 'Cilindrada motor (ej. 2.0 L, 1998 cc)';
 comment on column vehiculos_aprobados.modelo_motor is 'Código o modelo de motor (ej. D4HA)';
+comment on column vehiculos_aprobados.numero_chasis is 'Número de chasis / VIN';
 comment on column vehiculos_aprobados.combustible is 'Tipo combustible (bencina, diésel, etc.)';
 comment on column vehiculos_aprobados.galeria is 'Array JSON: [{url, orden}] fotos vitrina';
 comment on column vehiculos_aprobados.detalles_esteticos is 'Array JSON: [{url, caption}] imperfecciones visibles';

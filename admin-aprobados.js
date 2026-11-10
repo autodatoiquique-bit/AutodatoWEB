@@ -319,6 +319,7 @@ function aprobadoVacio() {
     traccion: "",
     cilindrada: "",
     modelo_motor: "",
+    numero_chasis: "",
     airbags: null,
     asientos: null,
     duenos: null,
@@ -667,6 +668,7 @@ function htmlEditorAprobado() {
           <label class="field"><span>Año</span><input id="aprobado-ano" type="number" min="1980" max="2099" value="${v.ano != null ? escapeAttr(String(v.ano)) : ""}" /></label>
           <label class="field"><span>Color</span><input id="aprobado-color" type="text" value="${escapeAttr(v.color)}" placeholder="Rojo" /></label>
           <label class="field"><span>Patente</span><input id="aprobado-patente" type="text" value="${escapeAttr(v.patente)}" placeholder="Opcional" /></label>
+          <label class="field aprobado-field-span2"><span>Número de chasis</span><input id="aprobado-chasis" type="text" value="${escapeAttr(v.numero_chasis)}" placeholder="VIN / chasis (opcional)" autocapitalize="characters" /></label>
           <label class="field">
             <span>País de importación</span>
             <select id="aprobado-origen">
@@ -814,6 +816,7 @@ function leerFormAprobado() {
     ano: numCampo("aprobado-ano"),
     color: $("aprobado-color") ? $("aprobado-color").value.trim() : "",
     patente: $("aprobado-patente") ? $("aprobado-patente").value.trim() : "",
+    numero_chasis: $("aprobado-chasis") ? $("aprobado-chasis").value.trim().toUpperCase() : "",
     origen: $("aprobado-origen") ? $("aprobado-origen").value.trim() : "",
     kilometraje_tablero: numCampo("aprobado-km-tablero"),
     kilometraje_real: numCampo("aprobado-km-real"),

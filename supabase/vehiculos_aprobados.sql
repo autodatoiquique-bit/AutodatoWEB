@@ -18,6 +18,7 @@ create table if not exists vehiculos_aprobados (
   traccion text,
   cilindrada text,
   modelo_motor text,
+  numero_chasis text,
   airbags integer,
   asientos integer,
   duenos integer,

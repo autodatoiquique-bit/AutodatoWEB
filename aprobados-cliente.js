@@ -457,6 +457,7 @@ function htmlFichaTecnica(v) {
   const kmR = kmRealPub(v);
   const filas = [
     filaFicha("Año", v.ano),
+    filaFicha("Número de chasis", v.numero_chasis),
     kmT != null ? filaFicha("Km tablero", fmtKmAprobado(kmT)) : "",
     kmR != null ? filaFicha("Km real (revisión)", fmtKmAprobado(kmR)) : "",
     filaFicha("Carrocería", v.carroceria),
