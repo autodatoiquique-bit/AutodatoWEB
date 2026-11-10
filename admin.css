@@ -1039,6 +1039,121 @@ button { font-family: inherit; cursor: pointer; }
 .aprobado-qr-acciones {
   margin-top: 4px;
 }
+.aprobado-qr-export {
+  margin-top: 10px;
+}
+.aprobado-qr-export .btn-primary,
+.aprobado-qr-export .btn-yellow {
+  flex: 1 1 140px;
+}
+
+/* Hoja carta — QR impresión / PDF (fuera de pantalla; solo print o captura) */
+.aprobado-qr-hoja {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  z-index: -1;
+  box-sizing: border-box;
+  width: 8.5in;
+  height: 11in;
+  padding: 0.55in 0.5in;
+  background: #fff;
+  color: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Manrope, sans-serif;
+}
+.aprobado-qr-hoja-marco {
+  width: 100%;
+  max-width: 6.75in;
+  padding: 0.5in 0.42in 0.55in;
+  border: 3px solid #111;
+  border-radius: 32px;
+  box-shadow: inset 0 0 0 5px #ffd000;
+  text-align: center;
+  background: linear-gradient(180deg, #fffef6 0%, #ffffff 48%);
+}
+.aprobado-qr-hoja-kicker {
+  margin: 0 0 0.28in;
+  font-size: 2.45rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.05;
+  color: #111;
+}
+.aprobado-qr-hoja-logo {
+  width: 2.75in;
+  max-width: 88%;
+  height: auto;
+  display: block;
+  margin: 0 auto 0.38in;
+  border-radius: 12px;
+}
+.aprobado-qr-hoja-qr {
+  display: inline-block;
+  padding: 16px;
+  border-radius: 22px;
+  border: 2px solid #e6e6e6;
+  background: #fafafa;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1);
+}
+.aprobado-qr-hoja-qr img,
+.aprobado-qr-hoja-qr canvas {
+  width: 2.55in !important;
+  height: 2.55in !important;
+  display: block !important;
+}
+.aprobado-qr-hoja-folio {
+  margin: 0.22in 0 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #333;
+}
+.aprobado-qr-hoja-hint {
+  margin: 0.18in 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #5c5c5c;
+}
+
+body.admin-imprimir-qr-aprobado .aprobado-qr-hoja {
+  left: 0;
+  top: 0;
+  z-index: 50000;
+}
+.aprobado-qr-hoja.aprobado-qr-hoja-captura {
+  left: 0 !important;
+  top: 0 !important;
+  z-index: 60000 !important;
+  opacity: 0.02;
+  pointer-events: none;
+}
+
+@media print {
+  @page {
+    size: letter;
+    margin: 0;
+  }
+  body.admin-imprimir-qr-aprobado .acceso,
+  body.admin-imprimir-qr-aprobado .split,
+  body.admin-imprimir-qr-aprobado .modal,
+  body.admin-imprimir-qr-aprobado .admin-guardando,
+  body.admin-imprimir-qr-aprobado .admin-tablero-sync {
+    display: none !important;
+  }
+  body.admin-imprimir-qr-aprobado .aprobado-qr-hoja {
+    display: flex !important;
+    position: static;
+    left: auto;
+    top: auto;
+    width: 8.5in;
+    height: 11in;
+    padding: 0.55in 0.5in;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
 
 .aprobado-form-grid {
   display: grid;

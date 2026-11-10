@@ -558,6 +558,37 @@ async function asegurarLibQrAprobado() {
   await cargarScriptQrAprobado("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
 }
 
+async function asegurarLibPdfQrAprobado() {
+  await Promise.all([
+    cargarScriptQrAprobado("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+    cargarScriptQrAprobado("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
+  ]);
+}
+
+function sincronizarHojaQrAprobado() {
+  const src = $("aprobado-qr-canvas");
+  const dst = $("aprobado-qr-hoja-qr");
+  if (!dst) return;
+  dst.innerHTML = "";
+  if (src) {
+    const img = src.querySelector("img");
+    const cvs = src.querySelector("canvas");
+    if (img) dst.appendChild(img.cloneNode(true));
+    else if (cvs) dst.appendChild(cvs.cloneNode(true));
+  }
+  const folioEl = $("aprobado-qr-hoja-folio");
+  if (folioEl) {
+    const folio = aprobadoEditando && aprobadoEditando.folio != null ? aprobadoEditando.folio : "";
+    if (folio !== "" && folio != null) {
+      folioEl.textContent = `Folio ${folio}`;
+      folioEl.hidden = false;
+    } else {
+      folioEl.textContent = "";
+      folioEl.hidden = true;
+    }
+  }
+}
+
 async function pintarQrAprobado(url) {
   const nodo = $("aprobado-qr-canvas");
   if (!nodo) return;
@@ -572,8 +603,68 @@ async function pintarQrAprobado(url) {
       height: 256,
       correctLevel: QRCode.CorrectLevel.M,
     });
+    requestAnimationFrame(() => sincronizarHojaQrAprobado());
   } catch (_e) {
     nodo.innerHTML = `<p class="muted">No se pudo generar el QR. Usa «Copiar enlace».</p>`;
+  }
+}
+
+function imprimirHojaQrAprobado() {
+  if (!aprobadoQrUrlActual) return;
+  sincronizarHojaQrAprobado();
+  document.body.classList.add("admin-imprimir-qr-aprobado");
+  const fin = () => document.body.classList.remove("admin-imprimir-qr-aprobado");
+  window.addEventListener("afterprint", fin, { once: true });
+  setTimeout(() => {
+    try {
+      window.print();
+    } catch (_e) {
+      fin();
+      alert("No se pudo abrir la impresión.");
+    }
+  }, 80);
+}
+
+async function descargarPdfQrAprobado() {
+  if (!aprobadoQrUrlActual) return;
+  sincronizarHojaQrAprobado();
+  const hoja = $("aprobado-qr-hoja");
+  if (!hoja) return;
+  const btn = $("btn-aprobado-qr-pdf");
+  const txtPrev = btn ? btn.textContent : "";
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Generando…";
+    }
+    if (typeof adminIniciarGuardado === "function") adminIniciarGuardado("Generando PDF…");
+    await asegurarLibPdfQrAprobado();
+    if (!window.html2canvas || !window.jspdf) throw new Error("libs");
+    hoja.classList.add("aprobado-qr-hoja-captura");
+    const canvas = await html2canvas(hoja, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      width: hoja.offsetWidth,
+      height: hoja.offsetHeight,
+    });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" });
+    const img = canvas.toDataURL("image/png");
+    pdf.addImage(img, "PNG", 0, 0, 8.5, 11);
+    const folio = aprobadoEditando && aprobadoEditando.folio != null ? aprobadoEditando.folio : "aprobado";
+    pdf.save(`autodato-revisado-folio-${folio}.pdf`);
+    if (typeof adminMostrarOkGuardado === "function") adminMostrarOkGuardado("PDF descargado");
+  } catch (_e) {
+    alert("No se pudo generar el PDF. Prueba «Imprimir» y elige «Guardar como PDF».");
+  } finally {
+    hoja.classList.remove("aprobado-qr-hoja-captura");
+    if (typeof adminFinGuardado === "function") adminFinGuardado();
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = txtPrev || "Descargar en PDF";
+    }
   }
 }
 
@@ -1371,6 +1462,10 @@ $("btn-aprobado-qr-copiar")?.addEventListener("click", () => {
 });
 $("btn-aprobado-qr-abrir")?.addEventListener("click", () => {
   if (aprobadoQrUrlActual) window.open(aprobadoQrUrlActual, "_blank", "noopener,noreferrer");
+});
+$("btn-aprobado-qr-imprimir")?.addEventListener("click", () => imprimirHojaQrAprobado());
+$("btn-aprobado-qr-pdf")?.addEventListener("click", () => {
+  void descargarPdfQrAprobado();
 });
 
 document.addEventListener("click", (e) => {
