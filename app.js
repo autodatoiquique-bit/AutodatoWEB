@@ -2793,6 +2793,9 @@ function faltantesTicket() {
 const VISTAS_CATALOGO = ["ofertas", "mantencion", "diagnostico", "oferta-detalle", "filtro-oferta"];
 
 function renderVista(opts = {}) {
+  if (state.vista !== "aprobados" && typeof cerrarAvisoCatalogoAprobados === "function") {
+    cerrarAvisoCatalogoAprobados();
+  }
   reconciliarAreaTrasCarrito();
   redirigirSiCarritoFlotaEnVistaParticular();
   syncCromo();
@@ -4109,6 +4112,7 @@ document.addEventListener("click", (e) => {
         history.replaceState({ vista: "aprobados" }, "", "/aprobados");
       }
       renderVista();
+      if (typeof mostrarAvisoCatalogoAprobados === "function") mostrarAvisoCatalogoAprobados();
     } else if (["ofertas", "mantencion", "diagnostico"].includes(t.dataset.vista)) {
       void abrirVistaCatalogo(t.dataset.vista);
     } else {

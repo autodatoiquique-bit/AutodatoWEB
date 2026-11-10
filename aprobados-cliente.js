@@ -661,7 +661,6 @@ async function renderVitrinaAprobados() {
       box.innerHTML = `<p class="muted">No pudimos cargar la vitrina. Revisa la conexión.</p>`;
     }
   }
-  mostrarAvisoCatalogoAprobados();
 }
 
 async function abrirAprobadoPorSlug(slug) {
