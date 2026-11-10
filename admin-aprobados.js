@@ -6,6 +6,7 @@
 let aprobadosCache = [];
 /** @type {object|null} */
 let aprobadoEditando = null;
+let aprobadoQrUrlActual = "";
 
 const INFORME_PRESETS_APROBADO = [
   {
@@ -538,6 +539,93 @@ function urlVistaPublicaAprobado(slug) {
   return `https://autodato.cl/aprobado/${encodeURIComponent(s)}`;
 }
 
+function cargarScriptQrAprobado(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("script"));
+    document.body.appendChild(s);
+  });
+}
+
+async function asegurarLibQrAprobado() {
+  await cargarScriptQrAprobado("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
+}
+
+async function pintarQrAprobado(url) {
+  const nodo = $("aprobado-qr-canvas");
+  if (!nodo) return;
+  nodo.innerHTML = `<p class="muted">Generando QR…</p>`;
+  try {
+    await asegurarLibQrAprobado();
+    if (!window.QRCode) throw new Error("sin qrcode");
+    nodo.innerHTML = "";
+    new QRCode(nodo, {
+      text: String(url || "").trim(),
+      width: 256,
+      height: 256,
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  } catch (_e) {
+    nodo.innerHTML = `<p class="muted">No se pudo generar el QR. Usa «Copiar enlace».</p>`;
+  }
+}
+
+function cerrarModalQrAprobado() {
+  const m = $("modal-aprobado-qr");
+  if (m) m.hidden = true;
+}
+
+function abrirModalQrAprobado(url) {
+  aprobadoQrUrlActual = url;
+  const m = $("modal-aprobado-qr");
+  const urlEl = $("aprobado-qr-url");
+  const sub = $("aprobado-qr-sub");
+  if (!m) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const folio = aprobadoEditando && aprobadoEditando.folio != null ? aprobadoEditando.folio : "";
+  if (sub) {
+    sub.textContent = folio
+      ? `Folio ${folio} — escanea para abrir la vitrina del vehículo.`
+      : "Escanea para abrir la vitrina del vehículo (compradores).";
+  }
+  if (urlEl) urlEl.textContent = url;
+  m.hidden = false;
+  void pintarQrAprobado(url);
+}
+
+async function copiarEnlaceQrAprobado() {
+  const url = aprobadoQrUrlActual;
+  if (!url) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    if (typeof adminMostrarOkGuardado === "function") adminMostrarOkGuardado("Enlace copiado");
+    else alert("Enlace copiado");
+  } catch (_e) {
+    alert(url);
+  }
+}
+
 function abrirVistaPublicaAprobado() {
   const slug = aprobadoEditando && aprobadoEditando.public_slug ? aprobadoEditando.public_slug : "";
   const url = urlVistaPublicaAprobado(slug);
@@ -545,7 +633,7 @@ function abrirVistaPublicaAprobado() {
     alert("Guarda la ficha primero para generar el enlace del QR.");
     return;
   }
-  window.open(url, "_blank", "noopener,noreferrer");
+  abrirModalQrAprobado(url);
 }
 
 function htmlCardAprobado(v) {
@@ -651,7 +739,7 @@ function htmlEditorAprobado() {
           </div>
         </div>
         <div class="admin-panel-top-acciones aprobado-editor-acciones">
-          <button class="btn-soft" type="button" id="btn-aprobado-ver-qr" ${puedeQr ? "" : "disabled"} title="Vista comprador (próxima etapa)">VER QR</button>
+          <button class="btn-soft" type="button" id="btn-aprobado-ver-qr" ${puedeQr ? "" : "disabled"} title="Código QR del enlace público">VER QR</button>
           <button class="btn-primary" type="button" id="btn-aprobado-guardar">Guardar</button>
         </div>
       </div>
@@ -1272,6 +1360,17 @@ async function renderAprobadosAutodato() {
 
 $("btn-aprobados-autodato")?.addEventListener("click", () => {
   void renderAprobadosAutodato();
+});
+
+$("cerrar-aprobado-qr")?.addEventListener("click", cerrarModalQrAprobado);
+$("modal-aprobado-qr")?.addEventListener("click", (e) => {
+  if (e.target.id === "modal-aprobado-qr") cerrarModalQrAprobado();
+});
+$("btn-aprobado-qr-copiar")?.addEventListener("click", () => {
+  void copiarEnlaceQrAprobado();
+});
+$("btn-aprobado-qr-abrir")?.addEventListener("click", () => {
+  if (aprobadoQrUrlActual) window.open(aprobadoQrUrlActual, "_blank", "noopener,noreferrer");
 });
 
 document.addEventListener("click", (e) => {

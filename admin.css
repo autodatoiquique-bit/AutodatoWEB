@@ -1010,6 +1010,36 @@ button { font-family: inherit; cursor: pointer; }
   overflow: auto;
 }
 
+.modal-aprobado-qr-card {
+  width: min(400px, 100%);
+  text-align: center;
+}
+.aprobado-qr-canvas {
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+  margin: 12px auto 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fafafa;
+}
+.aprobado-qr-canvas img,
+.aprobado-qr-canvas canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.aprobado-qr-url {
+  font-size: 0.78rem;
+  word-break: break-all;
+  margin: 0 0 14px;
+  text-align: left;
+}
+.aprobado-qr-acciones {
+  margin-top: 4px;
+}
+
 .aprobado-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
