@@ -363,6 +363,7 @@ function aprobadoVacio() {
       conclusion: "",
       observaciones_tecnicas: "",
       mapa_imagen: "",
+      foto_placa_chasis: "",
       mapa_off_x: 0,
       mapa_off_y: 0,
       mapa_zoom: 1,
@@ -409,6 +410,33 @@ function transformMapaPantallazoCss(m) {
   const ox = m.off_x;
   const oy = m.off_y;
   return `translate(-50%,-50%) translate(${ox}%,${oy}%) scale(${z})`;
+}
+
+function htmlChasisPlacaEditor(v, inf) {
+  const ch = String((v && v.numero_chasis) || "").trim();
+  const url = String((inf && inf.foto_placa_chasis) || "").trim();
+  return `
+    <div class="field aprobado-field-span2 aprobado-chasis-placa-field">
+      <span>Número de chasis</span>
+      <div class="aprobado-chasis-placa-row">
+        <input id="aprobado-chasis" type="text" value="${escapeAttr(ch)}" placeholder="VIN / chasis (opcional)" autocapitalize="characters" />
+        <button type="button" class="btn-line aprobado-chasis-placa-btn" id="btn-aprobado-subir-chasis-placa">Subir foto placa</button>
+        ${
+          url
+            ? `<button type="button" class="btn-soft aprobado-chasis-placa-btn" id="btn-aprobado-quitar-chasis-placa">Quitar foto</button>`
+            : ""
+        }
+      </div>
+      <div id="aprobado-chasis-placa-box" class="aprobado-chasis-placa-box">
+        ${
+          url
+            ? `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer" class="aprobado-chasis-placa-thumb"><img src="${escapeAttr(
+                url
+              )}" alt="Vista previa placa de chasis" /></a>`
+            : `<p class="muted aprobado-chasis-placa-empty">Sin foto de la placa donde figura el chasis.</p>`
+        }
+      </div>
+    </div>`;
 }
 
 function htmlMapaPantallazoEditor(inf) {
@@ -992,7 +1020,7 @@ function htmlEditorAprobado() {
           <label class="field"><span>Año</span><input id="aprobado-ano" type="number" min="1980" max="2099" value="${v.ano != null ? escapeAttr(String(v.ano)) : ""}" /></label>
           <label class="field"><span>Color</span><input id="aprobado-color" type="text" value="${escapeAttr(v.color)}" placeholder="Rojo" /></label>
           <label class="field"><span>Patente</span><input id="aprobado-patente" type="text" value="${escapeAttr(v.patente)}" placeholder="Opcional" /></label>
-          <label class="field aprobado-field-span2"><span>Número de chasis</span><input id="aprobado-chasis" type="text" value="${escapeAttr(v.numero_chasis)}" placeholder="VIN / chasis (opcional)" autocapitalize="characters" /></label>
+          ${htmlChasisPlacaEditor(v, inf)}
           <label class="field">
             <span>País de importación</span>
             <select id="aprobado-origen">
@@ -1190,6 +1218,7 @@ function leerFormAprobado() {
       informe_pdf: $("aprobado-pdf") ? $("aprobado-pdf").value.trim() : "",
       escaner_imagenes: Array.isArray(base.informe && base.informe.escaner_imagenes) ? base.informe.escaner_imagenes : [],
       mapa_imagen: String((base.informe && base.informe.mapa_imagen) || "").trim(),
+      foto_placa_chasis: String((base.informe && base.informe.foto_placa_chasis) || "").trim(),
       mapa_off_x: Number(base.informe && base.informe.mapa_off_x) || 0,
       mapa_off_y: Number(base.informe && base.informe.mapa_off_y) || 0,
       mapa_zoom: Number(base.informe && base.informe.mapa_zoom) > 0 ? Number(base.informe.mapa_zoom) : 1,
@@ -1320,6 +1349,56 @@ function activarEditorMapaAprobado() {
       img.style.transform = transformMapaPantallazoCss(datosMapaPantallazoAprobado(aprobadoEditando.informe));
     });
   }
+}
+
+function repintarChasisPlacaEditor() {
+  const box = $("aprobado-chasis-placa-box");
+  if (!box || !aprobadoEditando) return;
+  const inf = aprobadoEditando.informe || {};
+  const url = String(inf.foto_placa_chasis || "").trim();
+  box.innerHTML = url
+    ? `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer" class="aprobado-chasis-placa-thumb"><img src="${escapeAttr(
+        url
+      )}" alt="Vista previa placa de chasis" /></a>`
+  : `<p class="muted aprobado-chasis-placa-empty">Sin foto de la placa donde figura el chasis.</p>`;
+  const row = document.querySelector(".aprobado-chasis-placa-row");
+  if (row) {
+    const existing = $("btn-aprobado-quitar-chasis-placa");
+    if (url && !existing) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn-soft aprobado-chasis-placa-btn";
+      b.id = "btn-aprobado-quitar-chasis-placa";
+      b.textContent = "Quitar foto";
+      row.appendChild(b);
+    } else if (!url && existing) existing.remove();
+  }
+}
+
+async function subirFotoPlacaChasisAprobado(file) {
+  if (!aprobadoEditando || !file) return;
+  sincronizarCaptionsEsteticaDesdeDom();
+  sincronizarMapaAprobadoDesdeDom();
+  Object.assign(aprobadoEditando, leerFormAprobado());
+  try {
+    if (typeof adminIniciarGuardado === "function") adminIniciarGuardado("Subiendo foto de placa…");
+    const dataUrls = await leerArchivosComoDataUrl([file]);
+    const urls = await subirUrlsAprobado(dataUrls);
+    if (!aprobadoEditando.informe) aprobadoEditando.informe = {};
+    aprobadoEditando.informe.foto_placa_chasis = urls[0] || "";
+    repintarChasisPlacaEditor();
+  } catch (e) {
+    alert(String((e && e.message) || e || "No se pudo subir la foto."));
+  } finally {
+    if (typeof adminFinGuardado === "function") adminFinGuardado();
+  }
+}
+
+function quitarFotoPlacaChasisAprobado() {
+  if (!aprobadoEditando) return;
+  if (!aprobadoEditando.informe) aprobadoEditando.informe = {};
+  aprobadoEditando.informe.foto_placa_chasis = "";
+  repintarChasisPlacaEditor();
 }
 
 async function subirMapaPantallazoAprobado(file) {
@@ -1723,6 +1802,14 @@ document.addEventListener("click", (e) => {
     $("aprobado-file-mapa-shot")?.click();
     return;
   }
+  if (e.target.id === "btn-aprobado-subir-chasis-placa" || e.target.closest("#btn-aprobado-subir-chasis-placa")) {
+    $("aprobado-file-chasis-placa")?.click();
+    return;
+  }
+  if (e.target.id === "btn-aprobado-quitar-chasis-placa" || e.target.closest("#btn-aprobado-quitar-chasis-placa")) {
+    quitarFotoPlacaChasisAprobado();
+    return;
+  }
   if (e.target.id === "btn-aprobado-quitar-mapa-shot" || e.target.closest("#btn-aprobado-quitar-mapa-shot")) {
     quitarMapaPantallazoAprobado();
     return;
@@ -1779,6 +1866,11 @@ document.addEventListener("change", (e) => {
   }
   if (t.id === "aprobado-file-mapa-shot" && t.files.length) {
     void subirMapaPantallazoAprobado(t.files[0]).finally(() => {
+      t.value = "";
+    });
+  }
+  if (t.id === "aprobado-file-chasis-placa" && t.files.length) {
+    void subirFotoPlacaChasisAprobado(t.files[0]).finally(() => {
       t.value = "";
     });
   }

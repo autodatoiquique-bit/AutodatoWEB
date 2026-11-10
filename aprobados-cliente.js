@@ -491,12 +491,31 @@ function htmlBadgeAprobado(v, compact) {
   </div>`;
 }
 
+function fotoPlacaChasisAprobado(v) {
+  const inf = v && v.informe && typeof v.informe === "object" ? v.informe : {};
+  return String(inf.foto_placa_chasis || "").trim();
+}
+
 function htmlConfirmacionChasisAprobado(v) {
   const ch = String((v && v.numero_chasis) || "").trim();
-  if (!ch) return "";
+  const foto = fotoPlacaChasisAprobado(v);
+  if (!ch && !foto) return "";
   return `<div class="aprobados-chasis-check" aria-labelledby="aprobados-chasis-leyenda">
     <p class="aprobados-chasis-leyenda" id="aprobados-chasis-leyenda">Confirma que estás revisando el vehículo correcto</p>
-    <p class="aprobados-chasis-valor"><span class="aprobados-chasis-etq">Número de chasis</span><strong>${escapeHtml(ch)}</strong></p>
+    <div class="aprobados-chasis-valor">
+      ${
+        ch
+          ? `<span class="aprobados-chasis-par"><span class="aprobados-chasis-etq">Número de chasis</span><strong>${escapeHtml(ch)}</strong></span>`
+          : ""
+      }
+      ${
+        foto
+          ? `<button type="button" class="aprobados-chasis-ver-foto aprobados-thumb-open" data-aprobado-ampliar-url="${escapeAttr(
+              foto
+            )}" aria-label="Ver foto de la placa del chasis">Ver foto placa</button>`
+          : ""
+      }
+    </div>
   </div>`;
 }
 

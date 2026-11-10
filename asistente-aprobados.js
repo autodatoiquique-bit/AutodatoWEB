@@ -262,6 +262,8 @@ function vehiculoParaVambe(row, matchedBy) {
   const ficha_url = urlFichaPublica(slug);
   const foto_portada_url = fotoPortadaAprobado(row);
   const galeria_urls = urlsGaleriaAprobado(row);
+  const informeObj = jsonObj(row.informe);
+  const foto_placa_chasis_url = String(informeObj.foto_placa_chasis || "").trim() || null;
 
   const lines = [];
   lines.push(`Certificado AutoDato: ${titulo}.`);
@@ -319,7 +321,9 @@ function vehiculoParaVambe(row, matchedBy) {
     imagenes: {
       portada: foto_portada_url,
       galeria: galeria_urls.length ? galeria_urls : foto_portada_url ? [foto_portada_url] : [],
+      placa_chasis: foto_placa_chasis_url,
     },
+    foto_placa_chasis_url,
     informe_resumen,
     matched_by: matchedBy,
     message_for_assistant: lines.join(" "),

@@ -949,6 +949,7 @@ async function nubeGuardarVehiculoAprobado(datos) {
       conclusion: String(informeIn.conclusion || "").trim() || null,
       observaciones_tecnicas: String(informeIn.observaciones_tecnicas || "").trim() || null,
       mapa_imagen: String(informeIn.mapa_imagen || "").trim() || null,
+      foto_placa_chasis: String(informeIn.foto_placa_chasis || "").trim() || null,
       mapa_off_x: Number(informeIn.mapa_off_x) || 0,
       mapa_off_y: Number(informeIn.mapa_off_y) || 0,
       mapa_zoom: Number(informeIn.mapa_zoom) > 0 ? Number(informeIn.mapa_zoom) : 1,

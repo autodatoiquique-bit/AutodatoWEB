@@ -2318,8 +2318,31 @@ body.en-aprobados .panel.aprobados-shell {
   margin: 0;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.aprobados-chasis-par {
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 8px 12px;
+  min-width: 0;
+}
+.aprobados-chasis-ver-foto {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 17, 17, 0.18);
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.aprobados-chasis-ver-foto:active {
+  transform: scale(0.98);
 }
 .aprobados-chasis-etq {
   font-size: 0.72rem;
