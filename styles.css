@@ -2165,10 +2165,13 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 }
 
 /* —— Aprobados AutoDato (vitrina móvil) —— */
-.modal-aprobados-aviso {
+.modal-aprobados-aviso[hidden] {
+  display: none !important;
+}
+.modal-aprobados-aviso:not([hidden]) {
   z-index: 120;
   padding: 16px;
-  display: grid !important;
+  display: grid;
   place-items: center;
   align-content: center;
 }

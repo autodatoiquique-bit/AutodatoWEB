@@ -4139,6 +4139,10 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-compartir-ticket")) compartirTicket();
   if (t.dataset.portadaOferta) void iniciarOfertaDesdePortada(t.dataset.portadaOferta);
   if (t.dataset.abrirAprobadoSlug) void abrirAprobadoPorSlug(t.dataset.abrirAprobadoSlug);
+  if (e.target.closest("[data-aprobados-aviso-continuar]")) {
+    if (typeof continuarAvisoCatalogoAprobados === "function") continuarAvisoCatalogoAprobados();
+    return;
+  }
   if (t.hasAttribute("data-volver-aprobados")) navegarAprobadosVitrina();
   if (t.hasAttribute("data-aprobado-zoom-main")) {
     if (typeof abrirLightboxGaleriaPrincipalAprobado === "function") abrirLightboxGaleriaPrincipalAprobado();
@@ -4463,6 +4467,7 @@ async function arrancar() {
   const entrada = aplicarVehiculoDesdeUrlAlInicio();
   pintarDatosFicha();
   pintarEnlacesContactoMenu();
+  if (typeof cerrarAvisoCatalogoAprobados === "function") cerrarAvisoCatalogoAprobados();
   renderVista({ quedarse: true });
   aplicarLogos();
   renderTotales(false);
