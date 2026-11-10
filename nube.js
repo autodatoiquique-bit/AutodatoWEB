@@ -1009,3 +1009,48 @@ async function nubeCambiarClaveUsuario(claveActual, claveNueva) {
   const { error: errUpd } = await sb.auth.updateUser({ password: String(claveNueva || "") });
   if (errUpd) throw errUpd;
 }
+
+function nubeParseHashAuth() {
+  const raw = String(window.location.hash || "").replace(/^#/, "");
+  if (!raw) return null;
+  const p = new URLSearchParams(raw);
+  const access_token = p.get("access_token");
+  if (!access_token) return null;
+  return {
+    access_token,
+    refresh_token: p.get("refresh_token") || "",
+    type: p.get("type") || "",
+  };
+}
+
+function nubeLimpiarHashAuth() {
+  if (!window.location.hash) return;
+  try {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  } catch (_e) {
+    window.location.hash = "";
+  }
+}
+
+/** Tras abrir el enlace del correo de Supabase (type=recovery). */
+async function nubeActivarSesionDesdeEnlace() {
+  const p = nubeParseHashAuth();
+  if (!p) return "";
+  const sb = clienteNube();
+  const { error } = await sb.auth.setSession({
+    access_token: p.access_token,
+    refresh_token: p.refresh_token,
+  });
+  if (error) throw error;
+  return p.type;
+}
+
+async function nubeSolicitarRecuperacionClave(email) {
+  const sb = clienteNube();
+  const dest =
+    String(window.location.origin || "").replace(/\/$/, "") + String(window.location.pathname || "/admin.html");
+  const { error } = await sb.auth.resetPasswordForEmail(String(email || "").trim(), {
+    redirectTo: dest,
+  });
+  if (error) throw error;
+}

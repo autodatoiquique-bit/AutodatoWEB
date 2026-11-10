@@ -186,11 +186,18 @@ function sesionOk() {
   return sessionStorage.getItem(SESION_KEY) === "1";
 }
 
-function mostrarAcceso() {
+function mostrarAcceso(opts = {}) {
+  const recuperacion = Boolean(opts.recuperacion);
   $("acceso").hidden = false;
   $("panel").hidden = true;
   const nube = typeof nubeActiva === "function" && nubeActiva();
-  $("acceso-email-wrap").hidden = !nube;
+  $("acceso-email-wrap").hidden = !nube || recuperacion;
+  const nuevaWrap = $("acceso-nueva-clave-wrap");
+  const btnEntrar = $("btn-acceso");
+  const recWrap = $("acceso-recuperar-wrap");
+  if (nuevaWrap) nuevaWrap.hidden = !recuperacion;
+  if (btnEntrar) btnEntrar.hidden = recuperacion;
+  if (recWrap) recWrap.hidden = !nube || recuperacion;
   if (nube) {
     $("acceso-texto").textContent =
       "Correo y clave de administrador. Elige una clave que recuerdes; luego puedes cambiarla en Configuración.";
@@ -205,6 +212,78 @@ function mostrarAcceso() {
     $("btn-acceso").textContent = setup ? "Crear clave y entrar" : "Entrar";
   }
   $("acceso-error").hidden = true;
+  const ok = $("acceso-ok");
+  if (ok) ok.hidden = true;
+}
+
+async function guardarClaveDesdeEnlaceRecuperacion() {
+  const err = $("acceso-error");
+  const ok = $("acceso-ok");
+  if (err) {
+    err.hidden = true;
+    err.textContent = "";
+  }
+  if (ok) ok.hidden = true;
+  const a = $("acceso-nueva-clave") ? $("acceso-nueva-clave").value : "";
+  const b = $("acceso-nueva-clave2") ? $("acceso-nueva-clave2").value : "";
+  if (!a || a.length < 8) {
+    if (err) {
+      err.textContent = "La clave debe tener al menos 8 caracteres.";
+      err.hidden = false;
+    }
+    return;
+  }
+  if (a !== b) {
+    if (err) {
+      err.textContent = "Las dos claves no coinciden.";
+      err.hidden = false;
+    }
+    return;
+  }
+  try {
+    const sb = clienteNube();
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) throw error;
+    if (typeof nubeLimpiarHashAuth === "function") nubeLimpiarHashAuth();
+    sessionStorage.setItem(SESION_KEY, "1");
+    await mostrarPanel();
+  } catch (e) {
+    if (err) {
+      err.textContent = String((e && e.message) || e || "No se pudo guardar la clave.");
+      err.hidden = false;
+    }
+  }
+}
+
+async function solicitarEnlaceRecuperacionClave() {
+  const err = $("acceso-error");
+  const ok = $("acceso-ok");
+  if (err) {
+    err.hidden = true;
+    err.textContent = "";
+  }
+  if (ok) ok.hidden = true;
+  const email = $("acceso-email") ? $("acceso-email").value.trim() : "";
+  if (!email) {
+    if (err) {
+      err.textContent = "Escribe tu correo arriba.";
+      err.hidden = false;
+    }
+    return;
+  }
+  try {
+    if (typeof nubeSolicitarRecuperacionClave !== "function") throw new Error("Recuperación no disponible.");
+    await nubeSolicitarRecuperacionClave(email);
+    if (ok) {
+      ok.textContent = "Te enviamos un enlace. Ábrelo pronto (expira en pocos minutos) y define la clave en esta misma página.";
+      ok.hidden = false;
+    }
+  } catch (e) {
+    if (err) {
+      err.textContent = String((e && e.message) || e || "No se pudo enviar el correo.");
+      err.hidden = false;
+    }
+  }
 }
 
 function pintarTaller() {
@@ -3845,6 +3924,8 @@ async function guardarEditorPortada() {
 }
 
 $("btn-acceso").addEventListener("click", intentarAcceso);
+$("btn-acceso-olvido")?.addEventListener("click", () => void solicitarEnlaceRecuperacionClave());
+$("btn-acceso-guardar-nueva")?.addEventListener("click", () => void guardarClaveDesdeEnlaceRecuperacion());
 $("acceso-pin").addEventListener("keydown", (e) => {
   if (e.key === "Enter") intentarAcceso();
 });
@@ -4727,6 +4808,26 @@ async function arrancarAdmin() {
     /* ignore */
   }
   if (typeof nubeActiva === "function" && nubeActiva()) {
+    try {
+      const tipo =
+        typeof nubeActivarSesionDesdeEnlace === "function" ? await nubeActivarSesionDesdeEnlace() : "";
+      if (tipo === "recovery") {
+        mostrarAcceso({ recuperacion: true });
+        return;
+      }
+      if (tipo) {
+        if (typeof nubeLimpiarHashAuth === "function") nubeLimpiarHashAuth();
+      }
+    } catch (e) {
+      const err = $("acceso-error");
+      if (err) {
+        err.textContent =
+          "El enlace del correo expiró o ya se usó. Pide otro con «¿Olvidaste tu clave?» o restablece en Supabase.";
+        err.hidden = false;
+      }
+      mostrarAcceso();
+      return;
+    }
     if (await nubeSesion()) await mostrarPanel();
     else mostrarAcceso();
     return;

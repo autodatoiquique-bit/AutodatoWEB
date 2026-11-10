@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=admin-config1" />
+  <link rel="stylesheet" href="admin.css?v=admin-config2" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -23,8 +23,18 @@
         <span id="acceso-label">Clave</span>
         <input id="acceso-pin" type="password" autocomplete="current-password" />
       </label>
+      <div id="acceso-recuperar-wrap" class="acceso-recuperar" hidden>
+        <button type="button" class="btn-link" id="btn-acceso-olvido">¿Olvidaste tu clave? Enviar enlace al correo</button>
+      </div>
+      <div id="acceso-nueva-clave-wrap" hidden>
+        <p class="muted">Enlace de recuperación válido. Elige tu nueva clave (mínimo 8 caracteres).</p>
+        <label class="field"><span>Clave nueva</span><input id="acceso-nueva-clave" type="password" autocomplete="new-password" /></label>
+        <label class="field"><span>Repite la clave nueva</span><input id="acceso-nueva-clave2" type="password" autocomplete="new-password" /></label>
+        <button class="btn-primary btn-block" type="button" id="btn-acceso-guardar-nueva">Guardar y entrar</button>
+      </div>
       <button class="btn-primary btn-block" type="button" id="btn-acceso">Entrar</button>
       <p id="acceso-error" class="error" hidden></p>
+      <p id="acceso-ok" class="muted" hidden></p>
     </div>
   </div>
 
@@ -326,15 +336,15 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="nube.js?v=aprobados7"></script>
+  <script src="nube.js?v=aprobados8"></script>
   <script src="catalogo.js?v=familias-vambe1"></script>
   <script src="flotas.js?v=flota-kanban-busq1"></script>
-  <script src="admin.js?v=familias-vambe1"></script>
+  <script src="admin.js?v=admin-recovery1"></script>
   <script src="admin-combos.js?v=portada-preview-boton1"></script>
   <script src="admin-flotas.js?v=flota-duplicados1"></script>
   <script src="admin-tickets.js?v=7"></script>
   <script src="aprobados-equipamiento.js?v=1"></script>
   <script src="admin-aprobados.js?v=15"></script>
-  <script src="admin-configuracion.js?v=1"></script>
+  <script src="admin-configuracion.js?v=2"></script>
 </body>
 </html>
