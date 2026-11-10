@@ -294,6 +294,25 @@ function whatsappAprobado(v) {
   return raw;
 }
 
+function registrarVisitaFichaAprobado(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return;
+  const key = `ad-metric-qr-${s}`;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  } catch (_e) {
+    /* sin sessionStorage */
+  }
+  if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, "qr");
+}
+
+function registrarClicWhatsappAprobado(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return;
+  if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, "whatsapp");
+}
+
 function urlAprobadoPath(slug) {
   const s = encodeURIComponent(String(slug || "").trim());
   return s ? `/aprobado/${s}` : "/aprobados";
@@ -596,7 +615,7 @@ function htmlDetalleAprobado(v) {
       ${htmlMapaDetalleAprobado(v)}
       ${
         waHref
-          ? `<a class="aprobados-wa-cta btn-block" href="${escapeAttr(waHref)}" target="_blank" rel="noopener noreferrer">
+          ? `<a class="aprobados-wa-cta btn-block" href="${escapeAttr(waHref)}" target="_blank" rel="noopener noreferrer" data-aprobado-wa-metric="${escapeAttr(v.public_slug || "")}">
               <img src="imagenes/icono-whatsapp.png?v=alfa1" width="28" height="28" alt="" aria-hidden="true" />
               <span>Consultar por WhatsApp</span>
             </a>`
@@ -711,6 +730,7 @@ async function abrirAprobadoPorSlug(slug) {
     if (typeof history !== "undefined" && history.replaceState) {
       history.replaceState({ vista: "aprobado-detalle", slug: s }, "", urlAprobadoPath(s));
     }
+    registrarVisitaFichaAprobado(s);
   } catch (_e) {
     $("stage").innerHTML = `<section class="panel aprobados-shell"><p class="muted">Error al cargar la ficha.</p></section>`;
   }
@@ -1033,5 +1053,10 @@ function rutaAprobadoInicial() {
 document.addEventListener("click", (e) => {
   if (e.target.closest("[data-aprobados-aviso-continuar]")) {
     continuarAvisoCatalogoAprobados();
+    return;
+  }
+  const wa = e.target.closest("[data-aprobado-wa-metric]");
+  if (wa && wa.dataset.aprobadoWaMetric) {
+    registrarClicWhatsappAprobado(wa.dataset.aprobadoWaMetric);
   }
 });

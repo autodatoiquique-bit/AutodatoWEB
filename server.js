@@ -1229,6 +1229,34 @@ app.get("/admin", (_req, res) => {
   res.redirect(302, "/admin.html");
 });
 
+app.post("/api/aprobado-metrica", async (req, res) => {
+  const slug = String((req.body && req.body.slug) || "").trim();
+  const tipo = String((req.body && req.body.tipo) || "").trim().toLowerCase();
+  if (!slug || (tipo !== "qr" && tipo !== "whatsapp")) {
+    return res.status(400).json({ ok: false, error: "Parámetros inválidos" });
+  }
+  const cfg = supabaseServiceConfig();
+  if (!cfg) return res.status(501).json({ ok: false, error: "Sin configuración" });
+  try {
+    const r = await fetch(`${cfg.url}/rest/v1/rpc/incrementar_metrica_aprobado`, {
+      method: "POST",
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_slug: slug, p_tipo: tipo }),
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      return res.status(502).json({ ok: false, error: txt.slice(0, 200) });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(502).json({ ok: false, error: String((e && e.message) || e) });
+  }
+});
+
 app.get("/aprobados", (_req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });

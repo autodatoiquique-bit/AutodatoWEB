@@ -842,6 +842,8 @@ function htmlCardAprobado(v) {
         ? String(v.precio_referencia)
         : "—";
   const foto = portadaAprobado(v);
+  const visitasQr = Math.max(0, Math.floor(Number(v.metricas_qr) || 0));
+  const clicsWa = Math.max(0, Math.floor(Number(v.metricas_whatsapp) || 0));
   return `<button type="button" class="aprobado-card" data-abrir-aprobado="${escapeAttr(v.id)}">
     ${foto ? `<span class="aprobado-card-foto"><img src="${escapeAttr(foto)}" alt="" loading="lazy" /></span>` : ""}
     <span class="${claseTagEstadoAprobado(v.estado)}">${escapeText(etiquetaEstadoAprobado(v.estado))}</span>
@@ -849,6 +851,16 @@ function htmlCardAprobado(v) {
     <strong>${escapeText(tituloVehiculoAprobado(v))}</strong>
     <span class="aprobado-card-meta">${escapeText(v.patente || "Sin patente")} · ref. ${escapeText(precio)}</span>
     ${v.vendedor_nombre ? `<span class="aprobado-card-vendedor">${escapeText(v.vendedor_nombre)}</span>` : ""}
+    <span class="aprobado-card-metricas" aria-label="Visitas QR y consultas WhatsApp">
+      <span class="aprobado-card-metrica" title="Visitas al enlace / QR">
+        <span class="aprobado-card-metrica-ico aprobado-card-metrica-ico-qr" aria-hidden="true"></span>
+        <span class="aprobado-card-metrica-num">${visitasQr}</span>
+      </span>
+      <span class="aprobado-card-metrica" title="Mensajes WhatsApp al vendedor">
+        <img class="aprobado-card-metrica-wa" src="/imagenes/icono-whatsapp.png?v=alfa1" width="16" height="16" alt="" aria-hidden="true" />
+        <span class="aprobado-card-metrica-num">${clicsWa}</span>
+      </span>
+    </span>
   </button>`;
 }
 

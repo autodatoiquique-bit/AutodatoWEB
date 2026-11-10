@@ -822,7 +822,34 @@ function filaAVehiculoAprobado(row) {
     vigente_hasta: row.vigente_hasta || null,
     created_at: row.created_at || null,
     updated_at: row.updated_at || null,
+    metricas_qr: Math.max(0, Math.floor(Number(row.metricas_qr) || 0)),
+    metricas_whatsapp: Math.max(0, Math.floor(Number(row.metricas_whatsapp) || 0)),
   };
+}
+
+/** Público: suma visita QR o clic WhatsApp (anon vía RPC o API). */
+async function nubeRegistrarMetricaAprobado(slug, tipo) {
+  const s = String(slug || "").trim();
+  const t = String(tipo || "").trim().toLowerCase();
+  if (!s || (t !== "qr" && t !== "whatsapp")) return;
+  try {
+    const sb = typeof clienteNube === "function" ? clienteNube() : null;
+    if (sb) {
+      const { error } = await sb.rpc("incrementar_metrica_aprobado", { p_slug: s, p_tipo: t });
+      if (!error) return;
+    }
+  } catch (_e) {
+    /* fallback API */
+  }
+  try {
+    await fetch("/api/aprobado-metrica", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: s, tipo: t }),
+    });
+  } catch (_e2) {
+    /* sin red */
+  }
 }
 
 /** Admin: listado completo (requiere sesión). */
