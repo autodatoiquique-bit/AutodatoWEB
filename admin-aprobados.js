@@ -539,6 +539,13 @@ function urlVistaPublicaAprobado(slug) {
   return `https://autodato.cl/aprobado/${encodeURIComponent(s)}`;
 }
 
+/** URL que va dentro del código QR impreso (solo escaneos cuentan en metricas_qr). */
+function urlVistaPublicaAprobadoQr(slug) {
+  const base = urlVistaPublicaAprobado(slug);
+  if (!base) return "";
+  return base.includes("?") ? `${base}&src=qr` : `${base}?src=qr`;
+}
+
 function cargarScriptQrAprobado(src) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) {
@@ -715,12 +722,15 @@ async function pintarQrAprobado(url) {
   const nodo = $("aprobado-qr-canvas");
   if (!nodo) return;
   nodo.innerHTML = `<p class="muted">Generando QR…</p>`;
+  const slug =
+    aprobadoEditando && aprobadoEditando.public_slug ? String(aprobadoEditando.public_slug).trim() : "";
+  const textoQr = slug ? urlVistaPublicaAprobadoQr(slug) : String(url || "").trim();
   try {
     await asegurarLibQrAprobado();
     if (!window.QRCode) throw new Error("sin qrcode");
     nodo.innerHTML = "";
     new QRCode(nodo, {
-      text: String(url || "").trim(),
+      text: textoQr,
       width: 320,
       height: 320,
       correctLevel: QRCode.CorrectLevel.M,
@@ -852,7 +862,7 @@ function htmlCardAprobado(v) {
     <span class="aprobado-card-meta">${escapeText(v.patente || "Sin patente")} · ref. ${escapeText(precio)}</span>
     ${v.vendedor_nombre ? `<span class="aprobado-card-vendedor">${escapeText(v.vendedor_nombre)}</span>` : ""}
     <span class="aprobado-card-metricas" aria-label="Visitas QR y consultas WhatsApp">
-      <span class="aprobado-card-metrica" title="Visitas al enlace / QR">
+      <span class="aprobado-card-metrica" title="Escaneos del QR impreso">
         <span class="aprobado-card-metrica-ico aprobado-card-metrica-ico-qr" aria-hidden="true"></span>
         <span class="aprobado-card-metrica-num">${visitasQr}</span>
       </span>

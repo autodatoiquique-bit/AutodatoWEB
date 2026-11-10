@@ -294,9 +294,26 @@ function whatsappAprobado(v) {
   return raw;
 }
 
+function ingresoFichaDesdeQrImpreso() {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    return q.get("src") === "qr";
+  } catch (_e) {
+    return false;
+  }
+}
+
+function limpiarParametroQrEnBarra(slug) {
+  if (!ingresoFichaDesdeQrImpreso()) return;
+  const path = urlAprobadoPath(slug);
+  if (typeof history !== "undefined" && history.replaceState) {
+    history.replaceState(history.state, "", path + (window.location.hash || ""));
+  }
+}
+
 function registrarVisitaFichaAprobado(slug) {
   const s = String(slug || "").trim();
-  if (!s) return;
+  if (!s || !ingresoFichaDesdeQrImpreso()) return;
   const key = `ad-metric-qr-${s}`;
   try {
     if (sessionStorage.getItem(key)) return;
@@ -305,6 +322,7 @@ function registrarVisitaFichaAprobado(slug) {
     /* sin sessionStorage */
   }
   if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, "qr");
+  limpiarParametroQrEnBarra(s);
 }
 
 function registrarClicWhatsappAprobado(slug) {

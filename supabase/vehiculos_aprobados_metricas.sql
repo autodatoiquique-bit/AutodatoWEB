@@ -4,7 +4,7 @@
 alter table vehiculos_aprobados add column if not exists metricas_qr integer not null default 0;
 alter table vehiculos_aprobados add column if not exists metricas_whatsapp integer not null default 0;
 
-comment on column vehiculos_aprobados.metricas_qr is 'Visitas a la ficha pública (QR/enlace), aprox. una por sesión';
+comment on column vehiculos_aprobados.metricas_qr is 'Escaneos del QR impreso (?src=qr), aprox. una por sesión';
 comment on column vehiculos_aprobados.metricas_whatsapp is 'Clics en Consultar por WhatsApp desde la ficha';
 
 create or replace function incrementar_metrica_aprobado(p_slug text, p_tipo text)
