@@ -44,6 +44,17 @@ create unique index if not exists idx_cotizaciones_ticket_idem
 
 ## Endpoints
 
+### Vehículos certificados (ficha Aprobados / WhatsApp cliente)
+
+Documentación completa: **`docs/vambe-aprobados-lookup.md`**
+
+| Método | Ruta |
+|--------|------|
+| `POST` | `/api/vambe/aprobados/lookup` |
+| `POST` | `/api/vambe/aprobados/lookup-flat` |
+
+Misma autenticación que cotización. Uso típico: el cliente pulsa *Contactar a AutoDato por WhatsApp*; Vambe envía `whatsapp_message` y recibe datos del auto + `message_for_assistant`.
+
 ### `POST /api/vambe/catalog/quote`
 
 **Acciones:** `quote` | `reprice` | `reprice_add` | `reprice_remove` | `validate`

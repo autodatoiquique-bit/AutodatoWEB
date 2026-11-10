@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("path");
 const asistentePrecios = require("./asistente-precios");
+const asistenteAprobados = require("./asistente-aprobados");
 
 const app = express();
 const puerto = process.env.PORT || 5173;
@@ -1217,6 +1218,56 @@ app.post("/api/vambe/ticket/from-quote-flat", async (req, res) => {
       error_code: "SERVICE_UNAVAILABLE",
       message: "No pudimos crear el ticket en este momento.",
       quote_id: null,
+    });
+  }
+});
+
+app.post("/api/vambe/aprobados/lookup", async (req, res) => {
+  if (!asistenteAprobados.tokenAsistenteValido(req)) {
+    return res.status(401).json({
+      ok: false,
+      error_code: "UNAUTHORIZED",
+      message: "No autorizado",
+    });
+  }
+  try {
+    const out = await asistenteAprobados.lookupAprobadoVambe(req.body || {});
+    if (!out.ok) {
+      const code = out.error_code || "REQUEST_ERROR";
+      return res.status(asistenteAprobados.lookupErrorStatus(code)).json(out);
+    }
+    return res.json(out);
+  } catch (e) {
+    console.warn("vambe/aprobados/lookup", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos consultar la ficha en este momento.",
+    });
+  }
+});
+
+app.post("/api/vambe/aprobados/lookup-flat", async (req, res) => {
+  if (!asistenteAprobados.tokenAsistenteValido(req)) {
+    return res.status(401).json({
+      ok: false,
+      error_code: "UNAUTHORIZED",
+      message: "No autorizado",
+    });
+  }
+  try {
+    const out = await asistenteAprobados.lookupAprobadoVambe(req.body || {});
+    if (!out.ok) {
+      const code = out.error_code || "REQUEST_ERROR";
+      return res.status(asistenteAprobados.lookupErrorStatus(code)).json(out);
+    }
+    return res.json(out);
+  } catch (e) {
+    console.warn("vambe/aprobados/lookup-flat", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error_code: "SERVICE_UNAVAILABLE",
+      message: "No pudimos consultar la ficha en este momento.",
     });
   }
 });
