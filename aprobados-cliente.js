@@ -4,7 +4,6 @@
 "use strict";
 
 const aprobadosUi = { lista: [], detalle: null, fotoIdx: 0 };
-const APROBADOS_AVISO_SESION_KEY = "autodato_aprobados_aviso_v1";
 
 function fotosAprobado(v) {
   if (!v) return [];
@@ -525,7 +524,7 @@ function htmlDetalleAprobado(v) {
 
   return `
     <section class="panel aprobados-shell aprobados-detalle">
-      <button type="button" class="btn-soft aprobados-volver" data-volver-aprobados>← Vitrina aprobados</button>
+      <button type="button" class="aprobados-volver-cta" data-volver-aprobados>← Volver al catálogo</button>
       ${htmlGaleriaDetalle(v)}
       <header class="aprobados-detalle-head">
         <p class="aprobados-marca-ano">${escapeHtml(`${v.marca || ""} · ${v.ano || ""}`.replace(/^ · | · $/g, "").trim())}</p>
@@ -618,27 +617,7 @@ function pintarVitrinaAprobados() {
   }
 }
 
-function aprobadosAvisoCatalogoVisto() {
-  try {
-    return sessionStorage.getItem(APROBADOS_AVISO_SESION_KEY) === "1";
-  } catch (_e) {
-    return false;
-  }
-}
-
-function marcarAprobadosAvisoCatalogoVisto() {
-  try {
-    sessionStorage.setItem(APROBADOS_AVISO_SESION_KEY, "1");
-  } catch (_e) {
-    /* ignore */
-  }
-}
-
 function mostrarAvisoCatalogoAprobados() {
-  if (aprobadosAvisoCatalogoVisto()) {
-    cerrarAvisoCatalogoAprobados();
-    return;
-  }
   const el = $("modal-aprobados-aviso");
   if (!el) return;
   el.hidden = false;
@@ -652,7 +631,6 @@ function cerrarAvisoCatalogoAprobados() {
 }
 
 function continuarAvisoCatalogoAprobados() {
-  marcarAprobadosAvisoCatalogoVisto();
   cerrarAvisoCatalogoAprobados();
 }
 
