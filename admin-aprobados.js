@@ -559,10 +559,128 @@ async function asegurarLibQrAprobado() {
 }
 
 async function asegurarLibPdfQrAprobado() {
-  await Promise.all([
-    cargarScriptQrAprobado("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
-    cargarScriptQrAprobado("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
-  ]);
+  await cargarScriptQrAprobado("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+}
+
+function urlAbsolutaAsset(ruta) {
+  const p = String(ruta || "").trim();
+  if (!p) return "";
+  if (/^https?:\/\//i.test(p)) return p;
+  const base = String(window.location.origin || "").replace(/\/$/, "");
+  return `${base}${p.startsWith("/") ? p : `/${p}`}`;
+}
+
+async function imagenUrlADataUrl(ruta) {
+  const url = urlAbsolutaAsset(ruta);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("logo");
+  const blob = await r.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function promedioAltoLogoDataUrl(dataUrl, anchoIn) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.naturalHeight / Math.max(1, img.naturalWidth);
+      resolve(anchoIn * ratio);
+    };
+    img.onerror = () => reject(new Error("logo-dim"));
+    img.src = dataUrl;
+  });
+}
+
+function obtenerDataUrlQrModal() {
+  const root = $("aprobado-qr-canvas");
+  if (!root) return "";
+  const cvs = root.querySelector("canvas");
+  if (cvs) {
+    try {
+      return cvs.toDataURL("image/png");
+    } catch (_e) {
+      /* canvas no exportable */
+    }
+  }
+  const img = root.querySelector("img");
+  if (img && img.src) {
+    if (img.src.startsWith("data:")) return img.src;
+    const c = document.createElement("canvas");
+    const w = img.naturalWidth || 256;
+    const h = img.naturalHeight || 256;
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(img, 0, 0, w, h);
+      try {
+        return c.toDataURL("image/png");
+      } catch (_e2) {
+        return img.src;
+      }
+    }
+  }
+  return "";
+}
+
+async function construirPdfQrAprobado() {
+  const qrData = obtenerDataUrlQrModal();
+  if (!qrData) throw new Error("sin qr");
+  const logoData = await imagenUrlADataUrl("/imagenes/logo.jpg");
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" });
+  const pageW = 8.5;
+  const cx = pageW / 2;
+  const marcoW = 6.35;
+  const marcoH = 8.15;
+  const marcoX = (pageW - marcoW) / 2;
+  const marcoY = 1.38;
+
+  pdf.setFillColor(255, 208, 0);
+  pdf.roundedRect(marcoX - 0.08, marcoY - 0.08, marcoW + 0.16, marcoH + 0.16, 0.3, 0.3, "F");
+  pdf.setDrawColor(17, 17, 17);
+  pdf.setLineWidth(0.04);
+  pdf.roundedRect(marcoX, marcoY, marcoW, marcoH, 0.27, 0.27, "S");
+  pdf.setFillColor(255, 254, 246);
+  pdf.roundedRect(marcoX + 0.07, marcoY + 0.07, marcoW - 0.14, marcoH - 0.14, 0.23, 0.23, "F");
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(26);
+  pdf.setTextColor(17, 17, 17);
+  pdf.text("REVISADO POR", cx, marcoY + 0.78, { align: "center" });
+
+  const logoW = 2.7;
+  const logoH = await promedioAltoLogoDataUrl(logoData, logoW);
+  pdf.addImage(logoData, "JPEG", cx - logoW / 2, marcoY + 0.98, logoW, logoH);
+
+  const qrSize = 2.5;
+  const qrX = cx - qrSize / 2;
+  const qrY = marcoY + 1.05 + logoH + 0.35;
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(224, 224, 224);
+  pdf.setLineWidth(0.02);
+  pdf.roundedRect(qrX - 0.11, qrY - 0.11, qrSize + 0.22, qrSize + 0.22, 0.14, 0.14, "FD");
+  pdf.addImage(qrData, "PNG", qrX, qrY, qrSize, qrSize);
+
+  const folio = aprobadoEditando && aprobadoEditando.folio != null ? aprobadoEditando.folio : "";
+  let ty = qrY + qrSize + 0.42;
+  if (folio !== "" && folio != null) {
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(12);
+    pdf.setTextColor(51, 51, 51);
+    pdf.text(`Folio ${folio}`, cx, ty, { align: "center" });
+    ty += 0.28;
+  }
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(10);
+  pdf.setTextColor(92, 92, 92);
+  pdf.text("Escanea para ver la ficha del vehículo", cx, ty, { align: "center" });
+
+  return pdf;
 }
 
 function sincronizarHojaQrAprobado() {
@@ -628,8 +746,6 @@ function imprimirHojaQrAprobado() {
 async function descargarPdfQrAprobado() {
   if (!aprobadoQrUrlActual) return;
   sincronizarHojaQrAprobado();
-  const hoja = $("aprobado-qr-hoja");
-  if (!hoja) return;
   const btn = $("btn-aprobado-qr-pdf");
   const txtPrev = btn ? btn.textContent : "";
   try {
@@ -639,29 +755,8 @@ async function descargarPdfQrAprobado() {
     }
     if (typeof adminIniciarGuardado === "function") adminIniciarGuardado("Generando PDF…");
     await asegurarLibPdfQrAprobado();
-    if (!window.html2canvas || !window.jspdf) throw new Error("libs");
-    const canvas = await html2canvas(hoja, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      logging: false,
-      width: hoja.offsetWidth,
-      height: hoja.offsetHeight,
-      onclone: (doc) => {
-        const el = doc.getElementById("aprobado-qr-hoja");
-        if (!el) return;
-        el.style.position = "fixed";
-        el.style.left = "0";
-        el.style.top = "0";
-        el.style.zIndex = "1";
-        el.style.opacity = "1";
-        el.style.visibility = "visible";
-      },
-    });
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" });
-    const img = canvas.toDataURL("image/png");
-    pdf.addImage(img, "PNG", 0, 0, 8.5, 11);
+    if (!window.jspdf) throw new Error("libs");
+    const pdf = await construirPdfQrAprobado();
     const folio = aprobadoEditando && aprobadoEditando.folio != null ? aprobadoEditando.folio : "aprobado";
     pdf.save(`autodato-revisado-folio-${folio}.pdf`);
     if (typeof adminMostrarOkGuardado === "function") adminMostrarOkGuardado("PDF descargado");
