@@ -2730,6 +2730,56 @@ button { font-family: inherit; cursor: pointer; }
     flex: 1;
     overflow: hidden;
   }
+  /* Aprobados — editor: pantalla completa; sin sidebar encima del formulario */
+  .split:has(.aprobado-editor) {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+  .split:has(.aprobado-editor) .sidebar {
+    display: none !important;
+  }
+  .split:has(.aprobado-editor) .stage {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    padding: max(6px, env(safe-area-inset-top)) 10px calc(8px + env(safe-area-inset-bottom));
+  }
+  .split:has(.aprobado-editor) .admin-panel-aprobados.aprobado-editor {
+    height: 100%;
+    max-height: 100%;
+    padding: 0 0 20px;
+  }
+  .aprobado-editor-sticky {
+    margin-left: -2px;
+    margin-right: -2px;
+    border-radius: 0 0 14px 14px;
+    border-top: none;
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+  }
+  .aprobado-editor-titulos h2 {
+    font-size: 1.02rem;
+  }
+  .aprobado-editor-sticky-izq {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .aprobado-editor-acciones {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: stretch;
+  }
+  .aprobado-editor-acciones .btn-primary,
+  .aprobado-editor-acciones .btn-soft {
+    flex: 1 1 120px;
+  }
   .tickets-tabla { table-layout: auto; min-width: 920px; }
   .editor-portada { height: auto; }
   .editor-board { grid-template-columns: 1fr; }
