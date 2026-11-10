@@ -2842,6 +2842,28 @@ body.en-aprobados .panel.aprobados-shell {
 .aprobados-wa-cta-autodato:hover {
   filter: brightness(1.08);
 }
+.aprobados-que-es-autodato {
+  display: block;
+  margin-top: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  border: none;
+  box-shadow: 0 6px 18px rgba(255, 196, 0, 0.45);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.aprobados-que-es-autodato:hover {
+  filter: brightness(1.04);
+}
+.aprobados-que-es-autodato:active {
+  transform: scale(0.99);
+}
 .aprobados-legal {
   margin: 14px 0 0;
   font-size: 0.72rem;

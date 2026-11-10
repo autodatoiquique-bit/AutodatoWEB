@@ -5,6 +5,9 @@
 
 const aprobadosUi = { lista: [], detalle: null, fotoIdx: 0 };
 
+/** Enlace fijo «Qué es AutoDato» (ficha pública). */
+const APROBADO_URL_QUE_ES_AUTODATO = "https://www.facebook.com/share/19yVEgsCPh/";
+
 function fotosAprobado(v) {
   if (!v) return [];
   const gal = Array.isArray(v.galeria) ? v.galeria : [];
@@ -800,6 +803,9 @@ function htmlDetalleAprobado(v) {
             </div>`
           : ""
       }
+      <a class="aprobados-que-es-autodato btn-block" href="${escapeAttr(APROBADO_URL_QUE_ES_AUTODATO)}" target="_blank" rel="noopener noreferrer">
+        QUÉ ES AUTODATO?
+      </a>
       <p class="aprobados-legal">AutoDato certifica la revisión; la venta es entre comprador y automotora.</p>
     </section>`;
 }
