@@ -2283,6 +2283,57 @@ body.en-aprobados .panel.aprobados-shell {
   border-radius: 999px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
+.aprobados-sello-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+}
+.aprobados-revisado-por {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.aprobados-revisado-por strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+.aprobados-chasis-check {
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 17, 17, 0.1);
+  background: var(--bg-soft, #f6f7f9);
+}
+.aprobados-chasis-leyenda {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.aprobados-chasis-valor {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+.aprobados-chasis-etq {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.aprobados-chasis-valor strong {
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
 .aprobados-folio {
   margin-left: auto;
   background: rgba(255, 255, 255, 0.92);
@@ -2722,12 +2773,18 @@ body.en-aprobados .panel.aprobados-shell {
   line-height: 1.45;
   color: var(--ink);
 }
+.aprobados-wa-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
 .aprobados-wa-cta {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 0;
   padding: 14px 18px;
   border-radius: 14px;
   background: #25d366;
@@ -2753,6 +2810,14 @@ body.en-aprobados .panel.aprobados-shell {
   height: 28px;
   flex-shrink: 0;
   display: block;
+}
+.aprobados-wa-cta-autodato {
+  background: #111;
+  color: var(--yellow);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+.aprobados-wa-cta-autodato:hover {
+  filter: brightness(1.08);
 }
 .aprobados-legal {
   margin: 14px 0 0;

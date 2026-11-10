@@ -321,6 +321,7 @@ function aprobadoVacio() {
     cilindrada: "",
     modelo_motor: "",
     numero_chasis: "",
+    revisado_por: "",
     airbags: null,
     asientos: null,
     duenos: null,
@@ -1036,6 +1037,14 @@ function htmlEditorAprobado() {
       </section>
 
       <section class="aprobado-seccion">
+        <h3>Certificación AutoDato</h3>
+        <p class="aprobado-hint">Visible en la ficha pública junto al sello de aprobación.</p>
+        <div class="aprobado-form-grid">
+          <label class="field aprobado-field-span2"><span>Revisado por (técnico)</span><input id="aprobado-revisado-por" type="text" value="${escapeAttr(v.revisado_por)}" placeholder="Nombre del técnico que revisó el vehículo" /></label>
+        </div>
+      </section>
+
+      <section class="aprobado-seccion">
         <h3>Automotora y ubicación</h3>
         <div class="aprobado-form-grid">
           <label class="field"><span>Automotora / vendedor</span><input id="aprobado-vendedor" type="text" value="${escapeAttr(v.vendedor_nombre)}" /></label>
@@ -1158,6 +1167,7 @@ function leerFormAprobado() {
     cuota_referencia: numCampo("aprobado-cuota"),
     ahorro_referencia: numCampo("aprobado-ahorro"),
     garantia_vendedor: Boolean($("aprobado-garantia") && $("aprobado-garantia").checked),
+    revisado_por: $("aprobado-revisado-por") ? $("aprobado-revisado-por").value.trim() : "",
     vendedor_nombre: $("aprobado-vendedor") ? $("aprobado-vendedor").value.trim() : "",
     vendedor_telefono: $("aprobado-telefono") ? $("aprobado-telefono").value.trim() : "",
     whatsapp_contacto: $("aprobado-whatsapp") ? $("aprobado-whatsapp").value.trim() : "",

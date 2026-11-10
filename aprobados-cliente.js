@@ -419,19 +419,58 @@ function automotoraWhatsappAprobado(v) {
   return nom || "—";
 }
 
+function lineasReferenciaVehiculoAprobado(v) {
+  if (!v) return "";
+  const lines = [];
+  const slug = String(v.public_slug || "").trim();
+  if (slug) lines.push(`ID ficha: ${slug}`);
+  if (v.folio != null) lines.push(`Folio AutoDato: ${v.folio}`);
+  const ch = String(v.numero_chasis || "").trim();
+  if (ch) lines.push(`Chasis: ${ch}`);
+  const pat = String(v.patente || "").trim();
+  if (pat) lines.push(`Patente: ${pat}`);
+  return lines.join("\n");
+}
+
+function whatsappNumeroAutodato() {
+  if (typeof leerTaller === "function") {
+    const t = leerTaller();
+    const raw = String((t && t.whatsapp) || "").replace(/\D/g, "");
+    if (raw) {
+      if (raw.startsWith("56")) return raw;
+      if (raw.length === 9) return `56${raw}`;
+      return raw;
+    }
+  }
+  return "56961346945";
+}
+
 function textoWhatsappConsultaVendedorAprobado(v) {
   const marca = String((v && v.marca) || "").trim() || "—";
   const modelo = String((v && v.modelo) || "").trim() || "—";
   const ano = v && v.ano != null ? String(v.ano) : "—";
   const urlFicha = urlFichaPublicaAbsolutaAprobado(v) || "—";
   const automotora = automotoraWhatsappAprobado(v);
+  const ref = lineasReferenciaVehiculoAprobado(v);
   return `Hola, estoy interesado en el vehículo que vi certificado en AutoDato:
 
 🚗 Unidad: ${marca} ${modelo} (${ano})
-📄 Ficha técnica: ${urlFicha}
+${ref ? `${ref}\n` : ""}📄 Ficha técnica: ${urlFicha}
 📍 Automotora: ${automotora}
 
 Quisiera consultar el precio final y coordinar para verlo/probarlo. ¿Sigue disponible?`;
+}
+
+function textoWhatsappConsultaAutodatoAprobado(v) {
+  const titulo = tituloLargoAprobado(v);
+  const urlFicha = urlFichaPublicaAbsolutaAprobado(v) || "—";
+  const ref = lineasReferenciaVehiculoAprobado(v);
+  return `Hola AutoDato, consulta sobre ficha certificada:
+
+${ref ? `${ref}\n` : ""}Vehículo: ${titulo}
+Enlace: ${urlFicha}
+
+Necesito información sobre esta unidad revisada.`;
 }
 
 async function asegurarNubeAprobados() {
@@ -441,8 +480,24 @@ async function asegurarNubeAprobados() {
   }
 }
 
-function htmlBadgeAprobado() {
-  return `<span class="aprobados-badge-sello">Aprobado por AutoDato</span>`;
+function htmlBadgeAprobado(v, compact) {
+  if (compact) {
+    return `<span class="aprobados-badge-sello">Aprobado por AutoDato</span>`;
+  }
+  const tec = v && String(v.revisado_por || "").trim();
+  return `<div class="aprobados-sello-block">
+    <span class="aprobados-badge-sello">Aprobado por AutoDato</span>
+    ${tec ? `<p class="aprobados-revisado-por">Revisado por <strong>${escapeHtml(tec)}</strong></p>` : ""}
+  </div>`;
+}
+
+function htmlConfirmacionChasisAprobado(v) {
+  const ch = String((v && v.numero_chasis) || "").trim();
+  if (!ch) return "";
+  return `<div class="aprobados-chasis-check" aria-labelledby="aprobados-chasis-leyenda">
+    <p class="aprobados-chasis-leyenda" id="aprobados-chasis-leyenda">Confirma que estás revisando el vehículo correcto</p>
+    <p class="aprobados-chasis-valor"><span class="aprobados-chasis-etq">Número de chasis</span><strong>${escapeHtml(ch)}</strong></p>
+  </div>`;
 }
 
 function htmlUbicacion(v) {
@@ -494,7 +549,7 @@ function htmlCardVitrina(v) {
       <div class="aprobados-card-media">
         ${img ? `<img src="${escapeAttr(img)}" alt="" loading="lazy" />` : `<span class="aprobados-sin-foto">Sin foto</span>`}
         <div class="aprobados-card-badges">
-          ${htmlBadgeAprobado()}
+          ${htmlBadgeAprobado(v, true)}
           ${v.folio != null ? `<span class="aprobados-folio">#${escapeHtml(String(v.folio))}</span>` : ""}
         </div>
       </div>
@@ -618,9 +673,12 @@ function htmlDetalleAprobado(v) {
   const escaner = Array.isArray(inf.escaner_imagenes) ? inf.escaner_imagenes : [];
   const yt = youtubeEmbedUrl(v.video_url);
   const wa = whatsappAprobado(v);
-  const waHref = wa
+  const waVendedorHref = wa
     ? `https://wa.me/${wa}?text=${encodeURIComponent(textoWhatsappConsultaVendedorAprobado(v))}`
     : "";
+  const waAutodatoHref = `https://wa.me/${whatsappNumeroAutodato()}?text=${encodeURIComponent(
+    textoWhatsappConsultaAutodatoAprobado(v)
+  )}`;
 
   const slugAttr = escapeAttr(String(v.public_slug || ""));
 
@@ -642,8 +700,9 @@ function htmlDetalleAprobado(v) {
         <h1>${escapeHtml(tituloLargoAprobado(v))}</h1>
         <p class="aprobados-km-line">${escapeHtml(fmtKmAprobado(kmRealPub(v) ?? kmTableroPub(v)))} · ${escapeHtml(
     v.transmision || "—"
-  )} · ${escapeHtml(v.combustible || "—")}</p>
-        ${htmlBadgeAprobado()}
+        )} · ${escapeHtml(v.combustible || "—")}</p>
+        ${htmlConfirmacionChasisAprobado(v)}
+        ${htmlBadgeAprobado(v)}
       </header>
       ${htmlPrecioBloque(v)}
       ${htmlUbicacion(v)}
@@ -705,11 +764,21 @@ function htmlDetalleAprobado(v) {
       }
       ${htmlMapaDetalleAprobado(v)}
       ${
-        waHref
-          ? `<a class="aprobados-wa-cta btn-block" href="${escapeAttr(waHref)}" target="_blank" rel="noopener noreferrer" data-aprobado-wa-metric="${escapeAttr(v.public_slug || "")}">
+        waVendedorHref || waAutodatoHref
+          ? `<div class="aprobados-wa-stack">
+              ${
+                waVendedorHref
+                  ? `<a class="aprobados-wa-cta aprobados-wa-cta-vendedor btn-block" href="${escapeAttr(waVendedorHref)}" target="_blank" rel="noopener noreferrer" data-aprobado-wa-metric="${slugAttr}">
               <img src="imagenes/icono-whatsapp.png?v=alfa1" width="28" height="28" alt="" aria-hidden="true" />
-              <span>Consultar por WhatsApp</span>
+              <span>Contactar al vendedor por WhatsApp</span>
             </a>`
+                  : ""
+              }
+              <a class="aprobados-wa-cta aprobados-wa-cta-autodato btn-block" href="${escapeAttr(waAutodatoHref)}" target="_blank" rel="noopener noreferrer">
+              <img src="imagenes/icono-whatsapp.png?v=alfa1" width="28" height="28" alt="" aria-hidden="true" />
+              <span>Contactar a AutoDato por WhatsApp</span>
+            </a>
+            </div>`
           : ""
       }
       <p class="aprobados-legal">AutoDato certifica la revisión; la venta es entre comprador y automotora.</p>
