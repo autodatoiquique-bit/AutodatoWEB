@@ -640,7 +640,6 @@ async function descargarPdfQrAprobado() {
     if (typeof adminIniciarGuardado === "function") adminIniciarGuardado("Generando PDF…");
     await asegurarLibPdfQrAprobado();
     if (!window.html2canvas || !window.jspdf) throw new Error("libs");
-    hoja.classList.add("aprobado-qr-hoja-captura");
     const canvas = await html2canvas(hoja, {
       scale: 2,
       useCORS: true,
@@ -648,6 +647,16 @@ async function descargarPdfQrAprobado() {
       logging: false,
       width: hoja.offsetWidth,
       height: hoja.offsetHeight,
+      onclone: (doc) => {
+        const el = doc.getElementById("aprobado-qr-hoja");
+        if (!el) return;
+        el.style.position = "fixed";
+        el.style.left = "0";
+        el.style.top = "0";
+        el.style.zIndex = "1";
+        el.style.opacity = "1";
+        el.style.visibility = "visible";
+      },
     });
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: "portrait", unit: "in", format: "letter" });
@@ -659,7 +668,6 @@ async function descargarPdfQrAprobado() {
   } catch (_e) {
     alert("No se pudo generar el PDF. Prueba «Imprimir» y elige «Guardar como PDF».");
   } finally {
-    hoja.classList.remove("aprobado-qr-hoja-captura");
     if (typeof adminFinGuardado === "function") adminFinGuardado();
     if (btn) {
       btn.disabled = false;

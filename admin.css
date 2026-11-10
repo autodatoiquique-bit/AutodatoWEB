@@ -1122,14 +1122,6 @@ body.admin-imprimir-qr-aprobado .aprobado-qr-hoja {
   top: 0;
   z-index: 50000;
 }
-.aprobado-qr-hoja.aprobado-qr-hoja-captura {
-  left: 0 !important;
-  top: 0 !important;
-  z-index: 60000 !important;
-  opacity: 0.02;
-  pointer-events: none;
-}
-
 @media print {
   @page {
     size: letter;
@@ -1150,8 +1142,15 @@ body.admin-imprimir-qr-aprobado .aprobado-qr-hoja {
     width: 8.5in;
     height: 11in;
     padding: 0.55in 0.5in;
+    opacity: 1 !important;
+    visibility: visible !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  body.admin-imprimir-qr-aprobado .aprobado-qr-hoja *,
+  body.admin-imprimir-qr-aprobado .aprobado-qr-hoja img {
+    opacity: 1 !important;
+    visibility: visible !important;
   }
 }
 
