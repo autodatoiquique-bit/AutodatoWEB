@@ -299,7 +299,10 @@ function textoWhatsappCertificadorAprobado(v) {
   const titulo = tituloLargoAprobado(v);
   const folio = v && v.folio != null ? ` (folio ${v.folio})` : "";
   const tec = v && String(v.revisado_por || "").trim();
-  return `Hola${tec ? ` ${tec}` : ""}, consulto por la revisión certificada AutoDato del vehículo ${titulo}${folio}.`;
+  const urlFicha = urlFichaPublicaAbsolutaAprobado(v) || "";
+  return `Hola${tec ? ` ${tec}` : ""}, consulto por la revisión certificada AutoDato del vehículo ${titulo}${folio}.
+
+Ficha: ${urlFicha || "—"}`;
 }
 
 function whatsappAprobado(v) {
