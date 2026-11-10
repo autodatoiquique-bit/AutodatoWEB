@@ -126,6 +126,11 @@ Solo con mensaje basta; también puedes enviar campos explícitos:
       "nota": "Precios referenciales del vendedor; confirmar disponibilidad y monto con la automotora."
     },
     "ficha_url": "https://autodato.cl/aprobado/hyundai-santa-fe-2018-4k2m",
+    "foto_portada_url": "https://xxxx.supabase.co/storage/v1/object/public/.../portada.jpg",
+    "imagenes": {
+      "portada": "https://xxxx.supabase.co/storage/v1/object/public/.../portada.jpg",
+      "galeria": ["https://.../1.jpg", "https://.../2.jpg"]
+    },
     "informe_resumen": {
       "conclusion": "Unidad en condiciones …",
       "informe_pdf": "https://…",

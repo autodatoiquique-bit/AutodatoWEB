@@ -45,6 +45,34 @@ function jsonObj(raw) {
   return {};
 }
 
+function jsonLista(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const j = JSON.parse(raw);
+      return Array.isArray(j) ? j : [];
+    } catch (_e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** Misma prioridad que la ficha pública: galería → primera foto; si no, `foto_portada`. */
+function urlsGaleriaAprobado(row) {
+  if (!row) return [];
+  return jsonLista(row.galeria)
+    .map((x) => String((typeof x === "string" ? x : x && x.url) || "").trim())
+    .filter(Boolean);
+}
+
+function fotoPortadaAprobado(row) {
+  const gal = urlsGaleriaAprobado(row);
+  if (gal.length) return gal[0];
+  const p = String((row && row.foto_portada) || "").trim();
+  return p || null;
+}
+
 function vehiculoPublicable(row) {
   if (!row || typeof row !== "object") return false;
   if (String(row.estado || "").trim() !== "aprobado") return false;
@@ -232,6 +260,8 @@ function vehiculoParaVambe(row, matchedBy) {
   const informe_resumen = construirInformeResumen(row.informe);
   const titulo = tituloVehiculo(row);
   const ficha_url = urlFichaPublica(slug);
+  const foto_portada_url = fotoPortadaAprobado(row);
+  const galeria_urls = urlsGaleriaAprobado(row);
 
   const lines = [];
   lines.push(`Certificado AutoDato: ${titulo}.`);
@@ -285,6 +315,11 @@ function vehiculoParaVambe(row, matchedBy) {
     },
     descripcion: String(row.descripcion || "").trim() || null,
     ficha_url,
+    foto_portada_url,
+    imagenes: {
+      portada: foto_portada_url,
+      galeria: galeria_urls.length ? galeria_urls : foto_portada_url ? [foto_portada_url] : [],
+    },
     informe_resumen,
     matched_by: matchedBy,
     message_for_assistant: lines.join(" "),
@@ -314,6 +349,7 @@ async function resolverUnicaFila(rows, matchedBy) {
         folio: r.folio,
         title: tituloVehiculo(r),
         ficha_url: urlFichaPublica(r.public_slug),
+        foto_portada_url: fotoPortadaAprobado(r),
       })),
     };
   }
