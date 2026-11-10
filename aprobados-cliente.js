@@ -253,7 +253,7 @@ function htmlMapaDetalleAprobado(v) {
   return `<section class="aprobados-block aprobados-maps-block">
     <h2>Dónde ver este auto</h2>
     ${dirLine ? `<p class="aprobados-maps-direccion muted">${escapeHtml(dirLine)}</p>` : ""}
-    <a class="aprobados-maps-tap" href="${escapeAttr(link)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir ubicación en Google Maps">
+    <a class="aprobados-maps-tap" href="${escapeAttr(link)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir ubicación en Google Maps" data-aprobado-maps-metric="${escapeAttr(String(v.public_slug || ""))}">
       ${preview}
       <span class="aprobados-maps-cta">Toca para abrir en Maps</span>
     </a>
@@ -311,18 +311,79 @@ function limpiarParametroQrEnBarra(slug) {
   }
 }
 
-function registrarVisitaFichaAprobado(slug) {
+function registrarMetricaSesionAprobado(slug, tipo, prefijoKey) {
   const s = String(slug || "").trim();
-  if (!s || !ingresoFichaDesdeQrImpreso()) return;
-  const key = `ad-metric-qr-${s}`;
+  const t = String(tipo || "").trim().toLowerCase();
+  if (!s || !t) return;
+  const key = `${prefijoKey}-${s}`;
   try {
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
   } catch (_e) {
     /* sin sessionStorage */
   }
-  if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, "qr");
-  limpiarParametroQrEnBarra(s);
+  if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, t);
+}
+
+function registrarVisitaFichaAprobado(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return;
+  if (ingresoFichaDesdeQrImpreso()) {
+    registrarMetricaSesionAprobado(s, "qr", "ad-metric-qr");
+    limpiarParametroQrEnBarra(s);
+  } else {
+    registrarMetricaSesionAprobado(s, "web", "ad-metric-web");
+  }
+}
+
+function registrarClicMapsAprobado(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return;
+  if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, "maps");
+}
+
+function registrarCompartirAprobado(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return;
+  if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, "compartir");
+}
+
+async function compartirFichaAprobado(v) {
+  if (!v) return;
+  const slug = String(v.public_slug || "").trim();
+  const url = urlFichaPublicaAbsolutaAprobado(v);
+  if (!url) return;
+  const title = tituloLargoAprobado(v);
+  const text = `Mira este auto revisado por AutoDato: ${title}`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "AutoDato Aprobados", text, url });
+      registrarCompartirAprobado(slug);
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+  }
+  try {
+    const msg = `${text}\n${url}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(msg);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = msg;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    registrarCompartirAprobado(slug);
+    alert("Enlace copiado. Pégalo en WhatsApp u otra app.");
+  } catch (_e) {
+    alert(url);
+  }
 }
 
 function registrarClicWhatsappAprobado(slug) {
@@ -560,9 +621,20 @@ function htmlDetalleAprobado(v) {
     ? `https://wa.me/${wa}?text=${encodeURIComponent(textoWhatsappConsultaVendedorAprobado(v))}`
     : "";
 
+  const slugAttr = escapeAttr(String(v.public_slug || ""));
+
   return `
     <section class="panel aprobados-shell aprobados-detalle">
-      <button type="button" class="aprobados-volver-cta" data-volver-aprobados>← Volver al catálogo</button>
+      <div class="aprobados-detalle-toolbar">
+        <button type="button" class="aprobados-volver-mini" data-volver-aprobados aria-label="Volver al catálogo">
+          <span class="aprobados-volver-mini-ico" aria-hidden="true">←</span>
+          <span class="aprobados-volver-mini-txt">Catálogo</span>
+        </button>
+        <button type="button" class="aprobados-compartir-mini" data-aprobado-compartir="${slugAttr}" aria-label="Compartir este auto">
+          <span class="aprobados-compartir-mini-ico" aria-hidden="true">⎘</span>
+          <span>Compartir</span>
+        </button>
+      </div>
       ${htmlGaleriaDetalle(v)}
       <header class="aprobados-detalle-head">
         <p class="aprobados-marca-ano">${escapeHtml(`${v.marca || ""} · ${v.ano || ""}`.replace(/^ · | · $/g, "").trim())}</p>
@@ -1076,5 +1148,19 @@ document.addEventListener("click", (e) => {
   const wa = e.target.closest("[data-aprobado-wa-metric]");
   if (wa && wa.dataset.aprobadoWaMetric) {
     registrarClicWhatsappAprobado(wa.dataset.aprobadoWaMetric);
+    return;
+  }
+  const maps = e.target.closest("[data-aprobado-maps-metric]");
+  if (maps && maps.dataset.aprobadoMapsMetric) {
+    registrarClicMapsAprobado(maps.dataset.aprobadoMapsMetric);
+    return;
+  }
+  const comp = e.target.closest("[data-aprobado-compartir]");
+  if (comp && comp.dataset.aprobadoCompartir) {
+    const v = aprobadosUi.detalle;
+    if (v && String(v.public_slug) === comp.dataset.aprobadoCompartir) {
+      void compartirFichaAprobado(v);
+    }
+    return;
   }
 });

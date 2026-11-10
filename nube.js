@@ -824,6 +824,9 @@ function filaAVehiculoAprobado(row) {
     updated_at: row.updated_at || null,
     metricas_qr: Math.max(0, Math.floor(Number(row.metricas_qr) || 0)),
     metricas_whatsapp: Math.max(0, Math.floor(Number(row.metricas_whatsapp) || 0)),
+    metricas_web: Math.max(0, Math.floor(Number(row.metricas_web) || 0)),
+    metricas_maps: Math.max(0, Math.floor(Number(row.metricas_maps) || 0)),
+    metricas_compartir: Math.max(0, Math.floor(Number(row.metricas_compartir) || 0)),
   };
 }
 
@@ -831,7 +834,7 @@ function filaAVehiculoAprobado(row) {
 async function nubeRegistrarMetricaAprobado(slug, tipo) {
   const s = String(slug || "").trim();
   const t = String(tipo || "").trim().toLowerCase();
-  if (!s || (t !== "qr" && t !== "whatsapp")) return;
+  if (!s || !/^(qr|whatsapp|web|maps|compartir)$/.test(t)) return;
   try {
     const sb = typeof clienteNube === "function" ? clienteNube() : null;
     if (sb) {

@@ -2389,24 +2389,51 @@ body.en-aprobados .panel.aprobados-shell {
   letter-spacing: 0.04em;
   margin-bottom: 2px;
 }
-.aprobados-volver-cta {
-  display: block;
-  width: 100%;
-  margin: 0 0 14px;
-  padding: 14px 18px;
-  border: 2px solid #111;
-  border-radius: 14px;
-  background: var(--yellow, #f5e642);
+.aprobados-detalle-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+.aprobados-volver-mini,
+.aprobados-compartir-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line, #e4e4e4);
+  border-radius: 999px;
+  background: #fff;
   color: #111;
   font: inherit;
-  font-size: 0.95rem;
-  font-weight: 800;
-  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
-.aprobados-volver-cta:active {
-  transform: scale(0.98);
+.aprobados-volver-mini {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.aprobados-compartir-mini {
+  flex: 0 0 auto;
+  border-color: #111;
+  background: #fafafa;
+}
+.aprobados-volver-mini-ico {
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 800;
+}
+.aprobados-compartir-mini-ico {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.aprobados-volver-mini:active,
+.aprobados-compartir-mini:active {
+  transform: scale(0.97);
 }
 .aprobados-galeria-main {
   position: relative;

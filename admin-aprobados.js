@@ -854,6 +854,9 @@ function htmlCardAprobado(v) {
   const foto = portadaAprobado(v);
   const visitasQr = Math.max(0, Math.floor(Number(v.metricas_qr) || 0));
   const clicsWa = Math.max(0, Math.floor(Number(v.metricas_whatsapp) || 0));
+  const visitasWeb = Math.max(0, Math.floor(Number(v.metricas_web) || 0));
+  const clicsMaps = Math.max(0, Math.floor(Number(v.metricas_maps) || 0));
+  const compartidos = Math.max(0, Math.floor(Number(v.metricas_compartir) || 0));
   return `<button type="button" class="aprobado-card" data-abrir-aprobado="${escapeAttr(v.id)}">
     ${foto ? `<span class="aprobado-card-foto"><img src="${escapeAttr(foto)}" alt="" loading="lazy" /></span>` : ""}
     <span class="${claseTagEstadoAprobado(v.estado)}">${escapeText(etiquetaEstadoAprobado(v.estado))}</span>
@@ -861,12 +864,24 @@ function htmlCardAprobado(v) {
     <strong>${escapeText(tituloVehiculoAprobado(v))}</strong>
     <span class="aprobado-card-meta">${escapeText(v.patente || "Sin patente")} · ref. ${escapeText(precio)}</span>
     ${v.vendedor_nombre ? `<span class="aprobado-card-vendedor">${escapeText(v.vendedor_nombre)}</span>` : ""}
-    <span class="aprobado-card-metricas" aria-label="Visitas QR y consultas WhatsApp">
-      <span class="aprobado-card-metrica" title="Escaneos del QR impreso">
+    <span class="aprobado-card-metricas" aria-label="Métricas de la ficha">
+      <span class="aprobado-card-metrica" title="Escaneos QR impreso">
         <span class="aprobado-card-metrica-ico aprobado-card-metrica-ico-qr" aria-hidden="true"></span>
         <span class="aprobado-card-metrica-num">${visitasQr}</span>
       </span>
-      <span class="aprobado-card-metrica" title="Mensajes WhatsApp al vendedor">
+      <span class="aprobado-card-metrica" title="Visitas web o enlace">
+        <span class="aprobado-card-metrica-ico aprobado-card-metrica-ico-web" aria-hidden="true"></span>
+        <span class="aprobado-card-metrica-num">${visitasWeb}</span>
+      </span>
+      <span class="aprobado-card-metrica" title="Clics en Google Maps">
+        <span class="aprobado-card-metrica-ico aprobado-card-metrica-ico-maps" aria-hidden="true"></span>
+        <span class="aprobado-card-metrica-num">${clicsMaps}</span>
+      </span>
+      <span class="aprobado-card-metrica" title="Compartidos">
+        <span class="aprobado-card-metrica-ico aprobado-card-metrica-ico-share" aria-hidden="true"></span>
+        <span class="aprobado-card-metrica-num">${compartidos}</span>
+      </span>
+      <span class="aprobado-card-metrica" title="WhatsApp al vendedor">
         <img class="aprobado-card-metrica-wa" src="/imagenes/icono-whatsapp.png?v=alfa1" width="16" height="16" alt="" aria-hidden="true" />
         <span class="aprobado-card-metrica-num">${clicsWa}</span>
       </span>
@@ -1554,6 +1569,9 @@ async function refrescarMetricasAprobados() {
         ...v,
         metricas_qr: rem.metricas_qr,
         metricas_whatsapp: rem.metricas_whatsapp,
+        metricas_web: rem.metricas_web,
+        metricas_maps: rem.metricas_maps,
+        metricas_compartir: rem.metricas_compartir,
         updated_at: rem.updated_at,
       };
     });

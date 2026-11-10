@@ -1232,7 +1232,7 @@ app.get("/admin", (_req, res) => {
 app.post("/api/aprobado-metrica", async (req, res) => {
   const slug = String((req.body && req.body.slug) || "").trim();
   const tipo = String((req.body && req.body.tipo) || "").trim().toLowerCase();
-  if (!slug || (tipo !== "qr" && tipo !== "whatsapp")) {
+  if (!slug || !/^(qr|whatsapp|web|maps|compartir)$/.test(tipo)) {
     return res.status(400).json({ ok: false, error: "Parámetros inválidos" });
   }
   const cfg = supabaseServiceConfig();
