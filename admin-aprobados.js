@@ -1524,6 +1524,58 @@ function pintarListaAprobados() {
     : `<p class="muted">Aún no hay fichas. Pulsa «+ NUEVO» para comenzar.</p>`;
 }
 
+async function refrescarMetricasAprobados() {
+  const btn = $("btn-aprobados-refrescar-metricas");
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("is-girando");
+  }
+  const err = $("aprobados-error");
+  if (err) err.hidden = true;
+  if (typeof nubeSesion === "function" && !(await nubeSesion())) {
+    if (err) {
+      err.hidden = false;
+      err.textContent = "Inicia sesión para ver métricas actualizadas.";
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("is-girando");
+    }
+    return;
+  }
+  try {
+    const lista =
+      typeof nubeListarVehiculosAprobados === "function" ? await nubeListarVehiculosAprobados() : [];
+    const porId = Object.fromEntries(lista.map((v) => [String(v.id), v]));
+    aprobadosCache = aprobadosCache.map((v) => {
+      const rem = porId[String(v.id)];
+      if (!rem) return v;
+      return {
+        ...v,
+        metricas_qr: rem.metricas_qr,
+        metricas_whatsapp: rem.metricas_whatsapp,
+        updated_at: rem.updated_at,
+      };
+    });
+    lista.forEach((v) => {
+      if (!aprobadosCache.some((x) => String(x.id) === String(v.id))) aprobadosCache.push(v);
+    });
+    pintarListaAprobados();
+  } catch (e) {
+    const msg = String((e && e.message) || e || "");
+    if (err) {
+      err.hidden = false;
+      err.textContent = msg || "No se pudieron actualizar las métricas.";
+    }
+    if (typeof adminFinGuardado === "function") adminFinGuardado();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("is-girando");
+    }
+  }
+}
+
 async function renderAprobadosAutodato() {
   aprobadoEditando = null;
   if (typeof editando !== "undefined") editando = null;
@@ -1536,6 +1588,15 @@ async function renderAprobadosAutodato() {
           <p class="muted">Fichas para vitrina y QR. Inspirado en catálogo tipo Checkeados: fotos, ficha técnica, detalles estéticos e informe.</p>
         </div>
         <div class="admin-panel-top-acciones">
+          <button
+            class="btn-soft btn-aprobados-refrescar"
+            type="button"
+            id="btn-aprobados-refrescar-metricas"
+            title="Actualizar métricas (QR y WhatsApp)"
+            aria-label="Actualizar métricas"
+          >
+            <span class="btn-aprobados-refrescar-ico" aria-hidden="true">↻</span>
+          </button>
           <button class="btn-primary" type="button" id="btn-aprobado-nuevo">+ NUEVO</button>
         </div>
       </div>
@@ -1604,6 +1665,10 @@ document.addEventListener("click", (e) => {
   }
   if (e.target.id === "btn-aprobado-nuevo" || e.target.closest("#btn-aprobado-nuevo")) {
     abrirEditorAprobadoNuevo();
+    return;
+  }
+  if (e.target.id === "btn-aprobados-refrescar-metricas" || e.target.closest("#btn-aprobados-refrescar-metricas")) {
+    void refrescarMetricasAprobados();
     return;
   }
   if (e.target.id === "btn-aprobado-volver" || e.target.closest("#btn-aprobado-volver")) {

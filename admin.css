@@ -1043,6 +1043,29 @@ button { font-family: inherit; cursor: pointer; }
   object-fit: contain;
 }
 
+.btn-aprobados-refrescar {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.btn-aprobados-refrescar-ico {
+  font-size: 1.45rem;
+  line-height: 1;
+  font-weight: 700;
+  display: block;
+}
+.btn-aprobados-refrescar.is-girando .btn-aprobados-refrescar-ico {
+  animation: aprobados-refrescar-giro 0.75s linear infinite;
+}
+@keyframes aprobados-refrescar-giro {
+  to { transform: rotate(360deg); }
+}
+
 .modal-aprobado-card {
   max-width: 520px;
   max-height: min(90vh, 720px);
