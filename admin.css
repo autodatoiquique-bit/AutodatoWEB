@@ -592,6 +592,50 @@ button { font-family: inherit; cursor: pointer; }
   max-width: 100%;
 }
 
+.admin-panel-config {
+  max-width: 520px;
+}
+.admin-config-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 20px;
+}
+.admin-config-item {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.admin-config-item.is-on,
+.admin-config-item:hover {
+  border-color: var(--yellow);
+  background: #fffce8;
+}
+.admin-config-seccion h3 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+.admin-config-ayuda {
+  font-size: 0.88rem;
+  margin-bottom: 14px;
+}
+.admin-config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.admin-config-ok {
+  color: #0a7a3b;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
 .aprobado-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

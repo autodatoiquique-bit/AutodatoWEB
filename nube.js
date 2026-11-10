@@ -991,3 +991,21 @@ async function nubeSesion() {
 async function nubeSalir() {
   await clienteNube().auth.signOut();
 }
+
+async function nubeEmailUsuario() {
+  const sb = clienteNube();
+  const { data, error } = await sb.auth.getUser();
+  if (error) throw error;
+  return String((data.user && data.user.email) || "").trim();
+}
+
+/** Verifica la clave actual y guarda la nueva en Supabase Auth (sesión activa). */
+async function nubeCambiarClaveUsuario(claveActual, claveNueva) {
+  const sb = clienteNube();
+  const email = await nubeEmailUsuario();
+  if (!email) throw new Error("No hay sesión activa. Vuelve a entrar al panel.");
+  const { error: errLogin } = await sb.auth.signInWithPassword({ email, password: String(claveActual || "") });
+  if (errLogin) throw new Error("La clave actual no es correcta.");
+  const { error: errUpd } = await sb.auth.updateUser({ password: String(claveNueva || "") });
+  if (errUpd) throw errUpd;
+}

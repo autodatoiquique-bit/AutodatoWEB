@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="admin.css?v=aprobados10" />
+  <link rel="stylesheet" href="admin.css?v=admin-config1" />
 </head>
 <body>
   <div id="acceso" class="acceso">
@@ -22,10 +22,6 @@
       <label class="field">
         <span id="acceso-label">Clave</span>
         <input id="acceso-pin" type="password" autocomplete="current-password" />
-      </label>
-      <label class="field" id="acceso-confirma-wrap" hidden>
-        <span>Repite la clave</span>
-        <input id="acceso-pin2" type="password" autocomplete="new-password" />
       </label>
       <button class="btn-primary btn-block" type="button" id="btn-acceso">Entrar</button>
       <p id="acceso-error" class="error" hidden></p>
@@ -64,6 +60,7 @@
         <button class="btn-yellow" type="button" id="btn-combos">Crear combos</button>
         <button class="btn-yellow" type="button" id="btn-aprobados-autodato">Aprobados AutoDato</button>
         <button class="btn-yellow" type="button" id="btn-tickets-creados">TICKETS CREADOS</button>
+        <button class="btn-yellow" type="button" id="btn-configuracion">Configuración</button>
       </nav>
       <input id="foto-modelo-file" type="file" accept="image/*" hidden />
       <input id="col-foto-file" type="file" accept="image/*" hidden />
@@ -329,7 +326,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="nube.js?v=aprobados6"></script>
+  <script src="nube.js?v=aprobados7"></script>
   <script src="catalogo.js?v=familias-vambe1"></script>
   <script src="flotas.js?v=flota-kanban-busq1"></script>
   <script src="admin.js?v=familias-vambe1"></script>
@@ -338,5 +335,6 @@
   <script src="admin-tickets.js?v=7"></script>
   <script src="aprobados-equipamiento.js?v=1"></script>
   <script src="admin-aprobados.js?v=15"></script>
+  <script src="admin-configuracion.js?v=1"></script>
 </body>
 </html>

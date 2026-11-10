@@ -192,17 +192,16 @@ function mostrarAcceso() {
   const nube = typeof nubeActiva === "function" && nubeActiva();
   $("acceso-email-wrap").hidden = !nube;
   if (nube) {
-    $("acceso-texto").textContent = "Entra con el correo y la clave de Supabase.";
+    $("acceso-texto").textContent =
+      "Correo y clave de administrador. Elige una clave que recuerdes; luego puedes cambiarla en Configuración.";
     $("acceso-label").textContent = "Clave";
-    $("acceso-confirma-wrap").hidden = true;
     $("btn-acceso").textContent = "Entrar";
   } else {
     const setup = !hayClave();
     $("acceso-texto").textContent = setup
-      ? "Primera vez: crea una clave. Queda en este navegador y solo quien la sepa entra al panel."
+      ? "Primera vez: define una clave para este navegador (mínimo 4 caracteres). Podrás cambiarla en Configuración."
       : "Escribe tu clave para abrir el panel interno.";
     $("acceso-label").textContent = setup ? "Nueva clave" : "Clave";
-    $("acceso-confirma-wrap").hidden = !setup;
     $("btn-acceso").textContent = setup ? "Crear clave y entrar" : "Entrar";
   }
   $("acceso-error").hidden = true;
@@ -391,18 +390,12 @@ async function intentarAcceso() {
     }
     return;
   }
-  const pin2 = $("acceso-pin2").value.trim();
   if (pin.length < 4) {
     err.textContent = "La clave debe tener al menos 4 caracteres.";
     err.hidden = false;
     return;
   }
   if (!hayClave()) {
-    if (pin !== pin2) {
-      err.textContent = "Las dos claves no coinciden.";
-      err.hidden = false;
-      return;
-    }
     localStorage.setItem(PIN_KEY, await hashPin(pin));
     sessionStorage.setItem(SESION_KEY, "1");
     await mostrarPanel();
@@ -3855,10 +3848,6 @@ $("btn-acceso").addEventListener("click", intentarAcceso);
 $("acceso-pin").addEventListener("keydown", (e) => {
   if (e.key === "Enter") intentarAcceso();
 });
-$("acceso-pin2").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") intentarAcceso();
-});
-
 async function cambiarLogotipo(file) {
   if (!file) return;
   if (!portadaSlides.length) await cargarPortada();
