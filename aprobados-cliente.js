@@ -325,10 +325,11 @@ function registrarMetricaSesionAprobado(slug, tipo, prefijoKey) {
   if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, t);
 }
 
-function registrarVisitaFichaAprobado(slug) {
+function registrarVisitaFichaAprobado(slug, desdeQrImpreso) {
   const s = String(slug || "").trim();
   if (!s) return;
-  if (ingresoFichaDesdeQrImpreso()) {
+  const esQr = desdeQrImpreso === true || (desdeQrImpreso !== false && ingresoFichaDesdeQrImpreso());
+  if (esQr) {
     registrarMetricaSesionAprobado(s, "qr", "ad-metric-qr");
     limpiarParametroQrEnBarra(s);
   } else {
@@ -797,6 +798,7 @@ async function renderVitrinaAprobados() {
 async function abrirAprobadoPorSlug(slug) {
   const s = String(slug || "").trim();
   if (!s) return;
+  const entradaDesdeQrImpreso = ingresoFichaDesdeQrImpreso();
   if (typeof state !== "undefined") {
     state.vista = "aprobado-detalle";
     state.aprobadoSlug = s;
@@ -817,10 +819,10 @@ async function abrirAprobadoPorSlug(slug) {
     aprobadosUi.detalle = row;
     $("stage").innerHTML = htmlDetalleAprobado(row);
     enlazarGaleriaAprobadosDetalle();
+    registrarVisitaFichaAprobado(s, entradaDesdeQrImpreso);
     if (typeof history !== "undefined" && history.replaceState) {
       history.replaceState({ vista: "aprobado-detalle", slug: s }, "", urlAprobadoPath(s));
     }
-    registrarVisitaFichaAprobado(s);
   } catch (_e) {
     $("stage").innerHTML = `<section class="panel aprobados-shell"><p class="muted">Error al cargar la ficha.</p></section>`;
   }
