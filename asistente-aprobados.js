@@ -264,13 +264,14 @@ function vehiculoParaVambe(row, matchedBy) {
   const galeria_urls = urlsGaleriaAprobado(row);
   const informeObj = jsonObj(row.informe);
   const foto_placa_chasis_url = String(informeObj.foto_placa_chasis || "").trim() || null;
+  const mostrarVendedor = row.mostrar_datos_vendedor !== false;
 
   const lines = [];
   lines.push(`Certificado AutoDato: ${titulo}.`);
   if (row.folio != null) lines.push(`Folio de revisión: ${row.folio}.`);
   if (row.revisado_por) lines.push(`Revisado por el técnico ${String(row.revisado_por).trim()}.`);
   if (row.numero_chasis) lines.push(`Chasis: ${String(row.numero_chasis).trim()}.`);
-  if (row.vendedor_nombre) lines.push(`Automotora / vendedor: ${String(row.vendedor_nombre).trim()}.`);
+  if (mostrarVendedor && row.vendedor_nombre) lines.push(`Automotora / vendedor: ${String(row.vendedor_nombre).trim()}.`);
   if (kmReal != null) lines.push(`Kilometraje real (revisión): ${kmReal.toLocaleString("es-CL")} km.`);
   lines.push(`Ficha pública: ${ficha_url}`);
   lines.push(
@@ -295,27 +296,43 @@ function vehiculoParaVambe(row, matchedBy) {
     kilometraje_real: kmReal,
     revisado_por: String(row.revisado_por || "").trim() || null,
     revisado_whatsapp: String(row.revisado_whatsapp || "").trim() || null,
-    garantia_vendedor: Boolean(row.garantia_vendedor),
-    vendedor: {
-      nombre: String(row.vendedor_nombre || "").trim() || null,
-      telefono: String(row.vendedor_telefono || "").trim() || null,
-      whatsapp: String(row.whatsapp_contacto || "").trim() || null,
-    },
-    ubicacion: {
-      nombre: String(row.ubicacion_nombre || "").trim() || null,
-      direccion: String(row.ubicacion_direccion || "").trim() || null,
-      maps_url: String(row.ubicacion_maps || "").trim() || null,
-    },
-    precios: {
-      referencia: numOk(row.precio_referencia),
-      referencia_texto: clp(row.precio_referencia),
-      financiado: numOk(row.precio_financiado),
-      financiado_texto: clp(row.precio_financiado),
-      cuota_mensual: numOk(row.cuota_referencia),
-      cuota_mensual_texto: clp(row.cuota_referencia),
-      ahorro_referencia: numOk(row.ahorro_referencia),
-      nota: "Precios referenciales del vendedor; confirmar disponibilidad y monto con la automotora.",
-    },
+    garantia_vendedor: mostrarVendedor ? Boolean(row.garantia_vendedor) : false,
+    mostrar_datos_vendedor: mostrarVendedor,
+    vendedor: mostrarVendedor
+      ? {
+          nombre: String(row.vendedor_nombre || "").trim() || null,
+          telefono: String(row.vendedor_telefono || "").trim() || null,
+          whatsapp: String(row.whatsapp_contacto || "").trim() || null,
+        }
+      : null,
+    ubicacion: mostrarVendedor
+      ? {
+          nombre: String(row.ubicacion_nombre || "").trim() || null,
+          direccion: String(row.ubicacion_direccion || "").trim() || null,
+          maps_url: String(row.ubicacion_maps || "").trim() || null,
+        }
+      : null,
+    precios: mostrarVendedor
+      ? {
+          referencia: numOk(row.precio_referencia),
+          referencia_texto: clp(row.precio_referencia),
+          financiado: numOk(row.precio_financiado),
+          financiado_texto: clp(row.precio_financiado),
+          cuota_mensual: numOk(row.cuota_referencia),
+          cuota_mensual_texto: clp(row.cuota_referencia),
+          ahorro_referencia: numOk(row.ahorro_referencia),
+          nota: "Precios referenciales del vendedor; confirmar disponibilidad y monto con la automotora.",
+        }
+      : {
+          referencia: null,
+          referencia_texto: null,
+          financiado: null,
+          financiado_texto: null,
+          cuota_mensual: null,
+          cuota_mensual_texto: null,
+          ahorro_referencia: null,
+          nota: "Datos del vendedor no publicados en esta ficha.",
+        },
     descripcion: String(row.descripcion || "").trim() || null,
     ficha_url,
     foto_portada_url,

@@ -829,6 +829,21 @@ button { font-family: inherit; cursor: pointer; }
   color: #a01818;
 }
 
+.aprobado-check-row .aprobado-check-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  user-select: none;
+}
+.aprobado-check-line input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--yellow);
+  cursor: pointer;
+}
 .aprobado-chasis-placa-row {
   display: flex;
   flex-wrap: wrap;

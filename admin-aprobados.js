@@ -338,6 +338,7 @@ function aprobadoVacio() {
     cuota_referencia: null,
     ahorro_referencia: null,
     garantia_vendedor: false,
+    mostrar_datos_vendedor: true,
     origen: "",
     ubicacion_nombre: "",
     ubicacion_direccion: "",
@@ -1076,7 +1077,15 @@ function htmlEditorAprobado() {
 
       <section class="aprobado-seccion">
         <h3>Automotora y ubicación</h3>
+        <p class="aprobado-hint">Los datos se guardan siempre; la casilla controla si se ven en la ficha pública.</p>
         <div class="aprobado-form-grid">
+          <label class="field aprobado-field-span2 aprobado-check-row">
+            <span>Mostrar en la ficha</span>
+            <span class="aprobado-check-line">
+              <input type="checkbox" id="aprobado-mostrar-vendedor"${v.mostrar_datos_vendedor !== false ? " checked" : ""} />
+              Mostrar datos del vendedor
+            </span>
+          </label>
           <label class="field"><span>Automotora / vendedor</span><input id="aprobado-vendedor" type="text" value="${escapeAttr(v.vendedor_nombre)}" /></label>
           <label class="field"><span>Teléfono vendedor</span><input id="aprobado-telefono" type="tel" value="${escapeAttr(v.vendedor_telefono)}" /></label>
           <label class="field"><span>WhatsApp consultas</span><input id="aprobado-whatsapp" type="tel" value="${escapeAttr(v.whatsapp_contacto)}" placeholder="569…" /></label>
@@ -1197,6 +1206,7 @@ function leerFormAprobado() {
     cuota_referencia: numCampo("aprobado-cuota"),
     ahorro_referencia: numCampo("aprobado-ahorro"),
     garantia_vendedor: Boolean($("aprobado-garantia") && $("aprobado-garantia").checked),
+    mostrar_datos_vendedor: Boolean($("aprobado-mostrar-vendedor") && $("aprobado-mostrar-vendedor").checked),
     revisado_por: $("aprobado-revisado-por") ? $("aprobado-revisado-por").value.trim() : "",
     revisado_whatsapp: $("aprobado-revisado-wa") ? $("aprobado-revisado-wa").value.trim() : "",
     vendedor_nombre: $("aprobado-vendedor") ? $("aprobado-vendedor").value.trim() : "",

@@ -8,6 +8,10 @@ const aprobadosUi = { lista: [], detalle: null, fotoIdx: 0 };
 /** Enlace fijo «Qué es AutoDato» (ficha pública). */
 const APROBADO_URL_QUE_ES_AUTODATO = "https://www.facebook.com/share/19yVEgsCPh/";
 
+function mostrarDatosVendedorPub(v) {
+  return !v || v.mostrar_datos_vendedor !== false;
+}
+
 function fotosAprobado(v) {
   if (!v) return [];
   const gal = Array.isArray(v.galeria) ? v.galeria : [];
@@ -243,6 +247,7 @@ function htmlInformeAutodatoAprobado(v) {
 }
 
 function htmlMapaDetalleAprobado(v) {
+  if (!mostrarDatosVendedorPub(v)) return "";
   const href = urlAbrirMapsAprobado(v);
   const dirLine = [v.ubicacion_nombre, v.ubicacion_direccion].filter(Boolean).join(" · ");
   const shot = datosMapaPantallazoPublico(v);
@@ -561,6 +566,7 @@ function htmlConfirmacionChasisAprobado(v) {
 }
 
 function htmlUbicacion(v) {
+  if (!mostrarDatosVendedorPub(v)) return "";
   if (!v.ubicacion_nombre && !v.ubicacion_direccion) return "";
   return `
     <div class="aprobados-ubicacion">
@@ -573,6 +579,7 @@ function htmlUbicacion(v) {
 }
 
 function htmlPrecioBloque(v) {
+  if (!mostrarDatosVendedorPub(v)) return "";
   const contado = v.precio_referencia;
   const fin = v.precio_financiado;
   const cuota = v.cuota_referencia;
@@ -603,7 +610,8 @@ function htmlCardVitrina(v) {
   const img = fotos[0] || "";
   const kmShow = kmRealPub(v) ?? kmTableroPub(v);
   const metaTxt = escapeHtml([v.ano, v.color].filter(Boolean).join(" · "));
-  const metaGar = v.garantia_vendedor ? ` · <span class="aprobados-garantia">Garantía vendedor</span>` : "";
+  const metaGar =
+    mostrarDatosVendedorPub(v) && v.garantia_vendedor ? ` · <span class="aprobados-garantia">Garantía vendedor</span>` : "";
   return `
     <article class="aprobados-card" data-abrir-aprobado-slug="${escapeAttr(v.public_slug)}">
       <div class="aprobados-card-media">
@@ -732,10 +740,10 @@ function htmlDetalleAprobado(v) {
   const estet = Array.isArray(v.detalles_esteticos) ? v.detalles_esteticos : [];
   const escaner = Array.isArray(inf.escaner_imagenes) ? inf.escaner_imagenes : [];
   const yt = youtubeEmbedUrl(v.video_url);
-  const wa = whatsappAprobado(v);
-  const waVendedorHref = wa
-    ? `https://wa.me/${wa}?text=${encodeURIComponent(textoWhatsappConsultaVendedorAprobado(v))}`
-    : "";
+  const pubVendedor = mostrarDatosVendedorPub(v);
+  const wa = pubVendedor ? whatsappAprobado(v) : "";
+  const waVendedorHref =
+    pubVendedor && wa ? `https://wa.me/${wa}?text=${encodeURIComponent(textoWhatsappConsultaVendedorAprobado(v))}` : "";
   const waAutodatoHref = `https://wa.me/${whatsappNumeroAutodato()}?text=${encodeURIComponent(
     textoWhatsappConsultaAutodatoAprobado(v)
   )}`;
@@ -818,7 +826,7 @@ function htmlDetalleAprobado(v) {
           : ""
       }
       ${
-        v.vendedor_nombre
+        pubVendedor && v.vendedor_nombre
           ? `<p class="muted aprobados-vendedor">Automotora: <strong>${escapeHtml(v.vendedor_nombre)}</strong></p>`
           : ""
       }
