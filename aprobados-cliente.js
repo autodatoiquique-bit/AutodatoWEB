@@ -8,6 +8,15 @@ const aprobadosUi = { lista: [], detalle: null, fotoIdx: 0 };
 /** Enlace fijo «Qué es AutoDato» (ficha pública). */
 const APROBADO_URL_QUE_ES_AUTODATO = "https://www.facebook.com/share/19yVEgsCPh/";
 
+function estadoEsReservadoAprobado(v) {
+  return v && String(v.estado || "").trim() === "reservado";
+}
+
+function htmlRibbonReservadoAprobado(v) {
+  if (!estadoEsReservadoAprobado(v)) return "";
+  return `<span class="aprobados-badge-reservado">RESERVADO</span>`;
+}
+
 function mostrarDatosVendedorPub(v) {
   return !v || v.mostrar_datos_vendedor !== false;
 }
@@ -521,7 +530,10 @@ function htmlBadgeAprobado(v, compact) {
     ? `https://wa.me/${waTec}?text=${encodeURIComponent(textoWhatsappCertificadorAprobado(v))}`
     : "";
   return `<div class="aprobados-sello-block">
-    <span class="aprobados-badge-sello">Aprobado por AutoDato</span>
+    <div class="aprobados-sello-row">
+      <span class="aprobados-badge-sello">Aprobado por AutoDato</span>
+      ${htmlRibbonReservadoAprobado(v)}
+    </div>
     ${
       tec
         ? `<p class="aprobados-revisado-por">
@@ -618,6 +630,7 @@ function htmlCardVitrina(v) {
         ${img ? `<img src="${escapeAttr(img)}" alt="" loading="lazy" />` : `<span class="aprobados-sin-foto">Sin foto</span>`}
         <div class="aprobados-card-badges">
           ${htmlBadgeAprobado(v, true)}
+          ${estadoEsReservadoAprobado(v) ? htmlRibbonReservadoAprobado(v) : ""}
           ${v.folio != null ? `<span class="aprobados-folio">#${escapeHtml(String(v.folio))}</span>` : ""}
         </div>
       </div>

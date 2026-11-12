@@ -1303,6 +1303,7 @@ body.admin-imprimir-qr-aprobado .aprobado-qr-hoja {
 .tag-aprobado-borrador { background: #eee; color: #444; }
 .tag-aprobado-revision { background: #fff3cd; color: #856404; }
 .tag-aprobado-ok { background: #d4edda; color: #155724; }
+.tag-aprobado-reservado { background: #cfe2ff; color: #0d47a1; font-weight: 800; }
 .tag-aprobado-rechazado { background: #f8d7da; color: #721c24; }
 .tag-aprobado-vencido { background: #e2e3e5; color: #383d41; }
 

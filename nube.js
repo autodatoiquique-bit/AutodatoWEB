@@ -961,9 +961,11 @@ async function nubeGuardarVehiculoAprobado(datos) {
     updated_at: new Date().toISOString(),
   };
 
-  if (String(d.estado || "") === "aprobado" && d.aprobado_at) {
+  const est = String(d.estado || "").trim();
+  const estCertificado = est === "aprobado" || est === "reservado";
+  if (estCertificado && d.aprobado_at) {
     patch.aprobado_at = d.aprobado_at;
-  } else if (String(d.estado || "") === "aprobado" && !d.aprobado_at) {
+  } else if (estCertificado && !d.aprobado_at) {
     patch.aprobado_at = new Date().toISOString();
   }
 
@@ -995,9 +997,9 @@ async function nubeListarAprobadosPublicos() {
   const { data, error } = await sb
     .from("vehiculos_aprobados")
     .select(
-      "id, public_slug, folio, marca, modelo, version, ano, color, carroceria, transmision, combustible, traccion, kilometraje, kilometraje_tablero, kilometraje_real, precio_referencia, precio_financiado, cuota_referencia, ahorro_referencia, garantia_vendedor, foto_portada, galeria, ubicacion_nombre, ubicacion_direccion, vendedor_nombre, whatsapp_contacto, vendedor_telefono, created_at"
+      "id, public_slug, folio, marca, modelo, version, ano, color, carroceria, transmision, combustible, traccion, kilometraje, kilometraje_tablero, kilometraje_real, precio_referencia, precio_financiado, cuota_referencia, ahorro_referencia, garantia_vendedor, mostrar_datos_vendedor, estado, foto_portada, galeria, ubicacion_nombre, ubicacion_direccion, vendedor_nombre, whatsapp_contacto, vendedor_telefono, created_at"
     )
-    .eq("estado", "aprobado")
+    .in("estado", ["aprobado", "reservado"])
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (Array.isArray(data) ? data : []).map(filaAVehiculoAprobado).filter(Boolean);
@@ -1011,7 +1013,8 @@ async function nubeAprobadoPublicoPorSlug(slug) {
   if (!sb) return null;
   const { data, error } = await sb.from("vehiculos_aprobados").select("*").eq("public_slug", s).maybeSingle();
   if (error) throw error;
-  if (!data || String(data.estado || "") !== "aprobado") return null;
+  const est = String(data && data.estado ? data.estado : "").trim();
+  if (!data || (est !== "aprobado" && est !== "reservado")) return null;
   return filaAVehiculoAprobado(data);
 }
 

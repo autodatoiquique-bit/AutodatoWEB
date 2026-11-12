@@ -293,6 +293,7 @@ const APROBADOS_ESTADOS = [
   { v: "borrador", label: "Borrador" },
   { v: "en_revision", label: "En revisión" },
   { v: "aprobado", label: "Aprobado" },
+  { v: "reservado", label: "RESERVADO" },
   { v: "rechazado", label: "Rechazado" },
   { v: "vencido", label: "Vencido" },
 ];
@@ -492,6 +493,7 @@ function claseTagEstadoAprobado(estado) {
     borrador: "tag-aprobado-borrador",
     en_revision: "tag-aprobado-revision",
     aprobado: "tag-aprobado-ok",
+    reservado: "tag-aprobado-reservado",
     rechazado: "tag-aprobado-rechazado",
     vencido: "tag-aprobado-vencido",
   };

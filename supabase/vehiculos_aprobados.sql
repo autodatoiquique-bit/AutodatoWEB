@@ -52,7 +52,7 @@ create table if not exists vehiculos_aprobados (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint vehiculos_aprobados_estado_check check (
-    estado in ('borrador', 'en_revision', 'aprobado', 'rechazado', 'vencido')
+    estado in ('borrador', 'en_revision', 'aprobado', 'reservado', 'rechazado', 'vencido')
   )
 );
 
@@ -68,7 +68,7 @@ drop policy if exists vehiculos_aprobados_admin on vehiculos_aprobados;
 
 create policy vehiculos_aprobados_public_read on vehiculos_aprobados for select
   using (
-    estado = 'aprobado'
+    estado in ('aprobado', 'reservado')
     and (vigente_hasta is null or vigente_hasta > now())
   );
 

@@ -75,7 +75,8 @@ function fotoPortadaAprobado(row) {
 
 function vehiculoPublicable(row) {
   if (!row || typeof row !== "object") return false;
-  if (String(row.estado || "").trim() !== "aprobado") return false;
+  const est = String(row.estado || "").trim();
+  if (est !== "aprobado" && est !== "reservado") return false;
   if (row.vigente_hasta) {
     const fin = new Date(row.vigente_hasta);
     if (Number.isFinite(fin.getTime()) && fin <= new Date()) return false;
@@ -343,6 +344,8 @@ function vehiculoParaVambe(row, matchedBy) {
     },
     foto_placa_chasis_url,
     informe_resumen,
+    estado: String(row.estado || "").trim() || null,
+    reservado: String(row.estado || "").trim() === "reservado",
     matched_by: matchedBy,
     message_for_assistant: lines.join(" "),
   };
