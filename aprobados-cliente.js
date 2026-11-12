@@ -389,6 +389,31 @@ function registrarCompartirAprobado(slug) {
   if (typeof nubeRegistrarMetricaAprobado === "function") void nubeRegistrarMetricaAprobado(s, "compartir");
 }
 
+async function compartirFotoFichaAprobado(v) {
+  if (!v) return false;
+  const slug = String(v.public_slug || "").trim();
+  const url = urlFichaPublicaAbsolutaAprobado(v);
+  const title = tituloLargoAprobado(v);
+  const text = `Mira este auto revisado por AutoDato: ${title}\n${url}`;
+  const imgUrl = fotosAprobado(v)[0] || "";
+  if (!imgUrl || !navigator.share) return false;
+  try {
+    const ir = await fetch(imgUrl);
+    if (!ir.ok) return false;
+    const blob = await ir.blob();
+    const type = blob.type && /^image\//.test(blob.type) ? blob.type : "image/jpeg";
+    const file = new File([blob], "autodato-vehiculo.jpg", { type });
+    const payload = { files: [file], title, text };
+    if (navigator.canShare && !navigator.canShare(payload)) return false;
+    await navigator.share(payload);
+    registrarCompartirAprobado(slug);
+    return true;
+  } catch (e) {
+    if (e && e.name === "AbortError") return true;
+    return false;
+  }
+}
+
 async function compartirFichaAprobado(v) {
   if (!v) return;
   const slug = String(v.public_slug || "").trim();
@@ -396,26 +421,8 @@ async function compartirFichaAprobado(v) {
   if (!url) return;
   const title = tituloLargoAprobado(v);
   const text = `Mira este auto revisado por AutoDato: ${title}`;
-  const imgUrl = fotosAprobado(v)[0] || "";
   try {
-    if (navigator.share && imgUrl) {
-      try {
-        const ir = await fetch(imgUrl);
-        if (ir.ok) {
-          const blob = await ir.blob();
-          const type = blob.type && /^image\//.test(blob.type) ? blob.type : "image/jpeg";
-          const file = new File([blob], "autodato-vehiculo.jpg", { type });
-          const payload = { title, text: `${text}\n${url}`, files: [file] };
-          if (navigator.canShare && navigator.canShare(payload)) {
-            await navigator.share(payload);
-            registrarCompartirAprobado(slug);
-            return;
-          }
-        }
-      } catch (_img) {
-        /* fallback enlace */
-      }
-    }
+    if (await compartirFotoFichaAprobado(v)) return;
     if (navigator.share) {
       await navigator.share({ title, text, url });
       registrarCompartirAprobado(slug);
@@ -789,9 +796,13 @@ function htmlDetalleAprobado(v) {
           <span class="aprobados-volver-mini-ico" aria-hidden="true">←</span>
           <span class="aprobados-volver-mini-txt">Catálogo</span>
         </button>
-        <button type="button" class="aprobados-compartir-mini" data-aprobado-compartir="${slugAttr}" aria-label="Compartir este auto">
+        <button type="button" class="aprobados-compartir-mini" data-aprobado-compartir-foto="${slugAttr}" aria-label="Compartir foto para Historias">
+          <span class="aprobados-compartir-mini-ico" aria-hidden="true">▣</span>
+          <span>Foto</span>
+        </button>
+        <button type="button" class="aprobados-compartir-mini" data-aprobado-compartir="${slugAttr}" aria-label="Compartir enlace">
           <span class="aprobados-compartir-mini-ico" aria-hidden="true">⎘</span>
-          <span>Compartir</span>
+          <span>Enlace</span>
         </button>
       </div>
       ${htmlGaleriaDetalle(v)}
@@ -1328,6 +1339,18 @@ document.addEventListener("click", (e) => {
   const maps = e.target.closest("[data-aprobado-maps-metric]");
   if (maps && maps.dataset.aprobadoMapsMetric) {
     registrarClicMapsAprobado(maps.dataset.aprobadoMapsMetric);
+    return;
+  }
+  const compFoto = e.target.closest("[data-aprobado-compartir-foto]");
+  if (compFoto && compFoto.dataset.aprobadoCompartirFoto) {
+    const v = aprobadosUi.detalle;
+    if (v && String(v.public_slug) === compFoto.dataset.aprobadoCompartirFoto) {
+      void compartirFotoFichaAprobado(v).then((ok) => {
+        if (!ok && typeof alert === "function") {
+          alert("No se pudo compartir solo la foto. Prueba «Enlace» o guarda la imagen desde la galería.");
+        }
+      });
+    }
     return;
   }
   const comp = e.target.closest("[data-aprobado-compartir]");

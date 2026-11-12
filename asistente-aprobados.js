@@ -526,7 +526,7 @@ function buildOpenGraphMetaAprobado(row) {
   if (!row) return null;
   const slug = String(row.public_slug || "").trim();
   const titulo = tituloVehiculo(row);
-  const image = `${SITE_BASE}/og/aprobado/${encodeURIComponent(slug)}.jpg`;
+  const image = `${SITE_BASE}/og/aprobado/${encodeURIComponent(slug)}.jpg?v=2`;
   const folio = row.folio != null ? ` Folio ${row.folio}.` : "";
   return {
     title: `${titulo} — Aprobado por AutoDato`,
