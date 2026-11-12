@@ -526,13 +526,15 @@ function buildOpenGraphMetaAprobado(row) {
   if (!row) return null;
   const slug = String(row.public_slug || "").trim();
   const titulo = tituloVehiculo(row);
-  const image = urlImagenAbsolutaAprobado(fotoPortadaAprobado(row));
+  const image = `${SITE_BASE}/og/aprobado/${encodeURIComponent(slug)}.jpg`;
   const folio = row.folio != null ? ` Folio ${row.folio}.` : "";
   return {
     title: `${titulo} — Aprobado por AutoDato`,
     description: `Vehículo certificado por AutoDato.${folio} Revisa fotos, informe y ficha técnica.`,
     url: urlFichaPublica(slug),
     image,
+    imageWidth: 1200,
+    imageHeight: 630,
   };
 }
 
@@ -554,6 +556,11 @@ function htmlOpenGraphTags(meta) {
     <meta property="og:image" content="${escMetaHtml(meta.image)}" />
     <meta property="og:image:secure_url" content="${escMetaHtml(meta.image)}" />
     <meta name="twitter:image" content="${escMetaHtml(meta.image)}" />`;
+    if (meta.imageWidth) {
+      tags += `
+    <meta property="og:image:width" content="${escMetaHtml(String(meta.imageWidth))}" />
+    <meta property="og:image:height" content="${escMetaHtml(String(meta.imageHeight || 630))}" />`;
+    }
   }
   return tags;
 }
@@ -575,4 +582,7 @@ module.exports = {
   fetchAprobadoRowBySlug,
   buildOpenGraphMetaAprobado,
   inyectarOpenGraphEnHtml,
+  fotoPortadaAprobado,
+  tituloVehiculo,
+  urlImagenAbsolutaAprobado,
 };

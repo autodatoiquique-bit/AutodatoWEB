@@ -396,7 +396,26 @@ async function compartirFichaAprobado(v) {
   if (!url) return;
   const title = tituloLargoAprobado(v);
   const text = `Mira este auto revisado por AutoDato: ${title}`;
+  const imgUrl = fotosAprobado(v)[0] || "";
   try {
+    if (navigator.share && imgUrl) {
+      try {
+        const ir = await fetch(imgUrl);
+        if (ir.ok) {
+          const blob = await ir.blob();
+          const type = blob.type && /^image\//.test(blob.type) ? blob.type : "image/jpeg";
+          const file = new File([blob], "autodato-vehiculo.jpg", { type });
+          const payload = { title, text: `${text}\n${url}`, files: [file] };
+          if (navigator.canShare && navigator.canShare(payload)) {
+            await navigator.share(payload);
+            registrarCompartirAprobado(slug);
+            return;
+          }
+        }
+      } catch (_img) {
+        /* fallback enlace */
+      }
+    }
     if (navigator.share) {
       await navigator.share({ title, text, url });
       registrarCompartirAprobado(slug);

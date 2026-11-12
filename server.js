@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const asistentePrecios = require("./asistente-precios");
 const asistenteAprobados = require("./asistente-aprobados");
+const ogAprobados = require("./og-aprobados");
 
 const app = express();
 const puerto = process.env.PORT || 5173;
@@ -1315,6 +1316,19 @@ app.post("/api/aprobado-metrica", async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     return res.status(502).json({ ok: false, error: String((e && e.message) || e) });
+  }
+});
+
+app.get("/og/aprobado/:slug.jpg", async (req, res) => {
+  const slug = String(req.params.slug || "").replace(/\.jpg$/i, "").trim();
+  try {
+    const buf = await ogAprobados.obtenerOgAprobadoJpeg(slug);
+    if (!buf) return res.status(404).send("Not found");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.type("image/jpeg").send(buf);
+  } catch (e) {
+    console.warn("og/aprobado", e.message || e);
+    res.status(502).send("Error");
   }
 });
 
