@@ -1,10 +1,20 @@
 const express = require("express");
+const fs = require("fs");
 const path = require("path");
 const asistentePrecios = require("./asistente-precios");
 const asistenteAprobados = require("./asistente-aprobados");
 
 const app = express();
 const puerto = process.env.PORT || 5173;
+
+const INDEX_HTML_PATH = path.join(__dirname, "index.html");
+let indexHtmlPlantilla = null;
+function leerIndexHtml() {
+  if (!indexHtmlPlantilla) {
+    indexHtmlPlantilla = fs.readFileSync(INDEX_HTML_PATH, "utf8");
+  }
+  return indexHtmlPlantilla;
+}
 
 app.use(express.json({ limit: "200kb" }));
 
@@ -1311,8 +1321,17 @@ app.post("/api/aprobado-metrica", async (req, res) => {
 app.get("/aprobados", (_req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
-app.get("/aprobado/:slug", (_req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+app.get("/aprobado/:slug", async (req, res) => {
+  const slug = String(req.params.slug || "").trim();
+  let html = leerIndexHtml();
+  try {
+    const row = await asistenteAprobados.fetchAprobadoRowBySlug(slug);
+    const meta = row ? asistenteAprobados.buildOpenGraphMetaAprobado(row) : null;
+    if (meta) html = asistenteAprobados.inyectarOpenGraphEnHtml(html, meta);
+  } catch (e) {
+    console.warn("aprobado/og-meta", e.message || e);
+  }
+  res.type("html").send(html);
 });
 
 app.get("/api/geocode", async (req, res) => {

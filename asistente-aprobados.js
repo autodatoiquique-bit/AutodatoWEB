@@ -495,10 +495,84 @@ function lookupErrorStatus(code) {
   return 400;
 }
 
+function escMetaHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
+function urlImagenAbsolutaAprobado(url) {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  if (/^https?:\/\//i.test(u)) return u;
+  if (u.startsWith("//")) return `https:${u}`;
+  const base = SITE_BASE.replace(/\/$/, "");
+  return u.startsWith("/") ? `${base}${u}` : `${base}/${u}`;
+}
+
+async function fetchAprobadoRowBySlug(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return null;
+  const qs = new URLSearchParams();
+  qs.set("public_slug", `eq.${s}`);
+  const fetched = await supabaseSelectAprobados(qs);
+  if (!fetched.ok || !fetched.rows.length) return null;
+  const row = fetched.rows[0];
+  return vehiculoPublicable(row) ? row : null;
+}
+
+function buildOpenGraphMetaAprobado(row) {
+  if (!row) return null;
+  const slug = String(row.public_slug || "").trim();
+  const titulo = tituloVehiculo(row);
+  const image = urlImagenAbsolutaAprobado(fotoPortadaAprobado(row));
+  const folio = row.folio != null ? ` Folio ${row.folio}.` : "";
+  return {
+    title: `${titulo} — Aprobado por AutoDato`,
+    description: `Vehículo certificado por AutoDato.${folio} Revisa fotos, informe y ficha técnica.`,
+    url: urlFichaPublica(slug),
+    image,
+  };
+}
+
+function htmlOpenGraphTags(meta) {
+  if (!meta) return "";
+  let tags = `
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AutoDato" />
+    <meta property="og:locale" content="es_CL" />
+    <meta property="og:title" content="${escMetaHtml(meta.title)}" />
+    <meta property="og:description" content="${escMetaHtml(meta.description)}" />
+    <meta property="og:url" content="${escMetaHtml(meta.url)}" />
+    <meta name="description" content="${escMetaHtml(meta.description)}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escMetaHtml(meta.title)}" />
+    <meta name="twitter:description" content="${escMetaHtml(meta.description)}" />`;
+  if (meta.image) {
+    tags += `
+    <meta property="og:image" content="${escMetaHtml(meta.image)}" />
+    <meta property="og:image:secure_url" content="${escMetaHtml(meta.image)}" />
+    <meta name="twitter:image" content="${escMetaHtml(meta.image)}" />`;
+  }
+  return tags;
+}
+
+function inyectarOpenGraphEnHtml(html, meta) {
+  if (!meta || !html) return html;
+  let out = String(html).replace(/<title>[\s\S]*?<\/title>/i, `<title>${escMetaHtml(meta.title)}</title>`);
+  const block = htmlOpenGraphTags(meta);
+  if (!block) return out;
+  return out.replace("</head>", `${block}\n</head>`);
+}
+
 module.exports = {
   lookupAprobadoVambe,
   lookupFlatBodyToInternal,
   parseReferenciasDesdeMensaje,
   lookupErrorStatus,
   tokenAsistenteValido,
+  fetchAprobadoRowBySlug,
+  buildOpenGraphMetaAprobado,
+  inyectarOpenGraphEnHtml,
 };

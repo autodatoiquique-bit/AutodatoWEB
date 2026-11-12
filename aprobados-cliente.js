@@ -398,7 +398,7 @@ async function compartirFichaAprobado(v) {
   const text = `Mira este auto revisado por AutoDato: ${title}`;
   try {
     if (navigator.share) {
-      await navigator.share({ title: "AutoDato Aprobados", text, url });
+      await navigator.share({ title, text, url });
       registrarCompartirAprobado(slug);
       return;
     }
