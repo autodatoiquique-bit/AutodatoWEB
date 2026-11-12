@@ -119,6 +119,11 @@ function urlFichaPublica(slug) {
   return s ? `${SITE_BASE}/aprobado/${encodeURIComponent(s)}` : "";
 }
 
+function urlStoryShareAprobado(slug) {
+  const s = String(slug || "").trim();
+  return s ? `${SITE_BASE}/story/aprobado/${encodeURIComponent(s)}.jpg` : "";
+}
+
 function clp(n) {
   const x = numOk(n);
   if (x == null) return null;
@@ -585,4 +590,5 @@ module.exports = {
   fotoPortadaAprobado,
   tituloVehiculo,
   urlImagenAbsolutaAprobado,
+  urlFichaPublica,
 };

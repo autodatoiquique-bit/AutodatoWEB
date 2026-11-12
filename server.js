@@ -1319,6 +1319,19 @@ app.post("/api/aprobado-metrica", async (req, res) => {
   }
 });
 
+app.get("/story/aprobado/:slug.jpg", async (req, res) => {
+  const slug = String(req.params.slug || "").replace(/\.jpg$/i, "").trim();
+  try {
+    const buf = await ogAprobados.obtenerStoryAprobadoJpeg(slug);
+    if (!buf) return res.status(404).send("Not found");
+    res.set("Cache-Control", "public, max-age=1800");
+    res.type("image/jpeg").send(buf);
+  } catch (e) {
+    console.warn("story/aprobado", e.message || e);
+    res.status(502).send("Error");
+  }
+});
+
 app.get("/og/aprobado/:slug.jpg", async (req, res) => {
   const slug = String(req.params.slug || "").replace(/\.jpg$/i, "").trim();
   try {
