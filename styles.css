@@ -281,6 +281,60 @@ button { font-family: inherit; cursor: pointer; }
   margin-left: 8px;
 }
 
+#modal-presupuesto.modal-presupuesto:not([hidden]) {
+  z-index: 120;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px));
+}
+
+body.presupuesto-modal-on .kpi-stack,
+body.presupuesto-modal-on .btn-presupuesto-secreto {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.modal-presupuesto-card {
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 100%);
+  max-height: calc(100dvh - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 16px));
+  overflow: hidden;
+  padding: 0;
+  margin: 0 auto;
+}
+
+.modal-presupuesto-card .drawer-close-izq {
+  left: 12px;
+  right: auto;
+  top: 10px;
+  z-index: 3;
+}
+
+.modal-presupuesto-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 50px 18px 18px;
+}
+
+.modal-presupuesto-inner h3 {
+  margin: 0 0 8px;
+  padding-right: 8px;
+}
+
+.modal-presupuesto-acciones {
+  margin-top: 16px;
+  padding-bottom: 4px;
+}
+
 .kpi-stack {
   position: fixed;
   top: 16px;

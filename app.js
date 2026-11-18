@@ -3520,7 +3520,8 @@ function overlayLibre() {
     $("modal-quitar").hidden &&
     $("modal-informe").hidden &&
     ($("modal-cantidad-servicio") == null || $("modal-cantidad-servicio").hidden) &&
-    ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden)
+    ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden) &&
+    ($("modal-presupuesto") == null || $("modal-presupuesto").hidden)
   );
 }
 
@@ -3700,6 +3701,8 @@ function abrirModalPresupuesto() {
   pintarModalPresupuesto();
   const modal = $("modal-presupuesto");
   if (modal) modal.hidden = false;
+  document.body.classList.add("presupuesto-modal-on");
+  $("overlay").hidden = false;
   const btn = $("btn-confirmar-presupuesto");
   if (btn) {
     btn.disabled = false;
@@ -3710,6 +3713,8 @@ function abrirModalPresupuesto() {
 function cerrarModalPresupuesto() {
   const modal = $("modal-presupuesto");
   if (modal) modal.hidden = true;
+  document.body.classList.remove("presupuesto-modal-on");
+  if (overlayLibre()) $("overlay").hidden = true;
 }
 
 function confirmarPresupuestoWeb() {
@@ -4584,6 +4589,10 @@ document.addEventListener("click", (e) => {
 });
 
 $("overlay").addEventListener("click", () => {
+  if ($("modal-presupuesto") && !$("modal-presupuesto").hidden) {
+    cerrarModalPresupuesto();
+    return;
+  }
   if ($("modal-cantidad-servicio") && !$("modal-cantidad-servicio").hidden) {
     cerrarModalCantidadServicio();
     return;
