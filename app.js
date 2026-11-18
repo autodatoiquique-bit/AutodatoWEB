@@ -3520,8 +3520,7 @@ function overlayLibre() {
     $("modal-quitar").hidden &&
     $("modal-informe").hidden &&
     ($("modal-cantidad-servicio") == null || $("modal-cantidad-servicio").hidden) &&
-    ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden) &&
-    ($("modal-presupuesto") == null || $("modal-presupuesto").hidden)
+    ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden)
   );
 }
 
@@ -3649,93 +3648,18 @@ function buildPresupuestoBorrador(telefono) {
   };
 }
 
-function htmlResumenLineasPresupuesto(items) {
-  return items
-    .map((s) => {
-      const precio = s.pagado == null ? "A confirmar" : clp(s.pagado);
-      const desc = s.ahorro > 0 ? `<span class="muted"><s>${clp(s.lista)}</s> · −${clp(s.ahorro)}</span> ` : "";
-      const subCombo = s.esComboLinea
-        ? detalleComboIncluyeTicket(s)
-            .map(
-              (sub) =>
-                `<li class="resumen-item resumen-combo-incl"><span>↳ ${escapeHtml(sub.nombre)}</span><strong>${
-                  sub.es_regalo ? "Incluido" : clp(sub.precio)
-                }</strong></li>`
-            )
-            .join("")
-        : "";
-      return `<li class="resumen-item"><span><strong>${escapeHtml(s.nombre)}</strong></span><span>${desc}${precio}</span></li>${subCombo}`;
-    })
-    .join("");
-}
-
-function pintarModalPresupuesto() {
-  const host = $("modal-presupuesto-cuerpo");
-  if (!host) return;
-  const { items, subtotal, total, ahorro } = calcular();
-  const tel = state.cliente.telefono.trim();
-  const nom = state.cliente.nombre.trim();
-  host.innerHTML = `
-    <p class="muted">${escapeHtml(textoVehiculo())}</p>
-    <ul class="presup-resumen resumen">${htmlResumenLineasPresupuesto(items)}</ul>
-    <ul class="resumen">
-      <li><span>Lista</span><strong>${clp(subtotal)}</strong></li>
-      <li><span>Ahorro</span><strong style="color:var(--red)">${clp(ahorro)}</strong></li>
-      <li><span>Total</span><strong style="color:var(--green)">${clp(total)}</strong></li>
-    </ul>
-  <label class="field"><span>Teléfono (opcional)</span><input id="presup-telefono" type="tel" value="${escapeAttr(tel)}" inputmode="tel" autocomplete="tel" placeholder="Aparece en el archivo si lo completas" /></label>
-  ${
-    nom
-      ? `<p class="muted">Cliente: <strong>${escapeHtml(nom)}</strong></p>`
-      : `<label class="field"><span>Nombre (opcional)</span><input id="presup-nombre" type="text" value="" autocomplete="name" /></label>`
-  }
-  `;
-}
-
-function abrirModalPresupuesto() {
-  if (!puedeGenerarPresupuestoWeb()) {
-    alert("Agrega servicios y confirma el vehículo antes de generar un presupuesto.");
-    return;
-  }
-  guardarClienteDesdeForma();
-  pintarModalPresupuesto();
-  const modal = $("modal-presupuesto");
-  if (modal) modal.hidden = false;
-  document.body.classList.add("presupuesto-modal-on");
-  $("overlay").hidden = false;
-  const btn = $("btn-confirmar-presupuesto");
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = "Generar presupuesto";
-  }
-}
-
-function cerrarModalPresupuesto() {
-  const modal = $("modal-presupuesto");
-  if (modal) modal.hidden = true;
-  document.body.classList.remove("presupuesto-modal-on");
-  if (overlayLibre()) $("overlay").hidden = true;
-}
-
-function confirmarPresupuestoWeb() {
+function abrirPresupuestoDesdeBotonSecreto() {
   guardarClienteDesdeForma();
   if (!puedeGenerarPresupuestoWeb()) {
-    alert("No hay servicios o falta el vehículo.");
+    alert("Agrega servicios y confirma el vehículo antes de ver el presupuesto.");
     return;
   }
-  const telInput = $("presup-telefono");
-  const tel = ((telInput && telInput.value) || state.cliente.telefono || "").trim();
-  const nomInput = $("presup-nombre");
-  if (nomInput && nomInput.value.trim()) state.cliente.nombre = nomInput.value.trim();
-  if (tel) state.cliente.telefono = tel;
-  persistir();
-  const borrador = buildPresupuestoBorrador(tel);
+  const borrador = buildPresupuestoBorrador(state.cliente.telefono);
   borrador.generado_at = new Date().toISOString();
   borrador.editable = false;
   const hist = JSON.parse(localStorage.getItem("autodato_presupuestos") || "[]");
   hist.unshift(borrador);
   localStorage.setItem("autodato_presupuestos", JSON.stringify(hist.slice(0, 40)));
-  cerrarModalPresupuesto();
   abrirPresupuesto(borrador);
 }
 
@@ -4347,7 +4271,6 @@ function cerrar() {
   $("modal-horas").hidden = true;
   $("modal-kpi").hidden = true;
   $("modal-quitar").hidden = true;
-  cerrarModalPresupuesto();
   if ($("modal-sustituir-aceite")) $("modal-sustituir-aceite").hidden = true;
   if ($("modal-cantidad-servicio")) $("modal-cantidad-servicio").hidden = true;
   $("modal-informe").hidden = true;
@@ -4386,7 +4309,7 @@ document.addEventListener(
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-cerrar-presupuesto], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-guardar-presupuesto], [data-descargar-presupuesto-pdf], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], [data-abrir-aprobado-slug], [data-volver-aprobados], [data-aprobado-foto-dir], [data-aprobado-foto-idx], [data-aprobado-zoom-main], [data-aprobado-ampliar-url], #btn-ticket, #btn-presupuesto-secreto, #btn-confirmar-presupuesto, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-guardar-presupuesto], [data-descargar-presupuesto-pdf], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], [data-abrir-aprobado-slug], [data-volver-aprobados], [data-aprobado-foto-dir], [data-aprobado-foto-idx], [data-aprobado-zoom-main], [data-aprobado-ampliar-url], #btn-ticket, #btn-presupuesto-secreto, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -4500,9 +4423,7 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-cerrar-ticket-error")) cerrarModalErrorTicket();
-  if (t.hasAttribute("data-cerrar-presupuesto")) cerrarModalPresupuesto();
-  if (t.id === "btn-presupuesto-secreto") abrirModalPresupuesto();
-  if (t.id === "btn-confirmar-presupuesto") confirmarPresupuestoWeb();
+  if (t.id === "btn-presupuesto-secreto") abrirPresupuestoDesdeBotonSecreto();
   if (t.hasAttribute("data-guardar-presupuesto")) void descargarPresupuestoImagen();
   if (t.hasAttribute("data-descargar-presupuesto-pdf")) void descargarPresupuestoPdf();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
@@ -4589,10 +4510,6 @@ document.addEventListener("click", (e) => {
 });
 
 $("overlay").addEventListener("click", () => {
-  if ($("modal-presupuesto") && !$("modal-presupuesto").hidden) {
-    cerrarModalPresupuesto();
-    return;
-  }
   if ($("modal-cantidad-servicio") && !$("modal-cantidad-servicio").hidden) {
     cerrarModalCantidadServicio();
     return;
