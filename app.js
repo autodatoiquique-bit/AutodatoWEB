@@ -116,6 +116,65 @@ function idsServiciosOfertaDesdeCarrito(carrito, excluirServicioId) {
   return ids;
 }
 
+function detalleComboIncluyeTicket(combo) {
+  if (!combo || typeof esServicioCombo !== "function" || !esServicioCombo(combo)) return [];
+  const pack = preciosPackCombo(combo);
+  return (pack.lineas || []).map((l) => ({
+    id: l.id,
+    nombre: l.nombre,
+    precio_lista: l.lista,
+    precio: l.pagado,
+    ahorro: l.ahorro,
+    es_regalo: Boolean(l.combo_regalo),
+    nota: l.regla && l.regla.etiqueta ? String(l.regla.etiqueta) : "",
+  }));
+}
+
+function servicioPayloadTicket(s) {
+  const base = {
+    id: s.id,
+    nombre: s.nombre + etiquetaCantidadTicket(s.cantidad),
+    cantidad: Math.max(1, Number(s.cantidad) || 1),
+    precio_lista: s.lista,
+    precio: s.pagado,
+    neto: s.neto,
+    ahorro: s.ahorro,
+    tipo: s.tipo,
+  };
+  if (s.esComboLinea || (s.es_combo && typeof esServicioCombo === "function" && esServicioCombo(s))) {
+    const combo = s.esComboLinea ? s : oferta(s.id) || s;
+    base.es_combo = true;
+    const incluye = detalleComboIncluyeTicket(combo);
+    if (incluye.length) base.combo_incluye = incluye;
+  }
+  return base;
+}
+
+function comboIncluyeParaFilaTicket(s) {
+  if (Array.isArray(s.combo_incluye) && s.combo_incluye.length) return s.combo_incluye;
+  if (s.es_combo && typeof oferta === "function" && typeof esServicioCombo === "function") {
+    const combo = oferta(s.id);
+    if (combo && esServicioCombo(combo)) return detalleComboIncluyeTicket(combo);
+  }
+  return [];
+}
+
+function htmlSubfilasComboTicket(sub) {
+  const precio =
+    sub.precio == null
+      ? "A confirmar"
+      : sub.es_regalo
+        ? "Incluido"
+        : clp(sub.precio);
+  let extra = "";
+  if (sub.es_regalo) {
+    extra = ` <span class="muted">(regalo · lista ${clp(sub.precio_lista)})</span>`;
+  } else if (sub.ahorro > 0 && sub.precio_lista != null) {
+    extra = ` <span class="muted">(lista ${clp(sub.precio_lista)} − ${clp(sub.ahorro)})</span>`;
+  }
+  return `<tr class="ticket-combo-incl"><td>↳ ${escapeHtml(sub.nombre)}${extra}</td><td>${precio}</td></tr>`;
+}
+
 function calcular(carrito = state.carrito) {
   const items = [];
   let subtotal = 0;
@@ -536,6 +595,20 @@ function syncCromo() {
   if (kpiStack) kpiStack.hidden = enAprobados;
   if (state.areaFlotas && carritoSoloFlota()) state.areaFlotas = true;
   syncAreaFlotasUi();
+  syncBotonPresupuestoSecreto();
+}
+
+function puedeGenerarPresupuestoWeb() {
+  if (!state.carrito.length) return false;
+  if (carritoSoloFlota() || carritoTieneFlota()) return false;
+  if (!vehiculoOk()) return false;
+  return true;
+}
+
+function syncBotonPresupuestoSecreto() {
+  const btn = $("btn-presupuesto-secreto");
+  if (!btn) return;
+  btn.hidden = !puedeGenerarPresupuestoWeb();
 }
 
 function marcarMenu() {
@@ -591,6 +664,7 @@ function renderTotales(animar) {
     if (ahorroKpi) ahorroKpi.hidden = false;
   }
   pintarChipAuto();
+  syncBotonPresupuestoSecreto();
   if (animar && bar) {
     bar.classList.remove("pop");
     void bar.offsetWidth;
@@ -2688,9 +2762,17 @@ function htmlPanelDatosAgenda() {
   const soloFlota = carritoSoloFlota();
   const flota = soloFlota ? flotaActivaDelCarrito() : null;
   const agendaLibre = soloFlota && flotaAgendaLibreActiva();
+  const tituloAgenda = soloFlota ? "Ticket flota y agenda" : "Tus datos y la hora";
   return `
     <section class="panel claro">
-      <h2>${soloFlota ? "Ticket flota y agenda" : "Tus datos y la hora"}</h2>
+      <div class="agenda-titulo-row">
+        ${
+          !soloFlota
+            ? `<button type="button" id="btn-presupuesto-secreto" class="btn-presupuesto-secreto" hidden aria-label="Generar presupuesto" tabindex="-1"></button>`
+            : ""
+        }
+        <h2>${tituloAgenda}</h2>
+      </div>
       ${htmlAvisoTicketCorto()}
       <p class="lead">${
         soloFlota
@@ -2712,7 +2794,20 @@ function htmlPanelDatosAgenda() {
               !soloFlota && s.ahorro > 0
                 ? `<span class="ahorro-tag">− ${clp(s.ahorro)}</span> <s>${clp(s.lista)}</s> `
                 : "";
-            return `<li class="resumen-item"><span class="resumen-nom">${s.nombre}${etiquetaCantidadTicket(s.cantidad)}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>`;
+            const subCombo =
+              !soloFlota && s.esComboLinea
+                ? detalleComboIncluyeTicket(s)
+                    .map(
+                      (sub) =>
+                        `<li class="resumen-item resumen-combo-incl"><span class="resumen-nom">↳ ${escapeHtml(sub.nombre)}</span><strong>${
+                          sub.es_regalo
+                            ? `<span class="muted">Incluido</span>`
+                            : `${sub.ahorro > 0 ? `<span class="muted"><s>${clp(sub.precio_lista)}</s></span> ` : ""}${clp(sub.precio)}`
+                        }</strong></li>`
+                    )
+                    .join("")
+                : "";
+            return `<li class="resumen-item"><span class="resumen-nom">${s.nombre}${etiquetaCantidadTicket(s.cantidad)}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>${subCombo}`;
           })
           .join("")}
         ${
@@ -2758,6 +2853,7 @@ async function renderDatosAgenda(opts = {}) {
   await refrescarAgendaAutonexus(Boolean(opts.forceAgenda));
   if (gen !== renderDatosAgendaGen) return;
   if (state.vista !== "carrito-agenda" && state.vista !== "agendamiento") return;
+  syncBotonPresupuestoSecreto();
   actualizarCalendarioAgendaEnDom();
   if (opts.scrollToTicket && state.cita.fecha && state.cita.hora) enfocarBtnTicketAgenda();
 }
@@ -3523,6 +3619,174 @@ function nuevoCodeTicket() {
   return String(n).padStart(14, "0");
 }
 
+function codigoPresupuestoWeb() {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 900000;
+  return `P${String(100000 + n)}`;
+}
+
+function buildPresupuestoBorrador(telefono) {
+  const { items, subtotal, total, ahorro } = calcular();
+  return {
+    tipo: "presupuesto",
+    origen: "autodato_web",
+    editable: false,
+    presupuesto_codigo: codigoPresupuestoWeb(),
+    marca: state.vehiculo && state.vehiculo.marca,
+    modelo: state.vehiculo && state.vehiculo.modelo,
+    ano: state.vehiculo && state.vehiculo.ano,
+    combustible: state.vehiculo && state.vehiculo.combustible,
+    nombre_cliente: state.cliente.nombre.trim() || "Cliente",
+    telefono: String(telefono || "").trim(),
+    patente: state.cliente.patente.trim().toUpperCase() || null,
+    correo: state.cliente.correo.trim() || null,
+    sintoma: (state.cliente.sintoma || "").trim() || null,
+    servicios: items.map((s) => servicioPayloadTicket(s)),
+    subtotal,
+    ahorro,
+    total,
+    creado: new Date().toISOString(),
+  };
+}
+
+function htmlResumenLineasPresupuesto(items) {
+  return items
+    .map((s) => {
+      const precio = s.pagado == null ? "A confirmar" : clp(s.pagado);
+      const desc = s.ahorro > 0 ? `<span class="muted"><s>${clp(s.lista)}</s> · −${clp(s.ahorro)}</span> ` : "";
+      const subCombo = s.esComboLinea
+        ? detalleComboIncluyeTicket(s)
+            .map(
+              (sub) =>
+                `<li class="resumen-item resumen-combo-incl"><span>↳ ${escapeHtml(sub.nombre)}</span><strong>${
+                  sub.es_regalo ? "Incluido" : clp(sub.precio)
+                }</strong></li>`
+            )
+            .join("")
+        : "";
+      return `<li class="resumen-item"><span><strong>${escapeHtml(s.nombre)}</strong></span><span>${desc}${precio}</span></li>${subCombo}`;
+    })
+    .join("");
+}
+
+function pintarModalPresupuesto() {
+  const host = $("modal-presupuesto-cuerpo");
+  if (!host) return;
+  const { items, subtotal, total, ahorro } = calcular();
+  const tel = state.cliente.telefono.trim();
+  const nom = state.cliente.nombre.trim();
+  host.innerHTML = `
+    <p class="muted">${escapeHtml(textoVehiculo())}</p>
+    <ul class="presup-resumen resumen">${htmlResumenLineasPresupuesto(items)}</ul>
+    <ul class="resumen">
+      <li><span>Lista</span><strong>${clp(subtotal)}</strong></li>
+      <li><span>Ahorro</span><strong style="color:var(--red)">${clp(ahorro)}</strong></li>
+      <li><span>Total</span><strong style="color:var(--green)">${clp(total)}</strong></li>
+    </ul>
+  <label class="field"><span>Teléfono (opcional)</span><input id="presup-telefono" type="tel" value="${escapeAttr(tel)}" inputmode="tel" autocomplete="tel" placeholder="Aparece en el archivo si lo completas" /></label>
+  ${
+    nom
+      ? `<p class="muted">Cliente: <strong>${escapeHtml(nom)}</strong></p>`
+      : `<label class="field"><span>Nombre (opcional)</span><input id="presup-nombre" type="text" value="" autocomplete="name" /></label>`
+  }
+  `;
+}
+
+function abrirModalPresupuesto() {
+  if (!puedeGenerarPresupuestoWeb()) {
+    alert("Agrega servicios y confirma el vehículo antes de generar un presupuesto.");
+    return;
+  }
+  guardarClienteDesdeForma();
+  pintarModalPresupuesto();
+  const modal = $("modal-presupuesto");
+  if (modal) modal.hidden = false;
+  const btn = $("btn-confirmar-presupuesto");
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "Generar presupuesto";
+  }
+}
+
+function cerrarModalPresupuesto() {
+  const modal = $("modal-presupuesto");
+  if (modal) modal.hidden = true;
+}
+
+function confirmarPresupuestoWeb() {
+  guardarClienteDesdeForma();
+  if (!puedeGenerarPresupuestoWeb()) {
+    alert("No hay servicios o falta el vehículo.");
+    return;
+  }
+  const telInput = $("presup-telefono");
+  const tel = ((telInput && telInput.value) || state.cliente.telefono || "").trim();
+  const nomInput = $("presup-nombre");
+  if (nomInput && nomInput.value.trim()) state.cliente.nombre = nomInput.value.trim();
+  if (tel) state.cliente.telefono = tel;
+  persistir();
+  const borrador = buildPresupuestoBorrador(tel);
+  borrador.generado_at = new Date().toISOString();
+  borrador.editable = false;
+  const hist = JSON.parse(localStorage.getItem("autodato_presupuestos") || "[]");
+  hist.unshift(borrador);
+  localStorage.setItem("autodato_presupuestos", JSON.stringify(hist.slice(0, 40)));
+  cerrarModalPresupuesto();
+  abrirPresupuesto(borrador);
+}
+
+function abrirPresupuesto(payload) {
+  const items = payload.servicios || [];
+  $("ticket-contenido").innerHTML = `
+    <div id="presupuesto-sheet" class="ticket-sheet presupuesto-sheet" data-es-presupuesto="1">
+      <div class="ticket-head">
+        <img data-logo src="${logoHref()}" alt="AutoDato" />
+      </div>
+      <div class="ticket-body">
+        <p><strong>Presupuesto AutoDato</strong></p>
+        <p class="muted">Referencia · sin validez como ticket de ingreso</p>
+        <div class="ticket-grid ticket-grid--simple">
+          <p><strong>Cliente</strong><br />${escapeHtml(payload.nombre_cliente)}${
+            payload.telefono ? `<br />${escapeHtml(payload.telefono)}` : ""
+          }${payload.patente ? `<br />Patente ${escapeHtml(payload.patente)}` : ""}</p>
+          <p><strong>Vehículo</strong><br />${escapeHtml(payload.marca)} ${escapeHtml(payload.modelo)} ${escapeHtml(payload.ano)}</p>
+          ${
+            payload.sintoma
+              ? `<p><strong>Notas</strong><br />${escapeHtml(payload.sintoma).replace(/\n/g, "<br />")}</p>`
+              : ""
+          }
+          <p class="presupuesto-codigo"><strong>Código</strong> ${escapeHtml(String(payload.presupuesto_codigo || "").trim())}</p>
+          <p class="presupuesto-aviso">Documento de solo lectura. No incluye cita ni QR de ingreso.</p>
+        </div>
+        <table class="ticket-table">
+          ${items
+            .map((s) => {
+              const precio = s.precio == null ? "A confirmar" : clp(s.precio);
+              const extra =
+                s.ahorro > 0 ? ` <span class="muted">(${clp(s.precio_lista)} − ${clp(s.ahorro)})</span>` : "";
+              const fila = `<tr class="${s.es_combo ? "ticket-combo-head" : ""}"><td>${escapeHtml(s.nombre)}${extra}${
+                s.es_combo ? ` <span class="tag tag-combo">Combo</span>` : ""
+              }</td><td>${precio}</td></tr>`;
+              const subfilas = s.es_combo ? comboIncluyeParaFilaTicket(s).map(htmlSubfilasComboTicket).join("") : "";
+              return fila + subfilas;
+            })
+            .join("")}
+          <tr><td>Subtotal lista</td><td>${clp(payload.subtotal)}</td></tr>
+          <tr><td>Ahorro</td><td>${clp(payload.ahorro)}</td></tr>
+          <tr><td>Total</td><td>${clp(payload.total)}</td></tr>
+        </table>
+        <p class="muted" style="margin-top:10px">Válido como referencia de precios. Descárgalo en imagen o PDF.</p>
+      </div>
+    </div>
+    <div class="ticket-acciones">
+      <button class="btn-green btn-block" type="button" id="btn-guardar-presupuesto" data-guardar-presupuesto>Guardar imagen</button>
+      <button class="btn-soft btn-block" type="button" data-descargar-presupuesto-pdf>Descargar PDF</button>
+      <button class="btn-soft btn-block" type="button" data-close>Cerrar</button>
+    </div>
+  `;
+  abrir("ticket");
+  syncSeguirKpi();
+}
+
 async function enviarTicketAutonexus(payload) {
   try {
     const r = await fetch("/api/autonexus-ticket", {
@@ -3674,16 +3938,7 @@ async function generarTicket() {
     agenda_flota_libre: soloFlota && flotaAgendaLibreActiva(),
     fecha_cita: state.cita.fecha,
     hora: state.cita.hora,
-    servicios: items.map((s) => ({
-      id: s.id,
-      nombre: s.nombre + etiquetaCantidadTicket(s.cantidad),
-      cantidad: Math.max(1, Number(s.cantidad) || 1),
-      precio_lista: s.lista,
-      precio: s.pagado,
-      neto: s.neto,
-      ahorro: s.ahorro,
-      tipo: s.tipo,
-    })),
+    servicios: items.map((s) => servicioPayloadTicket(s)),
     neto: soloFlota ? netoFlota : null,
     traslado:
       soloFlota && netoFlota >= TRASLADO_MIN_NETO_FLOTA && state.trasladoFlota ? "si" : soloFlota ? "no" : "",
@@ -3836,7 +4091,12 @@ async function abrirTicket(payload) {
                 !ticketFlota && s.ahorro > 0
                   ? ` <span class="muted">(${clp(s.precio_lista)} − ${clp(s.ahorro)})</span>`
                   : "";
-              return `<tr><td>${s.nombre}${extra}</td><td>${precio}</td></tr>`;
+              const fila = `<tr class="${s.es_combo ? "ticket-combo-head" : ""}"><td>${escapeHtml(s.nombre)}${extra}${
+                s.es_combo ? ` <span class="tag tag-combo">Combo</span>` : ""
+              }</td><td>${precio}</td></tr>`;
+              const subfilas =
+                !ticketFlota && s.es_combo ? comboIncluyeParaFilaTicket(s).map(htmlSubfilasComboTicket).join("") : "";
+              return fila + subfilas;
             })
             .join("")}
           ${
@@ -3902,8 +4162,23 @@ async function asegurarLibsTicket() {
   ]);
 }
 
+async function asegurarLibsPresupuesto() {
+  await cargarScriptTicket("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+  if (!window.jspdf) {
+    await cargarScriptTicket("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  }
+}
+
+function codigoArchivoPresupuesto(hoja) {
+  if (!hoja) return String(Date.now());
+  const el = hoja.querySelector(".presupuesto-codigo");
+  const txt = el ? String(el.textContent || "").replace(/[^\dPp]/g, "") : "";
+  const m = txt.match(/P?\d+/);
+  return (m && m[0]) || String(Date.now());
+}
+
 async function fotoDelTicket() {
-  const hoja = $("ticket-sheet");
+  const hoja = $("presupuesto-sheet") || $("ticket-sheet");
   if (!hoja) throw new Error("sin ticket");
   await asegurarLibsTicket();
   if (!window.html2canvas) throw new Error("sin html2canvas");
@@ -3916,17 +4191,23 @@ async function fotoDelTicket() {
   const blob = await new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("sin imagen"))), "image/png");
   });
-  const codeEl = hoja.querySelector(".ticket-code");
-  const code = String(
-    (codeEl && codeEl.getAttribute("data-ticket-code")) ||
-      (codeEl && codeEl.querySelector(".ticket-code-num") && codeEl.querySelector(".ticket-code-num").textContent) ||
-      (codeEl && codeEl.textContent) ||
-      ""
-  )
-    .replace(/\D/g, "")
-    .slice(-14);
-  const nombre = `ticket-autodato-${code || Date.now()}.png`;
-  return { blob, file: new File([blob], nombre, { type: "image/png" }), nombre };
+  const esPresup = hoja.id === "presupuesto-sheet" || hoja.classList.contains("presupuesto-sheet");
+  let nombre;
+  if (esPresup) {
+    nombre = `presupuesto-autodato-${codigoArchivoPresupuesto(hoja)}.png`;
+  } else {
+    const codeEl = hoja.querySelector(".ticket-code");
+    const code = String(
+      (codeEl && codeEl.getAttribute("data-ticket-code")) ||
+        (codeEl && codeEl.querySelector(".ticket-code-num") && codeEl.querySelector(".ticket-code-num").textContent) ||
+        (codeEl && codeEl.textContent) ||
+        ""
+    )
+      .replace(/\D/g, "")
+      .slice(-14);
+    nombre = `ticket-autodato-${code || Date.now()}.png`;
+  }
+  return { blob, file: new File([blob], nombre, { type: "image/png" }), nombre, canvas };
 }
 
 function bajarBlob(blob, nombre) {
@@ -3956,6 +4237,62 @@ async function compartirArchivo(file, text) {
     text: msg,
   });
   return true;
+}
+
+async function descargarPresupuestoImagen() {
+  const btn = $("btn-guardar-presupuesto");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Preparando imagen…";
+  }
+  try {
+    const { blob, file, nombre } = await fotoDelTicket();
+    if (esIos() && (await compartirArchivo(file, "Presupuesto AutoDato"))) return;
+    await bajarBlob(blob, nombre);
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+    console.warn("No se pudo guardar el presupuesto.", e);
+    alert("No se pudo generar la imagen. Intenta de nuevo.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Guardar imagen";
+    }
+  }
+}
+
+async function descargarPresupuestoPdf() {
+  const hoja = $("presupuesto-sheet");
+  if (!hoja) {
+    alert("No hay presupuesto abierto.");
+    return;
+  }
+  try {
+    await asegurarLibsPresupuesto();
+    if (!window.html2canvas || !window.jspdf) throw new Error("libs");
+    const canvas = await html2canvas(hoja, {
+      scale: esMovil() ? 1.5 : 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      logging: false,
+    });
+    const imgData = canvas.toDataURL("image/png");
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+    const margin = 28;
+    const iw = canvas.width;
+    const ih = canvas.height;
+    const scale = Math.min((pw - margin * 2) / iw, (ph - margin * 2) / ih);
+    const w = iw * scale;
+    const h = ih * scale;
+    pdf.addImage(imgData, "PNG", (pw - w) / 2, margin, w, h);
+    pdf.save(`presupuesto-autodato-${codigoArchivoPresupuesto(hoja)}.pdf`);
+  } catch (e) {
+    console.warn("No se pudo generar el PDF.", e);
+    alert("No se pudo generar el PDF. Intenta guardar la imagen.");
+  }
 }
 
 async function descargarTicket() {
@@ -4005,6 +4342,7 @@ function cerrar() {
   $("modal-horas").hidden = true;
   $("modal-kpi").hidden = true;
   $("modal-quitar").hidden = true;
+  cerrarModalPresupuesto();
   if ($("modal-sustituir-aceite")) $("modal-sustituir-aceite").hidden = true;
   if ($("modal-cantidad-servicio")) $("modal-cantidad-servicio").hidden = true;
   $("modal-informe").hidden = true;
@@ -4043,7 +4381,7 @@ document.addEventListener(
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], [data-abrir-aprobado-slug], [data-volver-aprobados], [data-aprobado-foto-dir], [data-aprobado-foto-idx], [data-aprobado-zoom-main], [data-aprobado-ampliar-url], #btn-ticket, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-cerrar-presupuesto], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-guardar-presupuesto], [data-descargar-presupuesto-pdf], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], [data-abrir-aprobado-slug], [data-volver-aprobados], [data-aprobado-foto-dir], [data-aprobado-foto-idx], [data-aprobado-zoom-main], [data-aprobado-ampliar-url], #btn-ticket, #btn-presupuesto-secreto, #btn-confirmar-presupuesto, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -4135,7 +4473,7 @@ document.addEventListener("click", (e) => {
   if (t.id === "chip-auto" || t.hasAttribute("data-editar-auto")) abrirModalAuto();
   if (t.hasAttribute("data-cerrar-auto")) cerrarModalAuto();
   if (t.hasAttribute("data-close")) cerrar();
-  if (t.hasAttribute("data-guardar-ticket")) descargarTicket();
+  if (t.hasAttribute("data-guardar-ticket") && !$("presupuesto-sheet")) descargarTicket();
   if (t.hasAttribute("data-compartir-ticket")) compartirTicket();
   if (t.dataset.portadaOferta) void iniciarOfertaDesdePortada(t.dataset.portadaOferta);
   if (t.dataset.abrirAprobadoSlug) void abrirAprobadoPorSlug(t.dataset.abrirAprobadoSlug);
@@ -4157,6 +4495,11 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
   if (t.hasAttribute("data-cerrar-ticket-error")) cerrarModalErrorTicket();
+  if (t.hasAttribute("data-cerrar-presupuesto")) cerrarModalPresupuesto();
+  if (t.id === "btn-presupuesto-secreto") abrirModalPresupuesto();
+  if (t.id === "btn-confirmar-presupuesto") confirmarPresupuestoWeb();
+  if (t.hasAttribute("data-guardar-presupuesto")) void descargarPresupuestoImagen();
+  if (t.hasAttribute("data-descargar-presupuesto-pdf")) void descargarPresupuestoPdf();
   if (t.hasAttribute("data-confirmar-quitar")) confirmarQuitar();
   if (t.hasAttribute("data-cerrar-sustituir-aceite")) cerrarModalSustituirAceite();
   if (t.hasAttribute("data-confirmar-cantidad-servicio")) confirmarCantidadServicio();

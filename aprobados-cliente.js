@@ -403,6 +403,17 @@ function urlStoryCompartirAbsolutaAprobado(v) {
   return `${window.location.origin}${path}`;
 }
 
+async function copiarUrlFichaAprobado(url) {
+  if (!url) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
 async function compartirFichaAprobado(v) {
   if (!v) return;
   const slug = String(v.public_slug || "").trim();
@@ -411,6 +422,7 @@ async function compartirFichaAprobado(v) {
   const title = tituloLargoAprobado(v);
   const text = `Auto certificado por AutoDato: ${title}`;
   const caption = `${text}\n${url}`;
+  const tituloShare = `${title} — AutoDato`;
   try {
     if (navigator.share) {
       const storyUrl = urlStoryCompartirAbsolutaAprobado(v);
@@ -422,18 +434,28 @@ async function compartirFichaAprobado(v) {
             const file = new File([blob], "autodato-certificado.jpg", {
               type: blob.type && /^image\//.test(blob.type) ? blob.type : "image/jpeg",
             });
-            const payload = { files: [file], title: `${title} — AutoDato`, text: caption };
-            if (!navigator.canShare || navigator.canShare(payload)) {
-              await navigator.share(payload);
-              registrarCompartirAprobado(slug);
-              return;
+            const intentos = [
+              { files: [file], url, title: tituloShare },
+              { files: [file], url, title: tituloShare, text: url },
+              { files: [file], title: tituloShare },
+            ];
+            for (const payload of intentos) {
+              if (navigator.canShare && !navigator.canShare(payload)) continue;
+              try {
+                await navigator.share(payload);
+                await copiarUrlFichaAprobado(url);
+                registrarCompartirAprobado(slug);
+                return;
+              } catch (inner) {
+                if (inner && inner.name === "AbortError") return;
+              }
             }
           }
         } catch (inner) {
           if (inner && inner.name === "AbortError") return;
         }
       }
-      await navigator.share({ title: `${title} — AutoDato`, text: caption, url });
+      await navigator.share({ title: tituloShare, text: caption, url });
       registrarCompartirAprobado(slug);
       return;
     }

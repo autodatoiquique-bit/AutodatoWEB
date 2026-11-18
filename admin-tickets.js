@@ -164,7 +164,33 @@ function htmlDetalleTicket(row) {
       } else if (s.precio != null) {
         precio = typeof clp === "function" ? clp(Number(s.precio)) : String(s.precio);
       }
-      return `<tr><td>${nom}</td><td>${escapeText(precio)}</td></tr>`;
+      const fila = `<tr><td>${nom}${s.es_combo ? ` <span class="tag tag-combo">Combo</span>` : ""}</td><td>${escapeText(precio)}</td></tr>`;
+      const sub =
+        Array.isArray(s.combo_incluye) && s.combo_incluye.length
+          ? s.combo_incluye
+              .map((sub) => {
+                const sn = escapeText(String((sub && sub.nombre) || "Ítem"));
+                let sp = "—";
+                if (sub.es_regalo) {
+                  sp =
+                    typeof clp === "function"
+                      ? `Incluido (lista ${clp(Number(sub.precio_lista) || 0)})`
+                      : "Incluido";
+                } else if (sub.precio != null) {
+                  const pagado = typeof clp === "function" ? clp(Number(sub.precio)) : String(sub.precio);
+                  const lista =
+                    sub.precio_lista != null && Number(sub.precio_lista) !== Number(sub.precio)
+                      ? typeof clp === "function"
+                        ? ` · lista ${clp(Number(sub.precio_lista))}`
+                        : ` · lista ${sub.precio_lista}`
+                      : "";
+                  sp = `${pagado}${lista}`;
+                }
+                return `<tr class="tickets-combo-incl"><td>↳ ${sn}</td><td>${escapeText(sp)}</td></tr>`;
+              })
+              .join("")
+          : "";
+      return fila + sub;
     })
     .join("");
   return `

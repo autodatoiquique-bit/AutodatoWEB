@@ -238,6 +238,49 @@ button { font-family: inherit; cursor: pointer; }
 }
 .top-bar-cliente { display: contents; }
 
+.agenda-titulo-row {
+  position: relative;
+}
+.agenda-titulo-row .btn-presupuesto-secreto {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 2px);
+  height: 36px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: default;
+  z-index: 5;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-presupuesto-secreto:not([hidden]) {
+  pointer-events: auto;
+}
+.presupuesto-sheet .ticket-grid--simple {
+  display: block;
+}
+.presupuesto-sheet .presupuesto-codigo {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+}
+.presupuesto-sheet .presupuesto-aviso {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.modal-presupuesto-card .presup-resumen {
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.modal-presupuesto-card .presup-resumen .resumen-combo-incl {
+  margin-left: 8px;
+}
+
 .kpi-stack {
   position: fixed;
   top: 16px;
@@ -1791,6 +1834,11 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 .ticket-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .ticket-table td { padding: 7px 0; border-bottom: 1px solid #eee; }
 .ticket-table td:last-child { text-align: right; font-weight: 700; }
+.ticket-table tr.ticket-combo-incl td { font-size: 0.82rem; font-weight: 500; color: #444; border-bottom-style: dashed; }
+.ticket-table tr.ticket-combo-incl td:first-child { padding-left: 10px; }
+.resumen-combo-incl { font-size: 0.9rem; opacity: 0.92; }
+.resumen-combo-incl .resumen-nom { font-weight: 500; }
+.tickets-combo-incl td { font-size: 0.88rem; color: #555; }
 
 .home-portada-strip {
   display: none;

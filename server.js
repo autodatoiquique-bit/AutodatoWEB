@@ -128,6 +128,37 @@ function tokenSalfaAutonexus() {
   return String(process.env.AUTONEXUS_SALFA_WEBHOOK_TOKEN || TOKEN_SALFA_DEFAULT).trim();
 }
 
+function textoSubitemComboAutonexus(sub) {
+  const nombre = String((sub && sub.nombre) || "Ítem").trim();
+  const p = sub && sub.precio != null ? Number(sub.precio) : NaN;
+  const pl = sub && sub.precio_lista != null ? Number(sub.precio_lista) : NaN;
+  let ptxt = "A confirmar";
+  if (Number.isFinite(p)) {
+    if (p === 0 && sub && sub.es_regalo) ptxt = "incluido (regalo)";
+    else ptxt = `$${Math.round(p)}`;
+  }
+  const listaTxt =
+    Number.isFinite(pl) && (!Number.isFinite(p) || pl !== p) ? `, lista $${Math.round(pl)}` : "";
+  return `   · ${nombre} ${ptxt}${listaTxt}`;
+}
+
+function textoLineaServicioAutonexus(s, index, usarNeto) {
+  const precioRef = usarNeto
+    ? s.neto != null
+      ? Number(s.neto)
+      : Number(s.precio)
+    : s.precio != null
+      ? Number(s.precio)
+      : NaN;
+  const txt = Number.isFinite(precioRef) ? `$${Math.round(precioRef)}` : "A confirmar";
+  let line = `${index + 1}. ${s.nombre} ${txt}`;
+  const incluye = Array.isArray(s.combo_incluye) ? s.combo_incluye : [];
+  if (incluye.length) {
+    line += `\n${incluye.map(textoSubitemComboAutonexus).join("\n")}`;
+  }
+  return line;
+}
+
 function fechaEntregaDmyHora(fechaIso, hora) {
   const f = fechaDmy(fechaIso);
   const h = String(hora || "").trim();
@@ -144,13 +175,7 @@ function cuerpoAutonexusSalfa(payload, token) {
     .toUpperCase();
   const nombre = String(payload.nombre_cliente || "").trim();
   const telefono = telefonoLimpio(payload.telefono);
-  const servicios = items
-    .map((s, i) => {
-      const precioNeto = s.neto != null ? Number(s.neto) : Number(s.precio);
-      const txt = Number.isFinite(precioNeto) ? String(Math.round(precioNeto)) : "A confirmar";
-      return `${i + 1}. ${s.nombre} $${txt}`;
-    })
-    .join("\n");
+  const servicios = items.map((s, i) => textoLineaServicioAutonexus(s, i, true)).join("\n");
   const vehiculoDetalle = [payload.marca, payload.modelo, payload.ano].filter(Boolean).join(" ").trim();
   const vehiculo = vehiculoDetalle || (patente ? `SALFA ${patente}` : "SALFA");
   const canal = String(payload.canal_webhook || "SALFA").trim() || "SALFA";
@@ -298,12 +323,7 @@ function cuerpoAutonexus(payload, token, idTaller) {
   const total = Number(payload.total);
   const ahorro = Number(payload.ahorro) || 0;
   const marca = [payload.marca, payload.modelo, payload.ano].filter(Boolean).join(" ");
-  const servicios = items
-    .map((s, i) => {
-      const precio = s.precio == null ? "A confirmar" : String(s.precio);
-      return `${i + 1}. ${s.nombre} $${precio}`;
-    })
-    .join("\n");
+  const servicios = items.map((s, i) => textoLineaServicioAutonexus(s, i, false)).join("\n");
   return {
     accion: "crear_ticket",
     token,

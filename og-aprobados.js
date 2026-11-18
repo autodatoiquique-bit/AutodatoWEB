@@ -14,7 +14,7 @@ const STORY_FOOTER_H = 380;
 const STORY_PHOTO_H = STORY_H - STORY_FOOTER_H;
 const CACHE_MS = 60 * 60 * 1000;
 const CACHE_VERSION = 2;
-const STORY_CACHE_VERSION = 1;
+const STORY_CACHE_VERSION = 2;
 const ogCache = new Map();
 const storyCache = new Map();
 
@@ -87,9 +87,35 @@ function svgStoryPie(titulo, urlFicha, folio) {
   <text x="540" y="42" text-anchor="middle" fill="#111111" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="800" letter-spacing="1">REVISADO Y APROBADO POR AUTODATO</text>
   <text x="540" y="118" text-anchor="middle" fill="#ffffff" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="800">${t}</text>
   ${f ? `<text x="540" y="158" text-anchor="middle" fill="#bbbbbb" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="700">${f}</text>` : ""}
-  <text x="540" y="${f ? 210 : 178}" text-anchor="middle" fill="#ffc400" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="800">${u}</text>
-  <text x="540" y="${f ? 262 : 230}" text-anchor="middle" fill="#cccccc" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="600">Auto certificado · abre el enlace para ver informe completo</text>
+  <rect x="165" y="${f ? 188 : 156}" width="750" height="76" rx="38" fill="#ffc400"/>
+  <text x="540" y="${f ? 238 : 206}" text-anchor="middle" fill="#111111" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="800">ABRIR FICHA EN AUTODATO</text>
+  <text x="540" y="${f ? 298 : 266}" text-anchor="middle" fill="#888888" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="600">${u}</text>
+  <text x="540" y="${f ? 342 : 310}" text-anchor="middle" fill="#cccccc" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="600">Toca el sticker de enlace al publicar (la URL se copia sola)</text>
 </svg>`);
+}
+
+async function capaFotoStoryConDifuminado(raw) {
+  const zoneW = STORY_W;
+  const zoneH = STORY_PHOTO_H;
+  const bg = await sharp(raw)
+    .resize(zoneW, zoneH, { fit: "cover", position: "centre" })
+    .blur(32)
+    .modulate({ brightness: 0.4, saturation: 0.9 })
+    .jpeg()
+    .toBuffer();
+  const fg = await sharp(raw)
+    .resize(zoneW, zoneH, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const meta = await sharp(fg).metadata();
+  const h = meta.height || zoneH;
+  const w = meta.width || zoneW;
+  const top = Math.max(0, Math.floor((zoneH - h) / 2));
+  const left = Math.max(0, Math.floor((zoneW - w) / 2));
+  return sharp(bg)
+    .composite([{ input: fg, top, left }])
+    .jpeg({ quality: 90 })
+    .toBuffer();
 }
 
 async function renderStoryShareJpeg(slug) {
@@ -104,7 +130,7 @@ async function renderStoryShareJpeg(slug) {
   if (portada) {
     try {
       const raw = await descargarBuffer(portada);
-      foto = await sharp(raw).resize(STORY_W, STORY_PHOTO_H, { fit: "cover", position: "attention" }).toBuffer();
+      foto = await capaFotoStoryConDifuminado(raw);
     } catch (_e) {
       foto = null;
     }
