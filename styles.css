@@ -205,7 +205,7 @@ button { font-family: inherit; cursor: pointer; }
   min-height: 44px;
 }
 .perfil-auto[hidden] { display: none !important; }
-.perfil-auto.chip-auto-bloqueado { cursor: default; opacity: 0.92; }
+.perfil-auto.chip-auto-bloqueado { cursor: pointer; opacity: 0.96; }
 .perfil-auto .kpi-cart {
   overflow: hidden;
   background: #fff;
@@ -225,6 +225,15 @@ button { font-family: inherit; cursor: pointer; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.modal-cambio-auto-lead {
+  margin: 0 0 16px;
+  line-height: 1.45;
+}
+.modal-cambio-auto-lead strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+
 .filtro-foto {
   margin-top: 16px;
   text-align: center;
@@ -485,6 +494,22 @@ body.hay-perfil .panel { padding-top: 88px; }
 }
 
 .seguir-kpi[hidden] { display: none; }
+
+.btn-volver-kpi {
+  width: 100%;
+  border: 2px solid var(--yellow);
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
+.btn-volver-kpi[hidden] { display: none; }
 
 .totales-bar span {
   display: block;
@@ -824,7 +849,52 @@ body.hay-perfil .panel { padding-top: 88px; }
 .tag-agotado { background: #dfe1e6; color: #42526e; }
 .tag-stock { background: #fff0b3; color: #172b4d; }
 .detalle-stock { margin: 0 0 8px; }
-.detalle-copy .btn-volver-catalogo { margin-top: 20px; margin-bottom: 8px; }
+.btn-volver-catalogo-flotante {
+  position: fixed;
+  left: 14px;
+  right: 14px;
+  bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+  z-index: 95;
+  display: block;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 2px solid #111;
+  background: var(--yellow);
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.94rem;
+  letter-spacing: 0.02em;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+  cursor: pointer;
+}
+
+.btn-volver-catalogo-flotante[hidden] {
+  display: none !important;
+}
+
+body.en-detalle-catalogo .detalle-copy {
+  padding-bottom: calc(128px + env(safe-area-inset-bottom, 0px));
+}
+
+body.en-detalle-catalogo.teclado-abierto .btn-volver-catalogo-flotante {
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 861px) {
+  .btn-volver-catalogo-flotante {
+    left: auto;
+    right: 20px;
+    bottom: 20px;
+    width: auto;
+    min-width: 240px;
+    max-width: 320px;
+  }
+  body.en-detalle-catalogo .detalle-copy {
+    padding-bottom: 48px;
+  }
+}
 .card-agotado { opacity: 0.92; }
 .card-agotado .card-photo { filter: grayscale(0.35); }
 .tag-agotado-detalle { font-size: 0.95rem; padding: 10px 14px; border-radius: 999px; }
@@ -1352,6 +1422,19 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
   overflow: hidden;
   scroll-snap-align: start;
   background: #000;
+}
+.detalle-slide .detalle-foto-zoom-hit {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  -webkit-tap-highlight-color: transparent;
 }
 .detalle-slide .home-foto,
 .servicio-video {
@@ -2065,6 +2148,31 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
     max-width: calc(100vw - 168px);
     min-height: 44px;
     padding: 5px 10px 5px 5px;
+  }
+  body.hay-perfil-portada.en-portada .perfil-auto {
+    position: fixed;
+    left: 10px;
+    right: auto;
+    top: calc(var(--portada-banner-h, 72px) + 8px);
+    z-index: 85;
+    max-width: min(56vw, 210px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+  body.hay-perfil-portada.en-portada .top-bar-cliente .perfil-auto {
+    position: fixed;
+    left: 10px;
+    right: auto;
+  }
+  .perfil-auto.perfil-auto-invita .kpi-cart {
+    background: #2a2a2a;
+    box-shadow: inset 0 0 0 1px rgba(255, 196, 0, 0.35);
+  }
+  .perfil-auto.perfil-auto-invita .kpi-cart::before {
+    content: "";
+    width: 18px;
+    height: 18px;
+    background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffc400' stroke-width='2'%3E%3Cpath d='M5 11h14l-1.5 5H6.5L5 11Z'/%3E%3Ccircle cx='7.5' cy='17' r='1.5'/%3E%3Ccircle cx='16.5' cy='17' r='1.5'/%3E%3Cpath d='M3 11l2-4h14l2 4'/%3E%3C/svg%3E");
+    display: block;
   }
   .perfil-nom { font-size: 0.72rem; }
   body.hay-perfil .panel { padding-top: 72px; }
@@ -3106,6 +3214,80 @@ body.aprobados-lb-abierto {
 .aprobados-lb-prev { left: 10px; }
 .aprobados-lb-next { right: 10px; }
 .aprobados-lb-count {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.servicio-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.servicio-lightbox[hidden] {
+  display: none !important;
+}
+body.servicio-lb-abierto {
+  overflow: hidden;
+}
+.servicio-lb-viewport {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+  overflow: hidden;
+}
+.servicio-lb-viewport img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  will-change: transform;
+  user-select: none;
+}
+.servicio-lb-close {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.servicio-lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 1.5rem;
+}
+.servicio-lb-prev { left: 10px; }
+.servicio-lb-next { right: 10px; }
+.servicio-lb-count {
   position: absolute;
   bottom: max(16px, env(safe-area-inset-bottom, 0px));
   left: 50%;

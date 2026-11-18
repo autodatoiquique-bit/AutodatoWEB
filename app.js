@@ -322,14 +322,23 @@ function pintarChipAuto() {
   const chip = $("chip-auto");
   const src = fotoVehiculoActual();
   const fichaAbierta = Boolean($("modal-informe") && !$("modal-informe").hidden);
-  const mostrar = Boolean(vehiculoOk() && vistaConPerfilModelo() && !fichaAbierta);
+  const enPortada = state.vista === "portada";
+  const mostrar = enPortada
+    ? !fichaAbierta
+    : Boolean(vehiculoOk() && vistaConPerfilModelo() && !fichaAbierta);
   document.body.classList.toggle("hay-auto", vehiculoOk());
-  document.body.classList.toggle("hay-perfil", mostrar);
+  document.body.classList.toggle("hay-perfil", mostrar && !enPortada);
+  document.body.classList.toggle("hay-perfil-portada", mostrar && enPortada);
   if (!chip) return;
   chip.hidden = !mostrar;
   const bloqueado = carritoBloqueaCambioAuto();
   chip.classList.toggle("chip-auto-bloqueado", bloqueado);
-  chip.title = bloqueado ? "Quita servicios del ticket para cambiar de vehículo" : "Cambiar vehículo";
+  chip.classList.toggle("perfil-auto-invita", enPortada && !vehiculoOk());
+  chip.title = bloqueado
+    ? "Toca para cambiar de vehículo o vaciar el carrito"
+    : vehiculoOk()
+      ? "Cambiar vehículo"
+      : "Elegir tu vehículo";
   if (!mostrar) return;
   const foto = $("perfil-auto-foto");
   if (foto) {
@@ -337,22 +346,42 @@ function pintarChipAuto() {
     if (src) foto.src = src;
   }
   const texto = $("chip-auto-texto");
-  if (texto) texto.textContent = textoVehiculoCorto();
+  if (texto) texto.textContent = vehiculoOk() ? textoVehiculoCorto() : "Elegir tu auto";
 }
 
 function carritoBloqueaCambioAuto() {
   return state.carrito.length > 0;
 }
 
-function avisoCambioAutoConCarrito() {
-  alert(
-    "Tienes servicios en tu ticket. Los precios dependen del vehículo que elegiste. Quítalos o genera el ticket antes de cambiar de auto."
-  );
+function abrirModalCambioAutoCarrito() {
+  const el = $("modal-cambio-auto-carrito");
+  if (!el) return;
+  const veh = $("cambio-auto-carrito-veh");
+  if (veh) veh.textContent = vehiculoOk() ? textoVehiculo() : "el actual";
+  el.hidden = false;
+  if ($("overlay")) $("overlay").hidden = false;
+}
+
+function cerrarModalCambioAutoCarrito() {
+  const el = $("modal-cambio-auto-carrito");
+  if (el) el.hidden = true;
+  if (overlayLibre()) {
+    if ($("overlay")) $("overlay").hidden = true;
+  }
+}
+
+function vaciarCarritoYCambiarAuto() {
+  cerrarModalCambioAutoCarrito();
+  vaciarCarritoSilencioso();
+  pintarChipAuto();
+  syncSeguirKpi();
+  renderVista({ quedarse: true });
+  abrirModalAuto();
 }
 
 function abrirModalAuto() {
   if (carritoBloqueaCambioAuto()) {
-    avisoCambioAutoConCarrito();
+    abrirModalCambioAutoCarrito();
     return;
   }
   if (!$("modal-auto-cuerpo")) return;
@@ -633,6 +662,20 @@ function ticketAbierto() {
   return Boolean($("drawer-ticket") && !$("drawer-ticket").hidden);
 }
 
+function enVistaDetalleCatalogo_() {
+  const v = state.vista;
+  return v === "oferta-detalle" || v === "filtro-oferta" || v === "flotas-servicio-detalle";
+}
+
+function volverDesdeKpiCatalogo_() {
+  if (state.vista === "flotas-servicio-detalle") {
+    state.vista = "flotas-servicios";
+    renderVista();
+    return;
+  }
+  volverAlCatalogoDesdeDetalle();
+}
+
 function syncSeguirKpi() {
   const historial = Boolean($("modal-informe") && !$("modal-informe").hidden);
   const enPortada = state.vista === "portada";
@@ -640,9 +683,18 @@ function syncSeguirKpi() {
   const stack = document.querySelector(".kpi-stack");
   if (stack) stack.hidden = historial || enPortada || ticket;
   const btn = $("btn-seguir-kpi");
-  if (!btn) return;
-  const enAgenda = state.vista === "agendamiento" || state.vista === "carrito-agenda";
-  btn.hidden = historial || ticket || !enAgenda;
+  if (btn) {
+    const enAgenda = state.vista === "agendamiento" || state.vista === "carrito-agenda";
+    btn.hidden = historial || ticket || !enAgenda;
+  }
+  const btnVolver = $("btn-volver-kpi");
+  if (btnVolver) {
+    btnVolver.hidden = historial || ticket || !enVistaDetalleCatalogo_();
+  }
+  const mostrarDetalleCat = !historial && !ticket && enVistaDetalleCatalogo_();
+  const btnFlo = $("btn-volver-catalogo-flotante");
+  if (btnFlo) btnFlo.hidden = !mostrarDetalleCat;
+  document.body.classList.toggle("en-detalle-catalogo", mostrarDetalleCat);
 }
 
 function renderTotales(animar) {
@@ -1562,9 +1614,11 @@ function renderPortada() {
             .join("")}
         </div>`
       : "";
+  const bannerH = bannerAltoPortada(portadaUi);
+  document.documentElement.style.setProperty("--portada-banner-h", `${bannerH}px`);
   $("stage").innerHTML = `
     <section class="home-screen${clasePortada}">
-      <header class="home-logo" style="height:${bannerAltoPortada(portadaUi)}px">
+      <header class="home-logo" style="height:${bannerH}px">
         <img data-logo src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
       </header>
       <div class="home-slides" id="home-slides">${pista.map((s, i) => htmlSlidePortada(s, i, indicePrincipal)).join("")}</div>
@@ -2115,19 +2169,23 @@ function renderDetalleOferta() {
           </div>
           ${esCombo && enCarro ? htmlComboExtrasEnDetalle(s) : ""}
           ${esCombo ? "" : htmlSumaRelacionados(s, enCarro)}
-          <button class="btn-line btn-block btn-volver-catalogo" type="button" data-volver-catalogo>Volver al catálogo</button>
         </div>
       </div>
     </article>
   `;
   armarCarruselDetalle();
+  syncSeguirKpi();
 }
 
 function htmlSlideMediaServicio(m) {
   if (m.tipo === "video") {
     return `<article class="detalle-slide"><video class="servicio-video" src="${m.src}" playsinline muted controls preload="metadata"></video></article>`;
   }
-  return `<article class="detalle-slide"><img class="home-foto" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" /></article>`;
+  return `<article class="detalle-slide">
+    <button type="button" class="detalle-foto-zoom-hit" data-detalle-foto-zoom="${escapeAttr(m.src)}" aria-label="Ampliar foto">
+      <img class="home-foto" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" draggable="false" />
+    </button>
+  </article>`;
 }
 
 function htmlCarruselServicio(s) {
@@ -2144,6 +2202,215 @@ function htmlCarruselServicio(s) {
       }
     </div>
   `;
+}
+
+const servicioLb = {
+  urls: [],
+  idx: 0,
+  scale: 1,
+  tx: 0,
+  ty: 0,
+  pointers: new Map(),
+  pinchStartDist: 0,
+  pinchStartScale: 1,
+};
+
+function distanciaPinchServicioLb() {
+  const pts = [...servicioLb.pointers.values()];
+  if (pts.length < 2) return 0;
+  return Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+}
+
+function aplicarTransformLightboxServicio(img) {
+  if (!img) return;
+  img.style.transform = `translate3d(${servicioLb.tx}px, ${servicioLb.ty}px, 0) scale(${servicioLb.scale})`;
+}
+
+function resetLightboxTransformServicio() {
+  servicioLb.scale = 1;
+  servicioLb.tx = 0;
+  servicioLb.ty = 0;
+  servicioLb.pointers.clear();
+}
+
+function asegurarLightboxServicio() {
+  let root = document.getElementById("servicio-lightbox");
+  if (root) return root;
+  root = document.createElement("div");
+  root.id = "servicio-lightbox";
+  root.className = "servicio-lightbox";
+  root.hidden = true;
+  root.innerHTML = `
+    <button type="button" class="servicio-lb-close" data-servicio-lb-close aria-label="Cerrar">×</button>
+    <div class="servicio-lb-viewport" data-servicio-lb-viewport>
+      <img src="" alt="" data-servicio-lb-img draggable="false" />
+    </div>
+    <button type="button" class="servicio-lb-nav servicio-lb-prev" data-servicio-lb-dir="-1" aria-label="Anterior">‹</button>
+    <button type="button" class="servicio-lb-nav servicio-lb-next" data-servicio-lb-dir="1" aria-label="Siguiente">›</button>
+    <span class="servicio-lb-count" data-servicio-lb-count hidden></span>`;
+  document.body.appendChild(root);
+  root.querySelector("[data-servicio-lb-close]")?.addEventListener("click", cerrarLightboxServicio);
+  root.addEventListener("click", (e) => {
+    if (e.target === root) cerrarLightboxServicio();
+  });
+  root.querySelectorAll("[data-servicio-lb-dir]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      pasarLightboxServicio(Number(btn.getAttribute("data-servicio-lb-dir")));
+    });
+  });
+  const vp = root.querySelector("[data-servicio-lb-viewport]");
+  const img = root.querySelector("[data-servicio-lb-img]");
+  if (vp && img) {
+    vp.addEventListener(
+      "touchstart",
+      (e) => {
+        for (const t of e.changedTouches) servicioLb.pointers.set(t.identifier, { x: t.clientX, y: t.clientY });
+        if (servicioLb.pointers.size === 2) {
+          servicioLb.pinchStartDist = distanciaPinchServicioLb();
+          servicioLb.pinchStartScale = servicioLb.scale;
+        }
+      },
+      { passive: true }
+    );
+    vp.addEventListener(
+      "touchmove",
+      (e) => {
+        if (servicioLb.pointers.size >= 2) {
+          for (const t of e.changedTouches) {
+            const p = servicioLb.pointers.get(t.identifier);
+            if (p) {
+              p.x = t.clientX;
+              p.y = t.clientY;
+            }
+          }
+          e.preventDefault();
+          const dist = distanciaPinchServicioLb();
+          if (servicioLb.pinchStartDist > 0) {
+            servicioLb.scale = Math.min(4, Math.max(1, (servicioLb.pinchStartScale * dist) / servicioLb.pinchStartDist));
+            aplicarTransformLightboxServicio(img);
+          }
+        } else if (servicioLb.pointers.size === 1 && servicioLb.scale > 1) {
+          const t = e.changedTouches[0];
+          const p = servicioLb.pointers.get(t.identifier);
+          if (p) {
+            const dx = t.clientX - p.x;
+            const dy = t.clientY - p.y;
+            servicioLb.tx += dx;
+            servicioLb.ty += dy;
+            p.x = t.clientX;
+            p.y = t.clientY;
+            aplicarTransformLightboxServicio(img);
+            if (dx !== 0 || dy !== 0) e.preventDefault();
+          }
+        } else {
+          for (const t of e.changedTouches) {
+            const p = servicioLb.pointers.get(t.identifier);
+            if (p) {
+              p.x = t.clientX;
+              p.y = t.clientY;
+            }
+          }
+        }
+      },
+      { passive: false }
+    );
+    const onEnd = (e) => {
+      for (const t of e.changedTouches) servicioLb.pointers.delete(t.identifier);
+      if (servicioLb.scale <= 1.02) {
+        servicioLb.scale = 1;
+        servicioLb.tx = 0;
+        servicioLb.ty = 0;
+        aplicarTransformLightboxServicio(img);
+      }
+    };
+    vp.addEventListener("touchend", onEnd);
+    vp.addEventListener("touchcancel", onEnd);
+    let swipeX0 = 0;
+    let swipeY0 = 0;
+    let swipeActive = false;
+    vp.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches.length !== 1 || servicioLb.scale > 1) return;
+        swipeX0 = e.touches[0].clientX;
+        swipeY0 = e.touches[0].clientY;
+        swipeActive = true;
+      },
+      { passive: true }
+    );
+    vp.addEventListener(
+      "touchend",
+      (e) => {
+        if (!swipeActive || servicioLb.scale > 1) return;
+        swipeActive = false;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - swipeX0;
+        const dy = t.clientY - swipeY0;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.2 && servicioLb.urls.length > 1) {
+          pasarLightboxServicio(dx < 0 ? 1 : -1);
+        }
+      },
+      { passive: true }
+    );
+  }
+  return root;
+}
+
+function pintarLightboxServicio() {
+  const root = asegurarLightboxServicio();
+  const img = root.querySelector("[data-servicio-lb-img]");
+  const count = root.querySelector("[data-servicio-lb-count]");
+  const prev = root.querySelector(".servicio-lb-prev");
+  const next = root.querySelector(".servicio-lb-next");
+  const url = servicioLb.urls[servicioLb.idx] || "";
+  if (img) {
+    resetLightboxTransformServicio();
+    img.src = url;
+    aplicarTransformLightboxServicio(img);
+  }
+  const multi = servicioLb.urls.length > 1;
+  if (prev) prev.hidden = !multi;
+  if (next) next.hidden = !multi;
+  if (count) {
+    count.hidden = !multi;
+    count.textContent = `${servicioLb.idx + 1} / ${servicioLb.urls.length}`;
+  }
+}
+
+function abrirLightboxServicio(urls, startIdx) {
+  const list = (Array.isArray(urls) ? urls : []).map((u) => String(u || "").trim()).filter(Boolean);
+  if (!list.length) return;
+  const root = asegurarLightboxServicio();
+  servicioLb.urls = list;
+  servicioLb.idx = Math.min(Math.max(0, Number(startIdx) || 0), list.length - 1);
+  pintarLightboxServicio();
+  root.hidden = false;
+  document.body.classList.add("servicio-lb-abierto");
+}
+
+function pasarLightboxServicio(delta) {
+  if (servicioLb.urls.length < 2) return;
+  const d = Number(delta);
+  if (!Number.isFinite(d)) return;
+  servicioLb.idx = (servicioLb.idx + d + servicioLb.urls.length) % servicioLb.urls.length;
+  pintarLightboxServicio();
+}
+
+function cerrarLightboxServicio() {
+  const root = document.getElementById("servicio-lightbox");
+  if (!root) return;
+  root.hidden = true;
+  document.body.classList.remove("servicio-lb-abierto");
+  resetLightboxTransformServicio();
+}
+
+function urlsZoomDesdeDetallePista() {
+  const pista = $("detalle-pista");
+  if (!pista) return [];
+  return [...pista.querySelectorAll("[data-detalle-foto-zoom]")]
+    .map((el) => el.getAttribute("data-detalle-foto-zoom") || "")
+    .filter(Boolean);
 }
 
 function armarCarruselDetalle() {
@@ -2950,8 +3217,8 @@ async function aplicarFiltro(contexto) {
     return;
   }
   if (contexto === "editar" && carritoBloqueaCambioAuto()) {
-    avisoCambioAutoConCarrito();
     cerrarModalAuto();
+    abrirModalCambioAutoCarrito();
     return;
   }
   state.vehiculo = { marca, modelo, ano: Number(ano), combustible };
@@ -3518,6 +3785,7 @@ function overlayLibre() {
     $("modal-kpi").hidden &&
     $("modal-horas").hidden &&
     $("modal-quitar").hidden &&
+    ($("modal-cambio-auto-carrito") == null || $("modal-cambio-auto-carrito").hidden) &&
     $("modal-informe").hidden &&
     ($("modal-cantidad-servicio") == null || $("modal-cantidad-servicio").hidden) &&
     ($("modal-sustituir-aceite") == null || $("modal-sustituir-aceite").hidden)
@@ -4271,6 +4539,7 @@ function cerrar() {
   $("modal-horas").hidden = true;
   $("modal-kpi").hidden = true;
   $("modal-quitar").hidden = true;
+  if ($("modal-cambio-auto-carrito")) $("modal-cambio-auto-carrito").hidden = true;
   if ($("modal-sustituir-aceite")) $("modal-sustituir-aceite").hidden = true;
   if ($("modal-cantidad-servicio")) $("modal-cantidad-servicio").hidden = true;
   $("modal-informe").hidden = true;
@@ -4309,7 +4578,7 @@ document.addEventListener(
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".dd")) cerrarDrops();
   const t = e.target.closest(
-    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-guardar-presupuesto], [data-descargar-presupuesto-pdf], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], [data-abrir-aprobado-slug], [data-volver-aprobados], [data-aprobado-foto-dir], [data-aprobado-foto-idx], [data-aprobado-zoom-main], [data-aprobado-ampliar-url], #btn-ticket, #btn-presupuesto-secreto, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
+    "[data-vista], [data-open], [data-close], [data-abrir-oferta], [data-add-oferta], [data-add-diag], [data-quitar-oferta], [data-edit-cantidad-oferta], [data-edit-cantidad-flota], [data-pedir-quitar], [data-confirmar-quitar], [data-cerrar-quitar], [data-cerrar-cambio-auto-carrito], [data-vaciar-carrito-cambio-auto], [data-confirmar-cantidad-servicio], [data-cerrar-cantidad-servicio], [data-confirmar-sustituir-aceite], [data-cerrar-sustituir-aceite], [data-cerrar-informe], [data-cerrar-ticket-error], [data-editar-auto], [data-cerrar-auto], [data-filtrar], [data-dia], [data-hora], [data-cal], [data-cerrar-horas], [data-abrir-kpi], [data-cerrar-kpi], [data-kpi], [data-seguir-explorando], [data-volver-catalogo-top], [data-dd-toggle], [data-dd-pick], [data-guardar-ticket], [data-guardar-presupuesto], [data-descargar-presupuesto-pdf], [data-compartir-ticket], [data-portada-oferta], [data-volver-catalogo], [data-detalle-foto-zoom], [data-flota-categoria], [data-flota-servicio], [data-add-flota], [data-quitar-flota], [data-atencion-inmediata-flota], [data-abrir-aprobado-slug], [data-volver-aprobados], [data-aprobado-foto-dir], [data-aprobado-foto-idx], [data-aprobado-zoom-main], [data-aprobado-ampliar-url], #btn-ticket, #btn-presupuesto-secreto, #btn-flota-pin-ingresar, #btn-flota-atras, #chip-auto"
   );
   if (!t) return;
 
@@ -4393,6 +4662,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.kpi === "ticket") irAAgendaDesdeKpi();
   if (t.dataset.kpi === "explorar") seguirExplorandoOfertas();
   if (t.hasAttribute("data-seguir-explorando")) seguirExplorandoOfertas();
+  if (t.hasAttribute("data-volver-catalogo-top")) volverDesdeKpiCatalogo_();
   if (t.dataset.open === "informe") {
     if (state.areaFlotas) return;
     abrirModalInforme();
@@ -4422,6 +4692,8 @@ document.addEventListener("click", (e) => {
   }
   if (t.hasAttribute("data-cerrar-horas")) cerrarModalHoras();
   if (t.hasAttribute("data-cerrar-quitar")) cerrarModalQuitar();
+  if (t.hasAttribute("data-cerrar-cambio-auto-carrito")) cerrarModalCambioAutoCarrito();
+  if (t.hasAttribute("data-vaciar-carrito-cambio-auto")) vaciarCarritoYCambiarAuto();
   if (t.hasAttribute("data-cerrar-ticket-error")) cerrarModalErrorTicket();
   if (t.id === "btn-presupuesto-secreto") abrirPresupuestoDesdeBotonSecreto();
   if (t.hasAttribute("data-guardar-presupuesto")) void descargarPresupuestoImagen();
@@ -4437,7 +4709,16 @@ document.addEventListener("click", (e) => {
   }
   if (t.hasAttribute("data-confirmar-sustituir-aceite")) confirmarSustituirAceite();
   if (t.dataset.pedirQuitar) pedirQuitar(t.dataset.pedirQuitar);
-  if (t.hasAttribute("data-volver-catalogo")) volverAlCatalogoDesdeDetalle();
+  if (t.hasAttribute("data-volver-catalogo")) volverDesdeKpiCatalogo_();
+  if (t.hasAttribute("data-detalle-foto-zoom")) {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = t.getAttribute("data-detalle-foto-zoom") || "";
+    const urls = urlsZoomDesdeDetallePista();
+    const idx = urls.indexOf(url);
+    abrirLightboxServicio(urls.length ? urls : [url], idx >= 0 ? idx : 0);
+    return;
+  }
   if (t.dataset.abrirOferta) {
     if (typeof hidratarCatalogoClienteLocal === "function") hidratarCatalogoClienteLocal();
     if (typeof catalogoEstaListo === "function" && catalogoEstaListo()) {
@@ -4516,6 +4797,10 @@ $("overlay").addEventListener("click", () => {
   }
   if ($("modal-sustituir-aceite") && !$("modal-sustituir-aceite").hidden) {
     cerrarModalSustituirAceite();
+    return;
+  }
+  if ($("modal-cambio-auto-carrito") && !$("modal-cambio-auto-carrito").hidden) {
+    cerrarModalCambioAutoCarrito();
     return;
   }
   if (!$("modal-quitar").hidden) {

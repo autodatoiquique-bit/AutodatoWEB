@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=presupuesto-directo1" />
+  <link rel="stylesheet" href="styles.css?v=modal-cambio-auto1" />
 </head>
 <body>
   <div class="split">
@@ -88,6 +88,9 @@
         <button id="btn-seguir-kpi" class="seguir-kpi" type="button" data-seguir-explorando hidden>
           Volver al catálogo
         </button>
+        <button id="btn-volver-kpi" class="btn-volver-kpi" type="button" data-volver-catalogo-top hidden>
+          Volver
+        </button>
       </div>
       </div>
       <main class="stage" id="stage"></main>
@@ -113,6 +116,20 @@
       <p class="muted" id="modal-horas-fecha"></p>
       <h3>Elige un bloque</h3>
       <div id="modal-horas-lista" class="horas-lista"></div>
+    </div>
+  </div>
+  <div id="modal-cambio-auto-carrito" class="modal-horas" hidden role="dialog" aria-modal="true" aria-labelledby="cambio-auto-carrito-titulo">
+    <div class="modal-card ancho">
+      <button class="drawer-close" type="button" data-cerrar-cambio-auto-carrito" aria-label="Cerrar">×</button>
+      <h3 id="cambio-auto-carrito-titulo">Cambiar de vehículo</h3>
+      <p class="lead modal-cambio-auto-lead">
+        Tienes servicios en tu ticket. Los precios dependen del vehículo que elegiste
+        (<strong id="cambio-auto-carrito-veh"></strong>).
+      </p>
+      <div class="kpi-acciones">
+        <button class="btn-soft btn-block" type="button" data-cerrar-cambio-auto-carrito>Seguir con el mismo modelo</button>
+        <button class="btn-primary btn-block" type="button" data-vaciar-carrito-cambio-auto>Vaciar carrito</button>
+      </div>
     </div>
   </div>
   <div id="modal-quitar" class="modal-horas" hidden>
@@ -224,6 +241,15 @@
   <script src="flotas-cliente.js?v=cantidad-ticket2"></script>
   <script src="aprobados-equipamiento.js?v=1"></script>
   <script src="aprobados-cliente.js?v=34"></script>
-  <script src="app.js?v=presupuesto-directo1"></script>
+  <button
+    id="btn-volver-catalogo-flotante"
+    class="btn-volver-catalogo-flotante"
+    type="button"
+    data-volver-catalogo
+    hidden
+  >
+    Volver al catálogo
+  </button>
+  <script src="app.js?v=modal-cambio-auto1"></script>
 </body>
 </html>
