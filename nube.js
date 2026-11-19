@@ -108,6 +108,16 @@ function filaAServicio(row, comps) {
 const NUBE_JSON_CANALES = "catalogo-canales.json";
 const NUBE_JSON_FLOTAS = "catalogo-flotas.json";
 const NUBE_JSON_FLOTAS_ACCESO = "catalogo-flotas-acceso.json";
+const NUBE_JSON_REVISION = "catalogo-revision.json";
+
+/** Marca de tiempo pública para que el servidor del asistente invalide su caché al guardar el catálogo. */
+async function nubeBumpCatalogRevision() {
+  try {
+    await nubeSubirJsonStorage(NUBE_JSON_REVISION, { rev: Date.now() });
+  } catch (e) {
+    console.warn("No se pudo actualizar catalogo-revision.json.", e);
+  }
+}
 
 async function nubeSubirJsonStorage(nombre, obj) {
   const sb = clienteNube();
@@ -228,6 +238,7 @@ async function nubeGuardarSoloTableroCanales() {
   const mapa = previo && typeof previo === "object" ? { ...previo } : {};
   metaCatalogoCanalesEnMapa(mapa);
   await nubeSubirJsonStorage(NUBE_JSON_CANALES, mapa);
+  await nubeBumpCatalogRevision();
 }
 
 async function nubeGuardarCatalogoCanales(lista, opts) {
@@ -247,6 +258,7 @@ async function nubeGuardarCatalogoCanales(lista, opts) {
   });
   metaCatalogoCanalesEnMapa(mapa);
   await nubeSubirJsonStorage(NUBE_JSON_CANALES, mapa);
+  await nubeBumpCatalogRevision();
 }
 
 async function nubeLeerCatalogoCanales(opts) {

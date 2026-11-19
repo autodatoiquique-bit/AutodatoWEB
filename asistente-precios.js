@@ -40,6 +40,8 @@ let ultimasFilasServicios = [];
 let ultimosComplementos = [];
 let ultimoExtraCanales = null;
 let catalogVersionHash = "";
+/** Rev. de `catalogo-revision.json` (storage); cambia al guardar desde admin/web. */
+let ultimaRevisionCatalogo = 0;
 
 const PRICING_ENGINE = pricingEngineLib.PRICING_ENGINE || "1.0.0";
 const QUOTE_DEFAULT_TTL_MS = Number(process.env.VAMBE_QUOTE_TTL_MS) || 48 * 60 * 60 * 1000;
@@ -267,8 +269,16 @@ function fusionarExtraEnServicio(s, ex) {
     s.service_families = [...new Set([...cur, ...extraFam])];
   }
   if (ex.argumento_venta != null) s.argumento_venta = String(ex.argumento_venta || "").trim();
-  if (ex.foto && !s.foto) s.foto = String(ex.foto || "").trim();
-  if (Array.isArray(ex.media) && ex.media.length) s.media = ex.media;
+  if (Array.isArray(ex.media) && ex.media.length) {
+    s.media = ex.media;
+    const portada =
+      ex.media.find((m) => m && m.tipo === "foto" && m.src) ||
+      ex.media.find((m) => m && m.src) ||
+      ex.media[0];
+    if (portada && portada.src) s.foto = String(portada.src).trim();
+  } else if (ex.foto) {
+    s.foto = String(ex.foto || "").trim();
+  }
   s.tiene_oferta = tieneOferta(s);
   return s;
 }
@@ -286,6 +296,22 @@ function absolutizarUrlMedioVambe(raw) {
   if (u.startsWith("//")) return `https:${u}`;
   const base = vambePublicOrigin();
   return `${base}/${u.replace(/^\//, "")}`;
+}
+
+function cacheBustMedioVambe(url, token) {
+  const u = String(url || "").trim();
+  if (!u || /^data:/i.test(u)) return u;
+  if (/[?&]cb=/i.test(u)) return u;
+  const t = String(token || "").trim() || String(cacheTs || 0);
+  const sep = u.includes("?") ? "&" : "?";
+  return `${u}${sep}cb=${encodeURIComponent(t)}`;
+}
+
+function tokenCacheMedioServicioVambe(s) {
+  if (!s) return String(cacheTs || 0);
+  const media0 = Array.isArray(s.media) && s.media[0] && s.media[0].src ? String(s.media[0].src) : "";
+  const raw = `${s.id}|${s.precio}|${s.precio_oferta}|${s.foto}|${media0}`;
+  return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
 }
 
 function urlsImagenEnTextoVambe(text) {
@@ -309,9 +335,10 @@ function urlsImagenEnTextoVambe(text) {
 /** Imágenes de la ficha (portada/galería) y enlaces embebidos en descripción, resumen o argumento. */
 function imagenesDescripcionServicioVambe(s) {
   const urls = [];
+  const bust = tokenCacheMedioServicioVambe(s);
   const add = (u) => {
     const abs = absolutizarUrlMedioVambe(u);
-    if (abs && !urls.includes(abs)) urls.push(abs);
+    if (abs && !urls.includes(abs)) urls.push(cacheBustMedioVambe(abs, bust));
   };
   if (!s) return urls;
   if (s.foto) add(s.foto);
@@ -521,7 +548,75 @@ async function cargarCatalogoDesdeNube() {
   refreshPricingEngineDelegates();
 
   cacheTs = Date.now();
+  const rev = await fetchRevisionCatalogoNube();
+  if (rev != null) ultimaRevisionCatalogo = rev;
   return catalogo;
+}
+
+function invalidarCacheCatalogoAsistente() {
+  catalogo = [];
+  cacheTs = 0;
+  catalogVersionHash = "";
+  cacheCargando = null;
+}
+
+function quiereRefrescarCatalogo(body) {
+  const b = body && typeof body === "object" ? body : {};
+  return b.force_catalog_refresh === true || String(b.force_catalog_refresh || "").toLowerCase() === "true";
+}
+
+function optsAsegurarCatalogo(body) {
+  return { forzar: quiereRefrescarCatalogo(body) };
+}
+
+async function fetchRevisionCatalogoNube() {
+  const base = supabaseBase();
+  if (!base) return null;
+  try {
+    const data = await fetchJson(
+      `${base}/storage/v1/object/public/servicios/catalogo-revision.json?t=${Date.now()}`,
+      {}
+    );
+    const rev = data && data.rev != null ? Number(data.rev) : null;
+    return Number.isFinite(rev) ? rev : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function preciosServiciosCambiaronEnNube() {
+  if (!ultimasFilasServicios.length) return false;
+  const base = supabaseBase();
+  const key = supabaseKey();
+  if (!base || !key) return false;
+  const headers = {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    Accept: "application/json",
+  };
+  try {
+    const rows = await fetchJson(`${base}/rest/v1/servicios?select=id,precio`, headers);
+    if (!Array.isArray(rows)) return false;
+    const byId = new Map(ultimasFilasServicios.map((r) => [r.id, Number(r.precio)]));
+    if (rows.length !== byId.size) return true;
+    for (const r of rows) {
+      if (!byId.has(r.id)) return true;
+      if (Number(r.precio) !== byId.get(r.id)) return true;
+    }
+    return false;
+  } catch (_e) {
+    return false;
+  }
+}
+
+async function catalogoCacheDebeRefrescar() {
+  const [revNueva, preciosCambiaron] = await Promise.all([
+    fetchRevisionCatalogoNube(),
+    preciosServiciosCambiaronEnNube(),
+  ]);
+  if (preciosCambiaron) return true;
+  if (revNueva != null && ultimaRevisionCatalogo > 0 && revNueva !== ultimaRevisionCatalogo) return true;
+  return false;
 }
 
 function calcularCatalogVersionHash() {
@@ -564,8 +659,18 @@ function calcularCatalogVersionHash() {
   }
 }
 
-async function asegurarCatalogo() {
-  if (catalogo.length && Date.now() - cacheTs < CACHE_MS) return catalogo;
+async function asegurarCatalogo(opts) {
+  const forzar = Boolean(opts && (opts.forzar || opts.force));
+  if (!forzar && catalogo.length && Date.now() - cacheTs < CACHE_MS) {
+    try {
+      if (await catalogoCacheDebeRefrescar()) invalidarCacheCatalogoAsistente();
+      else return catalogo;
+    } catch (_e) {
+      return catalogo;
+    }
+  }
+  if (forzar) invalidarCacheCatalogoAsistente();
+  if (catalogo.length && !forzar && Date.now() - cacheTs < CACHE_MS) return catalogo;
   if (cacheCargando) return cacheCargando;
   cacheCargando = cargarCatalogoDesdeNube()
     .catch((e) => {
@@ -753,7 +858,7 @@ function fichaServicio(s, vehiculo, idsCarritoContexto) {
 }
 
 async function consultarPrecios(body) {
-  await asegurarCatalogo();
+  await asegurarCatalogo(optsAsegurarCatalogo(body));
   const vehiculo =
     normalizarVehiculoInput(body && body.vehiculo) || normalizarVehiculoInput(body);
   if (!vehiculo) {
@@ -1736,7 +1841,7 @@ function pareceServicioRefrigeranteVambe(s) {
 }
 
 async function compatibleServicesVambe(body) {
-  await asegurarCatalogo();
+  await asegurarCatalogo(optsAsegurarCatalogo(body));
   const scope = parseScopeVambe(body || {});
   const vehErrIn = validarVehiculoVambeParaCotizar(body || {}, scope);
   if (vehErrIn) {
@@ -2096,7 +2201,7 @@ function itemOcultoEnColumnaMenu(col, tipo, id) {
 }
 
 async function vehicleMenuVambe(body) {
-  await asegurarCatalogo();
+  await asegurarCatalogo(optsAsegurarCatalogo(body));
   const scope = parseScopeVambe(body || {});
   const locale = String((body && body.locale) || "").trim() || null;
   const channel = String((body && body.channel) || "").trim() || null;
@@ -2380,7 +2485,7 @@ function ticketFlatBodyToInternal(flat) {
 }
 
 async function cotizarVambeInterno(body) {
-  await asegurarCatalogo();
+  await asegurarCatalogo(optsAsegurarCatalogo(body));
   const action = String((body && body.action) || "quote").toLowerCase();
   const channel = String((body && body.channel) || "vambe").trim() || "vambe";
   const idem = String((body && body.idempotency_key) || "").trim();
@@ -2399,6 +2504,15 @@ async function cotizarVambeInterno(body) {
         .trim()
         .toLowerCase();
       if (prevScope !== "hyundai_kia") prev = null;
+    }
+    if (
+      prev &&
+      prev.id &&
+      prev.catalog_version &&
+      catalogVersionHash &&
+      prev.catalog_version !== catalogVersionHash
+    ) {
+      prev = null;
     }
     if (prev && prev.id) {
       const snap = (prev.lines_json && prev.lines_json.snapshot) || {};
@@ -2821,7 +2935,7 @@ async function cotizarVambeInterno(body) {
 }
 
 async function ticketDesdeCotizacionVambe(body, enviarAutonexus) {
-  await asegurarCatalogo();
+  await asegurarCatalogo(optsAsegurarCatalogo(body));
   const quoteId = String((body && body.quote_id) || "").trim();
   const idem = String((body && body.idempotency_key) || "").trim();
   const channel = String((body && body.channel) || "vambe").trim() || "vambe";
@@ -2987,5 +3101,6 @@ module.exports = {
   ticketFlatBodyToInternal,
   tokenAsistenteValido,
   asegurarCatalogo,
+  invalidarCacheCatalogoAsistente,
   calcularCatalogVersionHash: () => catalogVersionHash,
 };

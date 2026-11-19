@@ -988,6 +988,27 @@ app.post("/api/asistente/consultar-precios", async (req, res) => {
   }
 });
 
+app.post("/api/asistente/refresh-catalog", async (req, res) => {
+  if (!asistentePrecios.tokenAsistenteValido(req)) {
+    return res.status(401).json({ ok: false, error: "No autorizado" });
+  }
+  try {
+    asistentePrecios.invalidarCacheCatalogoAsistente();
+    await asistentePrecios.asegurarCatalogo({ forzar: true });
+    return res.json({
+      ok: true,
+      catalog_version: asistentePrecios.calcularCatalogVersionHash(),
+      catalogo_actualizado_en: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn("refresh-catalog", e.message || e);
+    return res.status(503).json({
+      ok: false,
+      error: "No pudimos refrescar el catálogo del asistente.",
+    });
+  }
+});
+
 function vambeQuoteErrorStatus(code) {
   const clientErr = new Set([
     "SERVICE_NOT_COMPATIBLE",

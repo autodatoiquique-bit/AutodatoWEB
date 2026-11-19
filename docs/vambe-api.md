@@ -20,7 +20,7 @@ No exponer estos tokens en el frontend público.
 | `SUPABASE_SERVICE_ROLE_KEY` | Cotizaciones (`cotizaciones`), promociones (`promociones`), escritura de ticket en fila. |
 | `ASISTENTE_PRECIOS_TOKEN` o `ASSISTANT_WEBHOOK_TOKEN` | Token de API asistente / Vambe. |
 | `VAMBE_QUOTE_TTL_MS` | TTL de cotización en ms (default 48 h). |
-| `ASISTENTE_CATALOGO_CACHE_MS` | Cache en memoria del catálogo (existente). |
+| `ASISTENTE_CATALOGO_CACHE_MS` | Tope máximo de caché en memoria del catálogo (default 5 min). Además, cada webhook compara precios en Supabase y `catalogo-revision.json` para refrescar al instante tras guardar en admin. |
 | `AUTONEXUS_WEBHOOK_TOKEN`, `AUTONEXUS_ID_TALLER`, `AUTONEXUS_WEBHOOK_URL` | Creación de ticket vía webhook (igual que el resto del sitio). |
 
 ## Migración SQL
@@ -59,7 +59,9 @@ Misma autenticación que cotización. Uso típico: el cliente pulsa *Contactar a
 
 **Acciones:** `quote` | `reprice` | `reprice_add` | `reprice_remove` | `validate`
 
-- **`quote`:** nueva cotización; opcional `idempotency_key` (si existe fila con mismo `channel` + clave, se devuelve la existente con aviso `IDEMPOTENCY_REPLAY`).
+- **`quote`:** nueva cotización; opcional `idempotency_key` (si existe fila con mismo `channel` + clave **y el `catalog_version` coincide**, se devuelve la existente con aviso `IDEMPOTENCY_REPLAY`; si el catálogo cambió, se recotiza).
+- **`force_catalog_refresh`:** `true` en el body fuerza recarga del catálogo desde Supabase (útil tras cambios de precio).
+- **`POST /api/asistente/refresh-catalog`:** invalida la caché del servidor (mismo token que el resto del asistente).
 - **`reprice`:** requiere `quote_id` y nuevo listado `service_codes`; actualiza la fila en Supabase (mismo `id`).
 - **`reprice_add` / `reprice_remove`:** ver sección más abajo (también disponibles vía `/catalog/quote-flat`).
 - **`validate`:** requiere `quote_id`; comprueba vigencia, versión de catálogo (`catalog_version` hash) y devuelve snapshot.

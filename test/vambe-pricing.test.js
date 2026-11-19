@@ -1054,7 +1054,9 @@ describe("Vambe pricing", () => {
       "https://cdn.example.test/vehiculos/hyundai-santa-fe.jpg"
     );
     assert.ok(out.services.every((s) => "image_url" in s && Array.isArray(s.image_urls)));
-    assert.equal(out.services.find((s) => s.service_code === "0001").image_url, "https://cdn.example.test/servicios/aceite.jpg");
+    const aceiteImg = out.services.find((s) => s.service_code === "0001").image_url;
+    assert.ok(aceiteImg.startsWith("https://cdn.example.test/servicios/aceite.jpg"));
+    assert.ok(/[?&]cb=/.test(aceiteImg), "image_url debe llevar cache-bust al cambiar precio/foto");
     assert.ok(Array.isArray(out.promotions));
     const combo = out.services.find((s) => s.service_code === "0002" && s.is_combo);
     if (combo) {
