@@ -2853,10 +2853,28 @@ body.admin-imprimir-qr-aprobado .aprobado-qr-hoja {
   width: 100%;
   height: auto;
   aspect-ratio: 9 / 16;
-  max-height: 420px;
-  min-height: 200px;
+  max-height: min(420px, calc(100% - 150px));
+  min-height: 168px;
   background: #111;
   overflow: hidden;
+}
+.servicio-preview .servicio-preview-media::after {
+  content: "Desliza para leer la ficha ↓";
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 196, 0, 0.45);
+  background: rgba(17, 17, 17, 0.85);
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  pointer-events: none;
 }
 .servicio-preview .servicio-preview-media .portada-lienzo {
   position: absolute;

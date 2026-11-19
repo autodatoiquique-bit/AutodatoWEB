@@ -2221,6 +2221,7 @@ function htmlCarruselServicio(s) {
     <div class="detalle-media" id="detalle-media">
       <div class="detalle-pista" id="detalle-pista">${media.map(htmlSlideMediaServicio).join("")}</div>
       <div class="detalle-fade" aria-hidden="true"></div>
+      <p class="detalle-scroll-hint" aria-hidden="true"><span>Desliza para leer la ficha</span></p>
       ${
         media.length > 1
           ? `<div class="home-dots detalle-dots" style="left:${s.dots_x || 50}%;top:${s.dots_y || 88}%">${media.map((_, i) => `<i class="${i === 0 ? "on" : ""}"></i>`).join("")}</div>`
