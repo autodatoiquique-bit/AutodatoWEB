@@ -862,7 +862,28 @@ body.hay-perfil .panel { padding-top: 88px; }
 }
 .tag-carrito { background: var(--yellow); color: var(--ink); }
 .tag-combo { background: #111; color: var(--yellow); }
+.tag-combo-personalizado {
+  background: var(--yellow);
+  color: var(--ink);
+  border: 1px solid #111;
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+}
 .tag-combo-inc { background: #e8e8e8; color: #444; font-size: 0.72rem; }
+.combo-personalizado-aviso {
+  margin: 0 0 12px;
+  line-height: 1.45;
+  font-size: 0.82rem;
+}
+.resumen-combo-personalizado {
+  border-left: 3px solid var(--yellow);
+  padding-left: 8px;
+}
+.resumen-item .tag-combo-personalizado {
+  display: inline-block;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .tag-dto { background: var(--green); color: #042; }
 .tag-agotado { background: #dfe1e6; color: #42526e; }
 .tag-stock { background: #fff0b3; color: #172b4d; }

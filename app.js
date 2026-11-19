@@ -116,18 +116,41 @@ function idsServiciosOfertaDesdeCarrito(carrito, excluirServicioId) {
   return ids;
 }
 
+function lineaCarritoCombo(comboId) {
+  return state.carrito.find(
+    (x) => x.tipo === "oferta" && x.esComboLinea && String(x.id) === String(comboId),
+  );
+}
+
+function comboEstaPersonalizado(comboId) {
+  const linea = lineaCarritoCombo(comboId);
+  return Boolean(linea && linea.aceiteSustituto);
+}
+
+function etiquetaComboEnTicket(comboId) {
+  return comboEstaPersonalizado(comboId)
+    ? `<span class="tag tag-combo-personalizado">Combo personalizado</span>`
+    : `<span class="tag tag-combo">Combo</span>`;
+}
+
 function detalleComboIncluyeTicket(combo, lineaCombo) {
   if (!combo || typeof esServicioCombo !== "function" || !esServicioCombo(combo)) return [];
   const pack = preciosPackComboEfectivo(combo, lineaCombo);
-  return (pack.lineas || []).map((l) => ({
-    id: l.id,
-    nombre: l.nombre,
-    precio_lista: l.lista,
-    precio: l.pagado,
-    ahorro: l.ahorro,
-    es_regalo: Boolean(l.combo_regalo),
-    nota: l.regla && l.regla.etiqueta ? String(l.regla.etiqueta) : "",
-  }));
+  const sustId =
+    lineaCombo && lineaCombo.aceiteSustituto ? String(lineaCombo.aceiteSustituto).trim() : "";
+  return (pack.lineas || []).map((l) => {
+    const svc = oferta(l.id);
+    return {
+      id: l.id,
+      nombre: (svc && svc.nombre) || l.nombre || l.id,
+      precio_lista: l.lista,
+      precio: l.pagado,
+      ahorro: l.ahorro,
+      es_regalo: Boolean(l.combo_regalo),
+      es_aceite_sustituto: Boolean(sustId && String(l.id) === sustId && esAceiteMotorServicio(svc)),
+      nota: l.regla && l.regla.etiqueta ? String(l.regla.etiqueta) : "",
+    };
+  });
 }
 
 function servicioPayloadTicket(s) {
@@ -150,15 +173,24 @@ function servicioPayloadTicket(s) {
         : null;
     const incluye = detalleComboIncluyeTicket(combo, linea);
     if (incluye.length) base.combo_incluye = incluye;
+    if (linea && linea.aceiteSustituto) {
+      base.combo_personalizado = true;
+      base.aceite_sustituto = String(linea.aceiteSustituto);
+    }
   }
   return base;
 }
 
 function comboIncluyeParaFilaTicket(s) {
+  const linea = lineaCarritoCombo(s.id);
+  if (linea) {
+    const combo = oferta(s.id);
+    if (combo && esServicioCombo(combo)) return detalleComboIncluyeTicket(combo, linea);
+  }
   if (Array.isArray(s.combo_incluye) && s.combo_incluye.length) return s.combo_incluye;
   if (s.es_combo && typeof oferta === "function" && typeof esServicioCombo === "function") {
     const combo = oferta(s.id);
-    if (combo && esServicioCombo(combo)) return detalleComboIncluyeTicket(combo);
+    if (combo && esServicioCombo(combo)) return detalleComboIncluyeTicket(combo, null);
   }
   return [];
 }
@@ -176,7 +208,8 @@ function htmlSubfilasComboTicket(sub) {
   } else if (sub.ahorro > 0 && sub.precio_lista != null) {
     extra = ` <span class="muted">(lista ${clp(sub.precio_lista)} − ${clp(sub.ahorro)})</span>`;
   }
-  return `<tr class="ticket-combo-incl"><td>↳ ${escapeHtml(sub.nombre)}${extra}</td><td>${precio}</td></tr>`;
+  const sust = sub.es_aceite_sustituto ? ` <span class="tag tag-combo-inc">Tu elección de aceite</span>` : "";
+  return `<tr class="ticket-combo-incl"><td>↳ ${escapeHtml(sub.nombre)}${sust}${extra}</td><td>${precio}</td></tr>`;
 }
 
 function calcular(carrito = state.carrito) {
@@ -199,6 +232,8 @@ function calcular(carrito = state.carrito) {
           pagado: pack.pagado,
           ahorro: pack.ahorro,
           esComboLinea: true,
+          comboPersonalizado: Boolean(linea.aceiteSustituto),
+          aceiteSustituto: linea.aceiteSustituto || null,
         });
         subtotal += pack.lista;
         total += pack.pagado;
@@ -1949,19 +1984,30 @@ function htmlComboExtrasEnDetalle(s) {
 
 function htmlDetalleComboInclusiones(s) {
   if (typeof esServicioCombo !== "function" || !esServicioCombo(s)) return "";
-  const pack = preciosPackCombo(s);
+  const linea = lineaCarritoCombo(s.id);
+  const pack = preciosPackComboEfectivo(s, linea);
   if (!pack.lineas.length) return "";
+  const personalizado = Boolean(linea && linea.aceiteSustituto);
+  const sustId = personalizado ? String(linea.aceiteSustituto) : "";
   return `
     <section class="combo-inclusiones">
+      ${
+        personalizado
+          ? `<p class="combo-personalizado-aviso"><span class="tag tag-combo-personalizado">Combo personalizado</span> Incluye el aceite que elegiste en lugar del del pack estándar.</p>`
+          : ""
+      }
       <h3>Incluye estos servicios</h3>
       <ul class="combo-inclusiones-lista">
         ${pack.lineas
           .map((l) => {
             const m = oferta(l.id);
+            const nombre = (m && m.nombre) || l.nombre;
             const agot = m && typeof servicioSinStock === "function" && servicioSinStock(m);
             const reglaTxt = l.regla && l.regla.etiqueta ? l.regla.etiqueta : "";
+            const eleccion =
+              sustId && String(l.id) === sustId ? ` <span class="tag tag-combo-inc">Tu elección de aceite</span>` : "";
             return `<li class="combo-incl-item${agot ? " combo-incl-agotado" : ""}">
-              <div class="combo-incl-nom"><strong>${escapeHtml(l.nombre)}</strong>${agot ? ` <span class="tag tag-agotado">Sin stock</span>` : ""}</div>
+              <div class="combo-incl-nom"><strong>${escapeHtml(nombre)}</strong>${eleccion}${agot ? ` <span class="tag tag-agotado">Sin stock</span>` : ""}</div>
               <div class="combo-incl-precios">
                 <span class="precio-lista tachado">${clp(l.lista)}</span>
                 <span class="precio-oferta">${clp(l.pagado)}</span>
@@ -2067,7 +2113,13 @@ function htmlTarjetaOferta(s) {
         <div class="card-photo">
           ${s.foto ? `<img class="card-photo-img" src="${urlPortadaConCache(s.foto)}" alt="" loading="lazy" decoding="async" />` : ""}
           <div class="card-tags">
-            ${esCombo ? `<span class="tag tag-combo">Combo</span>` : ""}
+            ${
+              esCombo
+                ? comboEstaPersonalizado(s.id)
+                  ? `<span class="tag tag-combo-personalizado">Combo personalizado</span>`
+                  : `<span class="tag tag-combo">Combo</span>`
+                : ""
+            }
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
             ${enCarro ? `<span class="tag tag-carrito">En ticket${qtyTicket > 1 ? ` ×${qtyTicket}` : ""}</span>` : ""}
@@ -2232,7 +2284,13 @@ function renderDetalleOferta() {
       <div class="detalle-hero">
         ${htmlCarruselServicio(s)}
         <div class="detalle-copy">
-          <h2>${s.nombre}${esCombo ? ` <span class="tag tag-combo">Combo</span>` : ""}</h2>
+          <h2>${s.nombre}${
+            esCombo
+              ? comboEstaPersonalizado(s.id)
+                ? ` <span class="tag tag-combo-personalizado">Combo personalizado</span>`
+                : ` <span class="tag tag-combo">Combo</span>`
+              : ""
+          }</h2>
           ${avisoStock ? `<p class="detalle-stock"><span class="tag tag-stock">${avisoStock}</span></p>` : ""}
           ${agotado && esCombo ? `<p class="detalle-stock"><span class="tag tag-agotado">Agotado — falta stock en algún servicio incluido</span></p>` : ""}
           ${s.resumen ? `<p class="detalle-resumen">${s.resumen}</p>` : ""}
@@ -3159,10 +3217,14 @@ function htmlPanelDatosAgenda() {
                 : "";
             const subCombo =
               !soloFlota && s.esComboLinea
-                ? detalleComboIncluyeTicket(s)
+                ? detalleComboIncluyeTicket(s, lineaCarritoCombo(s.id))
                     .map(
                       (sub) =>
-                        `<li class="resumen-item resumen-combo-incl"><span class="resumen-nom">↳ ${escapeHtml(sub.nombre)}</span><strong>${
+                        `<li class="resumen-item resumen-combo-incl"><span class="resumen-nom">↳ ${escapeHtml(sub.nombre)}${
+                          sub.es_aceite_sustituto
+                            ? ` <span class="tag tag-combo-inc">Tu elección</span>`
+                            : ""
+                        }</span><strong>${
                           sub.es_regalo
                             ? `<span class="muted">Incluido</span>`
                             : `${sub.ahorro > 0 ? `<span class="muted"><s>${clp(sub.precio_lista)}</s></span> ` : ""}${clp(sub.precio)}`
@@ -3170,7 +3232,8 @@ function htmlPanelDatosAgenda() {
                     )
                     .join("")
                 : "";
-            return `<li class="resumen-item"><span class="resumen-nom">${s.nombre}${etiquetaCantidadTicket(s.cantidad)}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>${subCombo}`;
+            const comboTag = !soloFlota && s.esComboLinea ? ` ${etiquetaComboEnTicket(s.id)}` : "";
+            return `<li class="resumen-item${s.comboPersonalizado ? " resumen-combo-personalizado" : ""}"><span class="resumen-nom">${s.nombre}${comboTag}${etiquetaCantidadTicket(s.cantidad)}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>${subCombo}`;
           })
           .join("")}
         ${
@@ -4097,7 +4160,11 @@ function abrirPresupuesto(payload) {
               const extra =
                 s.ahorro > 0 ? ` <span class="muted">(${clp(s.precio_lista)} − ${clp(s.ahorro)})</span>` : "";
               const fila = `<tr class="${s.es_combo ? "ticket-combo-head" : ""}"><td>${escapeHtml(s.nombre)}${extra}${
-                s.es_combo ? ` <span class="tag tag-combo">Combo</span>` : ""
+                s.es_combo
+                  ? s.combo_personalizado
+                    ? ` <span class="tag tag-combo-personalizado">Combo personalizado</span>`
+                    : ` <span class="tag tag-combo">Combo</span>`
+                  : ""
               }</td><td>${precio}</td></tr>`;
               const subfilas = s.es_combo ? comboIncluyeParaFilaTicket(s).map(htmlSubfilasComboTicket).join("") : "";
               return fila + subfilas;
@@ -4425,7 +4492,11 @@ async function abrirTicket(payload) {
                   ? ` <span class="muted">(${clp(s.precio_lista)} − ${clp(s.ahorro)})</span>`
                   : "";
               const fila = `<tr class="${s.es_combo ? "ticket-combo-head" : ""}"><td>${escapeHtml(s.nombre)}${extra}${
-                s.es_combo ? ` <span class="tag tag-combo">Combo</span>` : ""
+                s.es_combo
+                  ? s.combo_personalizado
+                    ? ` <span class="tag tag-combo-personalizado">Combo personalizado</span>`
+                    : ` <span class="tag tag-combo">Combo</span>`
+                  : ""
               }</td><td>${precio}</td></tr>`;
               const subfilas =
                 !ticketFlota && s.es_combo ? comboIncluyeParaFilaTicket(s).map(htmlSubfilasComboTicket).join("") : "";
