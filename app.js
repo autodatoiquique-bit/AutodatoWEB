@@ -1857,20 +1857,33 @@ function lineasComboEnCarrito() {
   return state.carrito.filter((x) => x.tipo === "oferta" && x.esComboLinea);
 }
 
+const COMBO_SLOT_ACEITE_MOTOR = "__aceite_motor__";
+
 function idsMiembrosComboLineaSet(combo, lineaCombo) {
   return new Set(idsMiembrosComboEfectivos(combo, lineaCombo).map(String));
+}
+
+/** Misma lógica de solape entre combos: un solo hueco de aceite aunque cambies la marca en el ticket. */
+function idsMiembrosComboLineaSetNormalizado(combo, lineaCombo) {
+  const out = new Set();
+  idsMiembrosComboEfectivos(combo, lineaCombo).forEach((id) => {
+    const s = oferta(id);
+    if (esAceiteMotorServicio(s)) out.add(COMBO_SLOT_ACEITE_MOTOR);
+    else out.add(String(id));
+  });
+  return out;
 }
 
 /** Combo del catálogo cuyos ítems ya están cubiertos por otro combo en el ticket (subconjunto). */
 function comboRedundanteConCarrito(s) {
   if (!s || !esServicioCombo(s)) return null;
-  const idsS = idsMiembrosComboLineaSet(s, null);
+  const idsS = idsMiembrosComboLineaSetNormalizado(s, null);
   if (!idsS.size) return null;
   for (const linea of lineasComboEnCarrito()) {
     if (String(linea.id) === String(s.id)) continue;
     const otro = oferta(linea.id);
     if (!otro || !esServicioCombo(otro)) continue;
-    const idsO = idsMiembrosComboLineaSet(otro, linea);
+    const idsO = idsMiembrosComboLineaSetNormalizado(otro, linea);
     if ([...idsS].every((id) => idsO.has(id))) return otro;
   }
   return null;
@@ -1879,13 +1892,13 @@ function comboRedundanteConCarrito(s) {
 /** Líneas de combo más chicos que este pack (el nuevo los reemplaza al confirmar). */
 function lineasComboReemplazadasPor(s) {
   if (!s || !esServicioCombo(s)) return [];
-  const idsS = idsMiembrosComboLineaSet(s, null);
+  const idsS = idsMiembrosComboLineaSetNormalizado(s, null);
   if (!idsS.size) return [];
   return lineasComboEnCarrito().filter((linea) => {
     if (String(linea.id) === String(s.id)) return false;
     const otro = oferta(linea.id);
     if (!otro || !esServicioCombo(otro)) return false;
-    const idsO = idsMiembrosComboLineaSet(otro, linea);
+    const idsO = idsMiembrosComboLineaSetNormalizado(otro, linea);
     if (!idsO.size) return false;
     return [...idsO].every((id) => idsS.has(id)) && idsS.size > idsO.size;
   });
@@ -1894,13 +1907,13 @@ function lineasComboReemplazadasPor(s) {
 /** Combos que comparten servicios pero ninguno contiene al otro (inválido sumar ambos). */
 function comboSolapamientoParcialConCarrito(s) {
   if (!s || !esServicioCombo(s)) return null;
-  const idsS = idsMiembrosComboLineaSet(s, null);
+  const idsS = idsMiembrosComboLineaSetNormalizado(s, null);
   if (!idsS.size) return null;
   for (const linea of lineasComboEnCarrito()) {
     if (String(linea.id) === String(s.id)) continue;
     const otro = oferta(linea.id);
     if (!otro || !esServicioCombo(otro)) continue;
-    const idsO = idsMiembrosComboLineaSet(otro, linea);
+    const idsO = idsMiembrosComboLineaSetNormalizado(otro, linea);
     const inter = [...idsS].filter((id) => idsO.has(id));
     if (!inter.length) continue;
     const igual = idsS.size === idsO.size && inter.length === idsS.size;
