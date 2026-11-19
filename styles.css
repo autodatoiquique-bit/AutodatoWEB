@@ -1809,11 +1809,74 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 }
 
 .resumen-item { display: flex; justify-content: space-between; align-items: center; }
+.resumen-item--principal {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 0;
+}
+.resumen-item-cuerpo {
+  flex: 1;
+  min-width: 0;
+}
+.resumen-item-titulo {
+  font-weight: 800;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  margin: 0 0 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.resumen-item-precio {
+  display: block;
+  text-align: right;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
 .resumen-nom {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+.btn-quitar-ticket {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 58px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 2px solid #e57373;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff 0%, #fff5f5 100%);
+  color: #c62828;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(198, 40, 40, 0.14);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-quitar-ticket span {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.btn-quitar-ticket svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #c62828;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.btn-quitar-ticket:active {
+  transform: scale(0.97);
+  background: #ffe8e8;
 }
 .btn-basura {
   width: 30px;
@@ -2020,8 +2083,18 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
 .ticket-table td:last-child { text-align: right; font-weight: 700; }
 .ticket-table tr.ticket-combo-incl td { font-size: 0.82rem; font-weight: 500; color: #444; border-bottom-style: dashed; }
 .ticket-table tr.ticket-combo-incl td:first-child { padding-left: 10px; }
-.resumen-combo-incl { font-size: 0.9rem; opacity: 0.92; }
-.resumen-combo-incl .resumen-nom { font-weight: 500; }
+.resumen-combo-incl {
+  font-size: 0.88rem;
+  opacity: 0.95;
+  padding: 6px 0 6px 10px;
+  margin-left: 2px;
+  border-left: 2px dashed #d8d8d8;
+}
+.resumen-combo-incl .resumen-nom { font-weight: 500; font-size: 0.84rem; line-height: 1.35; }
+.resumen-combo-personalizado.resumen-item--principal {
+  border-left-width: 4px;
+  padding-left: 10px;
+}
 .tickets-combo-incl td { font-size: 0.88rem; color: #555; }
 
 .home-portada-strip {

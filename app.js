@@ -3145,6 +3145,15 @@ function iconoBasura() {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>`;
 }
 
+function htmlBotonQuitarCarrito(id, nombre) {
+  const nid = escapeAttr(String(id || ""));
+  const nnom = escapeAttr(String(nombre || "servicio"));
+  return `<button class="btn-quitar-ticket" type="button" data-pedir-quitar="${nid}" aria-label="Quitar ${nnom}">
+    ${iconoBasura()}
+    <span>Quitar</span>
+  </button>`;
+}
+
 function enfocarBtnTicketAgenda() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -3343,7 +3352,14 @@ function htmlPanelDatosAgenda() {
                     .join("")
                 : "";
             const comboTag = !soloFlota && s.esComboLinea ? ` ${etiquetaComboEnTicket(s.id)}` : "";
-            return `<li class="resumen-item${s.comboPersonalizado ? " resumen-combo-personalizado" : ""}"><span class="resumen-nom">${s.nombre}${comboTag}${etiquetaCantidadTicket(s.cantidad)}<button class="btn-basura" type="button" data-pedir-quitar="${s.id}" aria-label="Quitar ${s.nombre}">${iconoBasura()}</button></span><strong>${desc}${precio}</strong></li>${subCombo}`;
+            const clasePers = s.comboPersonalizado ? " resumen-combo-personalizado" : "";
+            return `<li class="resumen-item resumen-item--principal${clasePers}">
+              <div class="resumen-item-cuerpo">
+                <div class="resumen-item-titulo">${escapeHtml(s.nombre)}${comboTag}${etiquetaCantidadTicket(s.cantidad)}</div>
+                <strong class="resumen-item-precio">${desc}${precio}</strong>
+              </div>
+              ${htmlBotonQuitarCarrito(s.id, s.nombre)}
+            </li>${subCombo}`;
           })
           .join("")}
         ${
