@@ -1013,8 +1013,17 @@ function catalogoEstaListo() {
 }
 
 function persistirCatalogoLocal(lista) {
+  const datos = lista || catalogo;
   try {
-    localStorage.setItem(CATALOGO_KEY, JSON.stringify(lista || catalogo));
+    let anterior = [];
+    try {
+      anterior = JSON.parse(localStorage.getItem(CATALOGO_KEY) || "[]");
+    } catch (e2) {
+      anterior = [];
+    }
+    invalidarDetalleSiFotosCambiaron(datos, anterior);
+    podarDetalleCacheSegunCatalogo(datos);
+    localStorage.setItem(CATALOGO_KEY, JSON.stringify(datos));
   } catch (e) {
     /* ignore */
   }
@@ -1452,6 +1461,76 @@ function guardarDetalleCache(id, s) {
   }
 }
 
+function borrarDetalleCache(id) {
+  if (!id) return;
+  try {
+    const map = JSON.parse(localStorage.getItem(DETALLE_CACHE_KEY) || "{}");
+    if (!map[String(id)]) return;
+    delete map[String(id)];
+    localStorage.setItem(DETALLE_CACHE_KEY, JSON.stringify(map));
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function firmaFotoServicio(s) {
+  const foto = String((s && s.foto) || "").trim();
+  if (foto) return foto;
+  const m = mediaServicio(s);
+  const primero = m.find((x) => x && x.tipo === "foto" && x.src);
+  return primero ? String(primero.src).trim() : "";
+}
+
+function detalleCacheCoincideLista(itemLista, cached) {
+  if (!cached || !itemLista) return false;
+  const a = firmaFotoServicio(itemLista);
+  const b = firmaFotoServicio(cached);
+  if (!a && !b) return true;
+  return a === b;
+}
+
+function podarDetalleCacheSegunCatalogo(lista) {
+  if (!Array.isArray(lista) || !lista.length) return;
+  try {
+    const map = JSON.parse(localStorage.getItem(DETALLE_CACHE_KEY) || "{}");
+    let changed = false;
+    lista.forEach((s) => {
+      const id = String(s && s.id);
+      const cached = map[id];
+      if (!cached) return;
+      if (!detalleCacheCoincideLista(s, cached)) {
+        delete map[id];
+        changed = true;
+      }
+    });
+    if (changed) localStorage.setItem(DETALLE_CACHE_KEY, JSON.stringify(map));
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function invalidarDetalleSiFotosCambiaron(nuevaLista, listaAnterior) {
+  if (!Array.isArray(nuevaLista)) return;
+  const antMap = new Map(
+    (listaAnterior || []).map((s) => [String(s.id), firmaFotoServicio(s)]),
+  );
+  nuevaLista.forEach((ent) => {
+    const id = String(ent.id);
+    const fNew = firmaFotoServicio(ent);
+    const fOld = antMap.get(id) || "";
+    if (!fNew || fNew === fOld) return;
+    borrarDetalleCache(id);
+    const enMem = (catalogo || []).find((s) => String(s.id) === id);
+    if (enMem) {
+      enMem.detalleListo = false;
+      enMem.media = [];
+      enMem.galeria = [];
+      enMem.videos = [];
+      if (ent.foto) enMem.foto = ent.foto;
+    }
+  });
+}
+
 function fusionarDetalleEnServicio(dest, full) {
   if (!dest || !full) return dest;
   const campos = [
@@ -1479,9 +1558,20 @@ async function ensureDetalleServicio(id) {
   if (!sid) return null;
   let s = (catalogo || []).find((x) => String(x.id) === sid);
   if (!s) return null;
-  if (s.detalleListo) return s;
   const cached = leerDetalleCache(sid);
-  if (cached) {
+  if (cached && !detalleCacheCoincideLista(s, cached)) {
+    borrarDetalleCache(sid);
+    s.detalleListo = false;
+  }
+  if (s.detalleListo) {
+    const enMemoria = { foto: s.foto, media: s.media || [] };
+    if (detalleCacheCoincideLista(s, enMemoria)) return s;
+    s.detalleListo = false;
+    s.media = [];
+    s.galeria = [];
+    s.videos = [];
+  }
+  if (cached && detalleCacheCoincideLista(s, cached)) {
     fusionarDetalleEnServicio(s, normalizarServicio({ ...s, ...cached }));
     return s;
   }
@@ -1662,7 +1752,7 @@ async function guardarCatalogo(lista) {
   catalogo = lista;
   recolectarModelosExtra(lista);
   persistirModelosExtra();
-  localStorage.setItem(CATALOGO_KEY, JSON.stringify(lista));
+  persistirCatalogoLocal(lista);
   if (typeof nubeActiva === "function" && nubeActiva()) {
     await nubeGuardarCatalogo(lista);
   }
@@ -1900,12 +1990,26 @@ function aplicarLogos() {
   aplicarIcosPortada();
 }
 
+function fotoPortadaSlide(slide, movil) {
+  const vertical = String((slide && slide.foto) || "").trim();
+  const horizontal = String((slide && slide.foto_horizontal) || "").trim();
+  if (!movil && horizontal) return horizontal;
+  return vertical;
+}
+
+function slideUsaPortadaHorizontal(slide, movil) {
+  if (movil) return false;
+  const horizontal = String((slide && slide.foto_horizontal) || "").trim();
+  return Boolean(horizontal);
+}
+
 function normalizarSlide(s, i) {
   const servicio = String((s && s.servicio_id) || "");
   const botonRaw = s && s.mostrar_boton;
   return {
     id: String((s && s.id) || `slide-${i}`),
     foto: String((s && s.foto) || ""),
+    foto_horizontal: String((s && s.foto_horizontal) || ""),
     servicio_id: servicio,
     mostrar_boton: botonRaw == null ? Boolean(servicio) : botonRaw === true || botonRaw === "true",
     btn_texto: String((s && s.btn_texto) || "Agregar al ticket"),
@@ -2206,7 +2310,13 @@ function aplicarPortadaLista(lista, opts = {}) {
   } catch (e) {
     /* ignore */
   }
-  if (opts.sembrar !== false && catalogoEstaListo()) sembrarMembresiaColumnas();
+  if (opts.sembrar !== false && catalogoEstaListo()) {
+    const antes = JSON.stringify(TABLERO_COLUMNAS || []);
+    sembrarMembresiaColumnas();
+    if (JSON.stringify(TABLERO_COLUMNAS || []) !== antes && typeof persistirTablero === "function") {
+      persistirTablero();
+    }
+  }
   return portadaSlides;
 }
 

@@ -44,6 +44,7 @@ function familiasVambeTextoDesdeServicio(s) {
 let editando = null;
 let comboEditIndex = -1;
 let slideEditIndex = 0;
+let portadaPreviewHorizontal = false;
 let mediaEditIndex = 0;
 let fotoModeloPendiente = "";
 let colFotoPendiente = "";
@@ -2702,7 +2703,48 @@ function htmlPreviewMedia(m) {
   if (m.tipo === "video") {
     return `<video class="servicio-video" src="${m.src}" muted playsinline controls preload="metadata"></video>`;
   }
-  return `<img class="home-foto" id="e-img" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" />`;
+  return `<img class="home-foto" id="e-img" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" draggable="false" />
+    <button type="button" class="editor-ampliar-float" data-ampliar-media="${escapeAttr(m.src)}" aria-label="Ver foto a tamaño completo">Ver grande</button>`;
+}
+
+function asegurarLightboxAdminMedia() {
+  let root = document.getElementById("admin-media-lightbox");
+  if (root) return root;
+  root = document.createElement("div");
+  root.id = "admin-media-lightbox";
+  root.className = "admin-media-lightbox";
+  root.hidden = true;
+  root.innerHTML = `
+    <button type="button" class="admin-media-lb-close" data-admin-media-lb-close aria-label="Cerrar">×</button>
+    <div class="admin-media-lb-viewport">
+      <img src="" alt="" data-admin-media-lb-img draggable="false" />
+    </div>`;
+  document.body.appendChild(root);
+  root.querySelector("[data-admin-media-lb-close]")?.addEventListener("click", cerrarLightboxAdminMedia);
+  root.addEventListener("click", (ev) => {
+    if (ev.target === root) cerrarLightboxAdminMedia();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") cerrarLightboxAdminMedia();
+  });
+  return root;
+}
+
+function abrirLightboxAdminMedia(src) {
+  const url = String(src || "").trim();
+  if (!url) return;
+  const root = asegurarLightboxAdminMedia();
+  const img = root.querySelector("[data-admin-media-lb-img]");
+  if (img) img.src = url;
+  root.hidden = false;
+  document.body.classList.add("admin-media-lb-abierto");
+}
+
+function cerrarLightboxAdminMedia() {
+  const root = document.getElementById("admin-media-lightbox");
+  if (!root) return;
+  root.hidden = true;
+  document.body.classList.remove("admin-media-lb-abierto");
 }
 
 function htmlDotsMedia(n, on, s) {
@@ -2990,7 +3032,7 @@ function renderEditor() {
           </div>
           <div class="editor-col">
             <h3>Fotos y videos</h3>
-            <p class="hint">El número 1 es la foto de portada: esa se ve en el listado de Promociones, Mantención y Diagnóstico.</p>
+            <p class="hint">El número 1 es la foto de portada: esa se ve en el listado de Promociones, Mantención y Diagnóstico. Pincha la miniatura para verla en grande; en el celular usa «Ver grande». El borde de la miniatura cambia la foto activa.</p>
             <div class="portada-thumbs">${htmlMediaThumbs(lista)}</div>
             <div class="btn-row">
               <button class="btn-line" type="button" id="btn-add-foto">Agregar foto</button>
@@ -3532,10 +3574,17 @@ function htmlNavPortadaFalsa() {
     .join("")}</nav>`;
 }
 
+function fotoPreviewPortadaSlide(s) {
+  if (portadaPreviewHorizontal && s && s.foto_horizontal) return s.foto_horizontal;
+  return (s && s.foto) || "";
+}
+
 function pintarFotoPortada() {
   const img = $("p-img");
   const s = slideActual();
-  if (!img) return;
+  if (!img || !s) return;
+  const src = fotoPreviewPortadaSlide(s);
+  if (src) img.src = src;
   img.style.cssText = estiloFotoPortada(s);
 }
 
@@ -3566,6 +3615,9 @@ function renderEditorPortada() {
   $("stage").classList.remove("stage-board");
   asegurarPortadaDefecto();
   const s = slideActual();
+  if (portadaPreviewHorizontal && !s.foto_horizontal) portadaPreviewHorizontal = false;
+  const previewPc = Boolean(portadaPreviewHorizontal && s.foto_horizontal);
+  const fotoPrevia = fotoPreviewPortadaSlide(s);
   const ofertas = serviciosCotizacion();
   $("stage").innerHTML = `
     <article class="editor editor-portada">
@@ -3579,13 +3631,17 @@ function renderEditorPortada() {
         </div>
       </div>
       <div class="editor-board">
-        <div class="portada-phone editor-phone-sticky">
+        <div class="portada-phone editor-phone-sticky${previewPc ? " portada-preview-pc" : ""}">
           <div class="home-screen portada-preview" id="portada-preview">
             <header class="home-logo" style="height:${bannerAltoPortada(portadaUi)}px">
               <img data-logo id="p-logo" src="${logoHref()}" alt="AutoDato" style="${estiloLogoPortada(portadaUi)}" />
             </header>
             <div class="portada-lienzo" id="portada-lienzo">
-              ${s.foto ? `<img class="home-foto" id="p-img" src="${s.foto}" alt="" style="${estiloFotoPortada(s)}" />` : `<div class="vacio-foto">Sube la foto para ajustar el recorte</div>`}
+              ${
+                fotoPrevia
+                  ? `<img class="home-foto" id="p-img" src="${fotoPrevia}" alt="" style="${estiloFotoPortada(s)}" />`
+                  : `<div class="vacio-foto">Sube la imagen vertical para el celular</div>`
+              }
             </div>
             ${
               s.mostrar_boton
@@ -3606,7 +3662,7 @@ function renderEditorPortada() {
                       <input type="number" min="1" max="${portadaSlides.length}" value="${i + 1}" data-orden-id="${x.id}" title="Orden" />
                       <button type="button" data-slide="${i}" class="${i === slideEditIndex ? "is-on" : ""}">${
                         x.foto ? `<img src="${x.foto}" alt="" />` : `<span class="ph">Foto ${i + 1}</span>`
-                      }${x.defecto ? `<em class="thumb-defecto">Defecto</em>` : ""}</button>
+                      }${x.foto_horizontal ? `<em class="thumb-horizontal">PC</em>` : ""}${x.defecto ? `<em class="thumb-defecto">Defecto</em>` : ""}</button>
                       <small>${escapeText(resumenSlidePortada(x))}</small>
                     </div>`
                 )
@@ -3616,10 +3672,23 @@ function renderEditorPortada() {
               <button class="btn-line" type="button" id="btn-slide-add">Agregar flyer</button>
               ${portadaSlides.length > 1 ? `<button class="btn-soft" type="button" id="btn-slide-del">Quitar este</button>` : ""}
             </div>
-            <label class="field">
-              <span>Foto de este flyer</span>
-              <input id="p-foto" type="file" accept="image/*" />
-            </label>
+            <div class="field">
+              <span>Imágenes de este flyer</span>
+              <div class="btn-row portada-foto-subir">
+                <button class="btn-line" type="button" id="btn-p-foto-vertical">Seleccionar imagen vertical</button>
+                <button class="btn-line" type="button" id="btn-p-foto-horizontal">Seleccionar imagen horizontal</button>
+              </div>
+              ${
+                s.foto_horizontal
+                  ? `<div class="btn-row portada-preview-modos">
+                <button type="button" id="btn-preview-vertical" class="btn-soft${!previewPc ? " is-on" : ""}">Previsualizar vertical</button>
+                <button type="button" id="btn-preview-horizontal" class="btn-soft${previewPc ? " is-on" : ""}">Previsualizar horizontal</button>
+                <button type="button" id="btn-quitar-foto-horizontal" class="btn-soft">Quitar horizontal</button>
+              </div>`
+                  : ""
+              }
+              <p class="hint portada-foto-hint">La vertical es obligatoria (celular). La horizontal es opcional: en PC se usa si existe; si no, sigue la vertical.</p>
+            </div>
             <label class="field">
               <span>Zoom</span>
               <input id="p-zoom" type="range" min="35" max="400" step="2" value="${Math.round(s.zoom * 100)}" />
@@ -3918,6 +3987,9 @@ async function guardarEditorPortada() {
       console.warn("Portada guardada; no se pudo sincronizar el tablero.", eTab);
     }
     renderEditorPortada();
+    console.info(
+      "Portada guardada en la nube. En el sitio del cliente: recarga (Ctrl+F5) o abre en otra pestaña; no hace falta deploy en Render."
+    );
   } catch (e) {
     alert(
       (e && e.message) ||
@@ -4250,6 +4322,33 @@ $("stage").addEventListener("click", (e) => {
     $("logo-file")?.click();
     return;
   }
+  if (t.id === "btn-p-foto-vertical") {
+    portadaPreviewHorizontal = false;
+    $("p-foto-vertical")?.click();
+    return;
+  }
+  if (t.id === "btn-p-foto-horizontal") {
+    portadaPreviewHorizontal = true;
+    $("p-foto-horizontal")?.click();
+    return;
+  }
+  if (t.id === "btn-preview-vertical") {
+    portadaPreviewHorizontal = false;
+    renderEditorPortada();
+    return;
+  }
+  if (t.id === "btn-preview-horizontal") {
+    if (!slideActual().foto_horizontal) return;
+    portadaPreviewHorizontal = true;
+    renderEditorPortada();
+    return;
+  }
+  if (t.id === "btn-quitar-foto-horizontal") {
+    slideActual().foto_horizontal = "";
+    portadaPreviewHorizontal = false;
+    renderEditorPortada();
+    return;
+  }
   if (t.id === "btn-reset-logo") {
     portadaUi.logo_zoom = 1;
     portadaUi.logo_scale_x = 1;
@@ -4285,6 +4384,7 @@ $("stage").addEventListener("click", (e) => {
   if (t.dataset.slide != null) {
     leerEditorPortada();
     slideEditIndex = Number(t.dataset.slide);
+    portadaPreviewHorizontal = false;
     renderEditorPortada();
   }
   if (t.dataset.addModelo) {
@@ -4369,6 +4469,28 @@ $("stage").addEventListener("click", (e) => {
     m.off_y = 0;
     renderEditor();
     return;
+  }
+  const ampliarEl = e.target.closest("[data-ampliar-media]");
+  if (ampliarEl) {
+    e.preventDefault();
+    e.stopPropagation();
+    abrirLightboxAdminMedia(ampliarEl.getAttribute("data-ampliar-media"));
+    return;
+  }
+  const thumbImg = e.target.closest(".editor-servicio .portada-thumb img");
+  if (thumbImg && editando) {
+    const thumbBtn = thumbImg.closest("[data-media]");
+    if (thumbBtn) {
+      const idx = Number(thumbBtn.dataset.media);
+      const lista = mediaEditando();
+      const item = lista[idx];
+      if (item && item.tipo === "foto" && item.src) {
+        e.preventDefault();
+        e.stopPropagation();
+        abrirLightboxAdminMedia(item.src);
+        return;
+      }
+    }
   }
   if (t.dataset.media != null) {
     leerEditor();
@@ -4555,7 +4677,7 @@ $("stage").addEventListener("change", async (e) => {
     if (sel) sel.innerHTML = modelos.map((m) => `<option value="${m}">${m.toUpperCase()}</option>`).join("");
   }
   if (e.target.id === "p-servicio") slideActual().servicio_id = e.target.value;
-  if (e.target.id === "p-foto" && e.target.files[0]) {
+  if (e.target.id === "p-foto-vertical" && e.target.files[0]) {
     let src = await leerImagen(e.target.files[0], 1200, { forceJpeg: true, quality: 0.78 });
     if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
     const actual = slideActual();
@@ -4565,6 +4687,16 @@ $("stage").addEventListener("change", async (e) => {
     actual.scale_y = 1;
     actual.off_x = 0;
     actual.off_y = 0;
+    portadaPreviewHorizontal = false;
+    e.target.value = "";
+    renderEditorPortada();
+  }
+  if (e.target.id === "p-foto-horizontal" && e.target.files[0]) {
+    let src = await leerImagen(e.target.files[0], 1920, { forceJpeg: true, quality: 0.82 });
+    if (typeof nubeActiva === "function" && nubeActiva()) src = await nubeSubirImagen(src);
+    slideActual().foto_horizontal = src;
+    portadaPreviewHorizontal = true;
+    e.target.value = "";
     renderEditorPortada();
   }
   if (e.target.id === "e-foto" && e.target.files[0]) {

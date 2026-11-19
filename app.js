@@ -1317,6 +1317,15 @@ function estiloFotoPortadaAttr(s) {
   return estiloFotoPortada(s).replace(/"/g, "");
 }
 
+function urlPortadaConCache(url) {
+  const u = String(url || "").trim();
+  if (!u) return u;
+  const trozo = u.match(/\/([^/?]+)(?:\?|$)/);
+  const key = trozo ? trozo[1] : u.slice(-32);
+  const sep = u.includes("?") ? "&" : "?";
+  return `${u}${sep}cb=${encodeURIComponent(key)}`;
+}
+
 function activarImagenPortada(img) {
   if (!img || img.dataset.loaded === "1") return;
   const pendiente = img.getAttribute("data-src");
@@ -1337,12 +1346,18 @@ function htmlSlidePortada(s, idx, indicePrincipal) {
   const ofertaOk = slideMuestraBoton(s) && catalogoEstaListo() && oferta(s.servicio_id);
   const eager = idx === indicePrincipal;
   const alt = ofertaOk ? oferta(s.servicio_id).nombre : "Portada AutoDato";
+  const movil = esMovil();
+  const fotoCruda =
+    typeof fotoPortadaSlide === "function" ? fotoPortadaSlide(s, movil) : String((s && s.foto) || "");
+  const fotoSrc = urlPortadaConCache(fotoCruda);
+  const landscape =
+    typeof slideUsaPortadaHorizontal === "function" ? slideUsaPortadaHorizontal(s, movil) : false;
   const imgAttrs = eager
-    ? `src="${s.foto}" fetchpriority="high" decoding="async" data-loaded="1"`
-    : `data-src="${s.foto}" src="" loading="lazy" decoding="async"`;
+    ? `src="${escapeAttr(fotoSrc)}" fetchpriority="high" decoding="async" data-loaded="1"`
+    : `data-src="${escapeAttr(fotoSrc)}" src="" loading="lazy" decoding="async"`;
   return `
-    <article class="home-slide">
-      <img class="home-foto home-foto-flyer" ${imgAttrs} alt="${alt}" />
+    <article class="home-slide${landscape ? " home-slide-landscape" : ""}">
+      <img class="home-foto home-foto-flyer${landscape ? " home-foto-landscape" : ""}" ${imgAttrs} alt="${alt}" />
       ${
         ofertaOk
           ? `<button class="home-add" type="button" data-portada-oferta="${s.servicio_id}" style="left:${s.btn_x}%;top:${s.btn_y}%">${s.btn_texto || "Agregar al ticket"}</button>`
@@ -1430,6 +1445,14 @@ function armarCarruselPortada(nReal, indicePrincipal) {
   }, { passive: true });
   if (window._portadaResize) window.removeEventListener("resize", window._portadaResize);
   window._portadaResize = () => {
+    const movil = esMovil();
+    if (window._portadaViewportMovil !== movil) {
+      window._portadaViewportMovil = movil;
+      if (state.vista === "portada") {
+        renderPortada();
+        return;
+      }
+    }
     medir();
     irA(loop ? realDe(crudo()) + 1 : crudo(), false);
   };
@@ -1626,6 +1649,7 @@ function renderPortada() {
       ${movil ? htmlCapaPortada(portadaUi, lista.length, 0, false) : ""}
     </section>
   `;
+  window._portadaViewportMovil = movil;
   armarCarruselPortada(lista.length, indicePrincipal);
   armarHoldContacto();
   pintarChipAuto();
@@ -1972,7 +1996,7 @@ function htmlTarjetaOferta(s) {
     <article class="card ${enCarro ? "card-en-carro" : agotado ? "card-agotado" : "card-con-add"}">
       <button class="card-abrir" type="button" data-abrir-oferta="${s.id}">
         <div class="card-photo">
-          ${s.foto ? `<img class="card-photo-img" src="${s.foto}" alt="" loading="lazy" decoding="async" />` : ""}
+          ${s.foto ? `<img class="card-photo-img" src="${urlPortadaConCache(s.foto)}" alt="" loading="lazy" decoding="async" />` : ""}
           <div class="card-tags">
             ${esCombo ? `<span class="tag tag-combo">Combo</span>` : ""}
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
@@ -2181,9 +2205,10 @@ function htmlSlideMediaServicio(m) {
   if (m.tipo === "video") {
     return `<article class="detalle-slide"><video class="servicio-video" src="${m.src}" playsinline muted controls preload="metadata"></video></article>`;
   }
+  const src = typeof urlPortadaConCache === "function" ? urlPortadaConCache(m.src) : m.src;
   return `<article class="detalle-slide">
     <button type="button" class="detalle-foto-zoom-hit" data-detalle-foto-zoom="${escapeAttr(m.src)}" aria-label="Ampliar foto">
-      <img class="home-foto" src="${m.src}" alt="" style="${estiloFotoPortada(m)}" draggable="false" />
+      <img class="home-foto" src="${escapeAttr(src)}" alt="" style="${estiloFotoPortada(m)}" draggable="false" />
     </button>
   </article>`;
 }
@@ -5035,6 +5060,16 @@ async function arrancar() {
   aplicarLogos();
   renderTotales(false);
   pistaMenuDesplazable();
+  window.addEventListener("storage", (e) => {
+    if (e.key !== "autodato_portada" || !e.newValue || typeof aplicarPortadaLista !== "function") return;
+    try {
+      aplicarPortadaLista(JSON.parse(e.newValue), { sembrar: catalogoEstaListo() });
+      aplicarLogos();
+      if (state.vista === "portada") renderPortada();
+    } catch (_err) {
+      /* ignore */
+    }
+  });
   void asegurarLibsTicket().catch(() => {});
   if (flotaAcceso && typeof entrarFlotaPorLinkAcceso === "function") {
     void entrarFlotaPorLinkAcceso(flotaAcceso).then((ok) => {

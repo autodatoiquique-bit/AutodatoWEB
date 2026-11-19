@@ -340,8 +340,11 @@ function fusionarExtraEnServicio(s, extra, opts) {
   if (Number(ex.numero_serie) > 0) s.numero_serie = Math.floor(Number(ex.numero_serie));
   if (lite) {
     if (Array.isArray(ex.media) && ex.media.length) {
-      const portada = ex.media.find((m) => m && m.src) || ex.media[0];
-      if (portada && portada.src && !s.foto) s.foto = portada.src;
+      const portada =
+        ex.media.find((m) => m && m.tipo === "foto" && m.src) ||
+        ex.media.find((m) => m && m.src) ||
+        ex.media[0];
+      if (portada && portada.src) s.foto = portada.src;
     }
     return s;
   }
@@ -618,6 +621,7 @@ async function nubeEliminarTicket(id) {
 function extraPortada(s) {
   return {
     id: s.id,
+    foto_horizontal: String((s && s.foto_horizontal) || ""),
     mostrar_boton: Boolean(s.mostrar_boton),
     zoom: Number(s.zoom) || 1,
     scale_x: Number(s.scale_x) || 1,
