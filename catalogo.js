@@ -235,9 +235,10 @@ function columnaOrdenAutomaticoTarjetas(col) {
 
 function esAceiteMotorNombreServicio(s) {
   if (!s) return false;
-  return String(s.nombre || "")
-    .toLowerCase()
-    .includes("aceite de motor");
+  const n = String(s.nombre || "").toLowerCase();
+  if (n.includes("aceite de motor")) return true;
+  if (/cambio de aceite/.test(n) && !/filtro/.test(n)) return true;
+  return false;
 }
 
 function grupoOrdenTarjetaTablero(tarjeta) {

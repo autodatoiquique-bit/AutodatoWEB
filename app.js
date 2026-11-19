@@ -108,7 +108,7 @@ function idsServiciosOfertaDesdeCarrito(carrito, excluirServicioId) {
     if (linea.tipo !== "oferta") return;
     if (linea.esComboLinea) {
       const combo = oferta(linea.id);
-      if (combo && esServicioCombo(combo)) idsMiembrosComboParaCarrito(combo).forEach(push);
+      if (combo && esServicioCombo(combo)) idsMiembrosComboEfectivos(combo, linea).forEach(push);
       return;
     }
     push(linea.id);
@@ -116,9 +116,9 @@ function idsServiciosOfertaDesdeCarrito(carrito, excluirServicioId) {
   return ids;
 }
 
-function detalleComboIncluyeTicket(combo) {
+function detalleComboIncluyeTicket(combo, lineaCombo) {
   if (!combo || typeof esServicioCombo !== "function" || !esServicioCombo(combo)) return [];
-  const pack = preciosPackCombo(combo);
+  const pack = preciosPackComboEfectivo(combo, lineaCombo);
   return (pack.lineas || []).map((l) => ({
     id: l.id,
     nombre: l.nombre,
@@ -144,7 +144,11 @@ function servicioPayloadTicket(s) {
   if (s.esComboLinea || (s.es_combo && typeof esServicioCombo === "function" && esServicioCombo(s))) {
     const combo = s.esComboLinea ? s : oferta(s.id) || s;
     base.es_combo = true;
-    const incluye = detalleComboIncluyeTicket(combo);
+    const linea =
+      s.esComboLinea && state.carrito
+        ? state.carrito.find((x) => x.tipo === "oferta" && x.esComboLinea && x.id === combo.id)
+        : null;
+    const incluye = detalleComboIncluyeTicket(combo, linea);
     if (incluye.length) base.combo_incluye = incluye;
   }
   return base;
@@ -187,7 +191,7 @@ function calcular(carrito = state.carrito) {
       if (linea.esComboLinea) {
         const combo = oferta(linea.id);
         if (!combo || !esServicioCombo(combo)) return;
-        const pack = preciosPackCombo(combo);
+        const pack = preciosPackComboEfectivo(combo, linea);
         items.push({
           ...combo,
           tipo: "oferta",
@@ -1721,7 +1725,7 @@ function servicioIncluidoEnComboEnCarrito(id) {
     if (linea.tipo !== "oferta" || !linea.esComboLinea) return false;
     const combo = oferta(linea.id);
     if (!combo || !esServicioCombo(combo)) return false;
-    return idsMiembrosComboParaCarrito(combo).includes(String(id));
+    return idsMiembrosComboEfectivos(combo, linea).includes(String(id));
   });
 }
 
@@ -1783,6 +1787,62 @@ function limpiarMiembrosSueltosDeCombosEnCarrito() {
   return state.carrito.length !== antes;
 }
 
+function comboLineaConAceiteIncluido() {
+  return (
+    state.carrito.find((linea) => {
+      if (linea.tipo !== "oferta" || !linea.esComboLinea) return false;
+      const combo = oferta(linea.id);
+      return combo && comboIncluyeAceiteMotor(combo);
+    }) || null
+  );
+}
+
+/** Sustitución de aceite dentro de un combo (línea esComboLinea + aceiteSustituto). */
+function idsMiembrosComboEfectivos(combo, lineaCombo) {
+  const base = idsMiembrosComboParaCarrito(combo);
+  const sust =
+    lineaCombo && lineaCombo.aceiteSustituto ? String(lineaCombo.aceiteSustituto).trim() : "";
+  if (!sust) return base;
+  const aceiteOrig = base.find((id) => esAceiteMotorServicio(oferta(id)));
+  if (!aceiteOrig || String(aceiteOrig) === sust) return base;
+  return base.map((id) => (String(id) === String(aceiteOrig) ? sust : id));
+}
+
+function preciosPackComboEfectivo(combo, lineaCombo) {
+  const ids = idsMiembrosComboEfectivos(combo, lineaCombo);
+  const base = idsMiembrosComboParaCarrito(combo);
+  if (ids.length === base.length && ids.every((id, i) => String(id) === String(base[i]))) {
+    return preciosPackCombo(combo);
+  }
+  const virtual = { ...combo, combo_items: ids };
+  return preciosPackCombo(virtual);
+}
+
+function carritoSimuladoConAceiteSustituto(nuevoId) {
+  const carrito = JSON.parse(JSON.stringify(state.carrito));
+  const comboLinea = carrito.find(
+    (x) =>
+      x.tipo === "oferta" &&
+      x.esComboLinea &&
+      comboIncluyeAceiteMotor(oferta(x.id)),
+  );
+  if (comboLinea) {
+    comboLinea.aceiteSustituto = nuevoId;
+    return carrito.filter((x) => {
+      if (x.tipo !== "oferta" || x.esComboLinea) return true;
+      const m = oferta(x.id);
+      return !m || !esAceiteMotorServicio(m);
+    });
+  }
+  const limpio = carrito.filter((x) => {
+    if (x.tipo !== "oferta" || x.esComboLinea) return true;
+    const m = oferta(x.id);
+    return !m || !esAceiteMotorServicio(m);
+  });
+  limpio.push({ tipo: "oferta", id: nuevoId });
+  return limpio;
+}
+
 /** Al agregar un combo, no duplicar variantes de aceite de motor si el admin marcó más de una. */
 function idsMiembrosComboParaCarrito(comboServicio) {
   const ids = idsMiembrosCombo(comboServicio);
@@ -1812,6 +1872,7 @@ function idsContextoCombo(s) {
 }
 
 function esAceiteMotorServicio(s) {
+  if (typeof esAceiteMotorNombreServicio === "function") return esAceiteMotorNombreServicio(s);
   if (!s) return false;
   return String(s.nombre || "")
     .toLowerCase()
@@ -1823,10 +1884,18 @@ function comboIncluyeAceiteMotor(comboServicio) {
 }
 
 function aceitesMotorEnCarrito() {
-  return state.carrito
-    .filter((x) => x.tipo === "oferta")
-    .map((x) => oferta(x.id))
-    .filter((s) => s && esAceiteMotorServicio(s));
+  const ids = idsServiciosOfertaDesdeCarrito(state.carrito);
+  const vistos = new Set();
+  const out = [];
+  ids.forEach((id) => {
+    const sid = String(id);
+    if (vistos.has(sid)) return;
+    const s = oferta(sid);
+    if (!s || !esAceiteMotorServicio(s)) return;
+    vistos.add(sid);
+    out.push(s);
+  });
+  return out;
 }
 
 function quitarAceitesMotorDelCarrito(exceptoId) {
@@ -3530,8 +3599,19 @@ function etiquetaAceiteParaModal(s) {
   return n || s.nombre || "aceite";
 }
 
-function precioAceiteEnTicket(s) {
-  const otros = state.carrito.filter((x) => x.tipo === "oferta" && x.id !== s.id).map((x) => x.id);
+function precioAceiteEnTicket(s, opts) {
+  const simularSustituto = opts && opts.simularSustituto ? String(opts.simularSustituto) : "";
+  const comboLinea = comboLineaConAceiteIncluido();
+  if (comboLinea) {
+    const combo = oferta(comboLinea.id);
+    const lineaRef = simularSustituto
+      ? { ...comboLinea, aceiteSustituto: simularSustituto }
+      : comboLinea;
+    const pack = preciosPackComboEfectivo(combo, lineaRef);
+    const lineaPack = (pack.lineas || []).find((l) => String(l.id) === String(s.id));
+    if (lineaPack && lineaPack.pagado != null) return lineaPack.pagado;
+  }
+  const otros = idsServiciosOfertaDesdeCarrito(state.carrito, s.id);
   const p = precioPagado(s, otros);
   return p.pagado != null ? p.pagado : s.precio;
 }
@@ -3561,14 +3641,30 @@ function pedirSustituirAceite(nuevoId, reemplazar) {
   const viejo = (reemplazar || [])[0];
   if (!nuevo || !viejo) return;
   sustituirAceitePendiente = nuevoId;
+  const enCombo = Boolean(comboLineaConAceiteIncluido());
   const marcaVieja = escapeHtml(etiquetaAceiteParaModal(viejo));
   const marcaNueva = escapeHtml(etiquetaAceiteParaModal(nuevo));
   const precioViejo = clp(precioAceiteEnTicket(viejo));
-  const precioNuevo = clp(precioAceiteEnTicket(nuevo));
+  const precioNuevo = clp(precioAceiteEnTicket(nuevo, { simularSustituto: nuevoId }));
+  const totalActual = calcular().total;
+  const totalNuevo = calcular(carritoSimuladoConAceiteSustituto(nuevoId)).total;
+  const delta = totalNuevo - totalActual;
+  const deltaTxt =
+    delta === 0
+      ? "el total del ticket no cambia"
+      : delta > 0
+        ? `el total sube ${clp(delta)}`
+        : `el total baja ${clp(-delta)}`;
   $("sustituir-aceite-cuerpo").innerHTML = `
-    <p>¿Quieres sustituir el aceite <strong>${marcaVieja}</strong> de <strong>${precioViejo}</strong> por <strong>${marcaNueva}</strong> ${precioNuevo}?</p>
+    <p class="muted">Solo puede haber <strong>un cambio de aceite de motor</strong> en el ticket${
+      enCombo ? " (el de tu combo se reemplaza, no se suma otro)" : ""
+    }.</p>
+    <p>¿Cambiar <strong>${marcaVieja}</strong> (<strong>${precioViejo}</strong>) por <strong>${marcaNueva}</strong> (<strong>${precioNuevo}</strong>)?</p>
+    <p class="sustituir-aceite-totales">Total ticket ahora: <strong>${clp(totalActual)}</strong><br />
+    Si confirmas: <strong>${clp(totalNuevo)}</strong> (${deltaTxt}).</p>
   `;
   $("modal-sustituir-aceite").hidden = false;
+  if ($("overlay")) $("overlay").hidden = false;
 }
 
 function cerrarModalSustituirAceite() {
@@ -3749,6 +3845,19 @@ function confirmarCantidadServicio() {
   agregarOfertaDirecto(p.id, qty);
 }
 
+function aplicarSustitucionAceiteEnCarrito(nuevoId) {
+  const comboLinea = comboLineaConAceiteIncluido();
+  quitarAceitesMotorDelCarrito();
+  if (comboLinea) {
+    comboLinea.aceiteSustituto = nuevoId;
+    persistir();
+    renderTotales(true);
+    refrescarListasCotizacion();
+    return true;
+  }
+  return false;
+}
+
 function confirmarSustituirAceite() {
   const nuevoId = sustituirAceitePendiente;
   if (!nuevoId) return;
@@ -3762,8 +3871,8 @@ function confirmarSustituirAceite() {
   sustituirAceitePendiente = null;
   $("modal-sustituir-aceite").hidden = true;
   if (overlayLibre()) $("overlay").hidden = true;
-  quitarAceitesMotorDelCarrito();
-  agregarOfertaDirecto(nuevoId);
+  const comboModificado = aplicarSustitucionAceiteEnCarrito(nuevoId);
+  if (!comboModificado) agregarOfertaDirecto(nuevoId);
   if (comboIdAbierto) {
     state.ofertaAbierta = comboIdAbierto;
     renderDetalleOferta();

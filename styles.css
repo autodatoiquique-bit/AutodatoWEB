@@ -1607,6 +1607,15 @@ body.en-flotas-pin.teclado-abierto .flota-pin-panel .field {
   z-index: 100;
 }
 
+.sustituir-aceite-totales {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f4f4f4;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
 .cantidad-servicio-field {
   margin: 14px 0 8px;
 }
