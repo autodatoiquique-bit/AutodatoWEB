@@ -693,7 +693,7 @@ function syncSeguirKpi() {
   }
   const mostrarDetalleCat = !historial && !ticket && enVistaDetalleCatalogo_();
   const btnFlo = $("btn-volver-catalogo-flotante");
-  if (btnFlo) btnFlo.hidden = !mostrarDetalleCat;
+  if (btnFlo) btnFlo.hidden = true;
   document.body.classList.toggle("en-detalle-catalogo", mostrarDetalleCat);
 }
 
@@ -2193,6 +2193,7 @@ function renderDetalleOferta() {
           </div>
           ${esCombo && enCarro ? htmlComboExtrasEnDetalle(s) : ""}
           ${esCombo ? "" : htmlSumaRelacionados(s, enCarro)}
+          <button type="button" class="btn-volver-catalogo-fin" data-volver-catalogo>Volver al catálogo</button>
         </div>
       </div>
     </article>

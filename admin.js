@@ -2965,29 +2965,40 @@ function renderEditor() {
         <div class="editor-head-row">
           <div>
             <h2>${s.id ? "Editar servicio" : "Nuevo servicio"}</h2>
-            <p class="muted">El celular se queda a la vista. Edita a la derecha. Arrastra la cápsula de puntos para ubicarla. Arrastra la foto para el recorte.</p>
+            <p class="muted">La vista previa imita el detalle en celular (auto, ticket, foto 9:16 y texto debajo). Arrastra la foto para el recorte y la cápsula de puntos para ubicarla.</p>
           </div>
           <button type="button" id="btn-volver-tablero" class="btn-line">Volver al tablero</button>
         </div>
       </div>
       <div class="editor-board">
         <div class="portada-phone editor-phone-sticky">
-          <div class="home-screen portada-preview servicio-preview" id="servicio-preview">
-            <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}${htmlPreviewBotonPortadaServicio(s)}</div>
-            ${htmlDotsMedia(lista.length, mediaEditIndex, s)}
-            <div class="servicio-copy">
-              <h2 id="pv-nombre">${escapeText(s.nombre || "Nombre del servicio")}</h2>
-              <p id="pv-resumen">${escapeText(s.resumen || "Resumen de la tarjeta")}</p>
-              <p class="lead" id="pv-detalle">${escapeText(s.detalle || "La descripción se ve aquí, como en el celular.")}</p>
-              <div class="precio-fila">
-                <div id="pv-precios">${htmlPrecioPreview(s)}</div>
-                ${
-                  s.agotado
-                    ? `<span class="tag tag-agotado editor-tag-agotado">Agotado</span>`
-                    : s.ultima_unidad
-                      ? `<span class="tag tag-stock editor-tag-agotado">¡Última unidad!</span>`
-                      : `<button class="btn-add-precio" type="button" tabindex="-1">Agregar al carrito</button>`
-                }
+          <div class="home-screen portada-preview servicio-preview servicio-preview-ficha" id="servicio-preview">
+            <div class="servicio-preview-chrome" aria-hidden="true">
+              <span class="servicio-preview-chip">Sportage 2016</span>
+              <span class="servicio-preview-kpi-mini">
+                <span class="servicio-preview-kpi-volver">Volver</span>
+                <span class="servicio-preview-kpi-cart">$0</span>
+              </span>
+            </div>
+            <div class="detalle-hero servicio-preview-hero">
+              <div class="detalle-media servicio-preview-media" id="servicio-preview-media">
+                <div class="portada-lienzo" id="e-lienzo">${htmlPreviewMedia(m)}${htmlPreviewBotonPortadaServicio(s)}</div>
+                ${htmlDotsMedia(lista.length, mediaEditIndex, s)}
+              </div>
+              <div class="detalle-copy servicio-preview-copy">
+                <h2 id="pv-nombre">${escapeText(s.nombre || "Nombre del servicio")}</h2>
+                <p id="pv-resumen" class="detalle-resumen">${escapeText(s.resumen || "Resumen de la tarjeta")}</p>
+                <p class="lead" id="pv-detalle">${escapeText(s.detalle || "La descripción se ve aquí, como en el celular.")}</p>
+                <div class="precio-fila">
+                  <div id="pv-precios">${htmlPrecioPreview(s)}</div>
+                  ${
+                    s.agotado
+                      ? `<span class="tag tag-agotado editor-tag-agotado">Agotado</span>`
+                      : s.ultima_unidad
+                        ? `<span class="tag tag-stock editor-tag-agotado">¡Última unidad!</span>`
+                        : `<button class="btn-add-precio" type="button" tabindex="-1">Agregar al ticket</button>`
+                  }
+                </div>
               </div>
             </div>
             ${htmlNavPortadaFalsa()}
@@ -3805,8 +3816,12 @@ function ubicarCapa(el, xKey, yKey, clientX, clientY) {
   el.style.top = `${portadaUi[yKey]}%`;
 }
 
+function cajaServicioPreviewMedia_() {
+  return $("servicio-preview-media") || $("servicio-preview");
+}
+
 function activarEditorMedia() {
-  const caja = $("servicio-preview");
+  const caja = cajaServicioPreviewMedia_();
   const lienzo = $("e-lienzo");
   const dots = caja ? caja.querySelector("[data-drag=\"dots\"]") : null;
   if (!caja) return;
