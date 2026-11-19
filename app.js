@@ -1853,6 +1853,97 @@ function preciosPackComboEfectivo(combo, lineaCombo) {
   return preciosPackCombo(virtual);
 }
 
+function lineasComboEnCarrito() {
+  return state.carrito.filter((x) => x.tipo === "oferta" && x.esComboLinea);
+}
+
+function idsMiembrosComboLineaSet(combo, lineaCombo) {
+  return new Set(idsMiembrosComboEfectivos(combo, lineaCombo).map(String));
+}
+
+/** Combo del catálogo cuyos ítems ya están cubiertos por otro combo en el ticket (subconjunto). */
+function comboRedundanteConCarrito(s) {
+  if (!s || !esServicioCombo(s)) return null;
+  const idsS = idsMiembrosComboLineaSet(s, null);
+  if (!idsS.size) return null;
+  for (const linea of lineasComboEnCarrito()) {
+    if (String(linea.id) === String(s.id)) continue;
+    const otro = oferta(linea.id);
+    if (!otro || !esServicioCombo(otro)) continue;
+    const idsO = idsMiembrosComboLineaSet(otro, linea);
+    if ([...idsS].every((id) => idsO.has(id))) return otro;
+  }
+  return null;
+}
+
+/** Líneas de combo más chicos que este pack (el nuevo los reemplaza al confirmar). */
+function lineasComboReemplazadasPor(s) {
+  if (!s || !esServicioCombo(s)) return [];
+  const idsS = idsMiembrosComboLineaSet(s, null);
+  if (!idsS.size) return [];
+  return lineasComboEnCarrito().filter((linea) => {
+    if (String(linea.id) === String(s.id)) return false;
+    const otro = oferta(linea.id);
+    if (!otro || !esServicioCombo(otro)) return false;
+    const idsO = idsMiembrosComboLineaSet(otro, linea);
+    if (!idsO.size) return false;
+    return [...idsO].every((id) => idsS.has(id)) && idsS.size > idsO.size;
+  });
+}
+
+/** Combos que comparten servicios pero ninguno contiene al otro (inválido sumar ambos). */
+function comboSolapamientoParcialConCarrito(s) {
+  if (!s || !esServicioCombo(s)) return null;
+  const idsS = idsMiembrosComboLineaSet(s, null);
+  if (!idsS.size) return null;
+  for (const linea of lineasComboEnCarrito()) {
+    if (String(linea.id) === String(s.id)) continue;
+    const otro = oferta(linea.id);
+    if (!otro || !esServicioCombo(otro)) continue;
+    const idsO = idsMiembrosComboLineaSet(otro, linea);
+    const inter = [...idsS].filter((id) => idsO.has(id));
+    if (!inter.length) continue;
+    const igual = idsS.size === idsO.size && inter.length === idsS.size;
+    const sSubO = inter.length === idsS.size && idsS.size < idsO.size;
+    const oSubS = inter.length === idsO.size && idsO.size < idsS.size;
+    if (igual || sSubO || oSubS) continue;
+    return { otro, inter };
+  }
+  return null;
+}
+
+function prepararCombosAntesDeAgregar(s) {
+  if (!s || !esServicioCombo(s) || comboMarcadoEnInterfaz(s)) return true;
+  const cubre = comboRedundanteConCarrito(s);
+  if (cubre) {
+    alert(`Este combo ya está cubierto por «${cubre.nombre}», que ya llevas en el ticket.`);
+    return false;
+  }
+  const parcial = comboSolapamientoParcialConCarrito(s);
+  if (parcial) {
+    alert(
+      `«${s.nombre}» y «${parcial.otro.nombre}» repiten trabajos en el mismo ticket. Solo puedes llevar uno de los dos combos.`,
+    );
+    return false;
+  }
+  const reemplaza = lineasComboReemplazadasPor(s);
+  if (reemplaza.length) {
+    const lista = reemplaza
+      .map((l) => (oferta(l.id) || {}).nombre)
+      .filter(Boolean)
+      .join("», «");
+    if (!confirm(`«${s.nombre}» incluye todo lo de «${lista}». ¿Quieres reemplazarlo en el ticket?`)) return false;
+    reemplaza.forEach((l) => {
+      state.carrito = state.carrito.filter(
+        (x) => !(x.tipo === "oferta" && x.esComboLinea && x.id === l.id),
+      );
+    });
+    persistir();
+    renderTotales(true);
+  }
+  return true;
+}
+
 function carritoSimuladoConAceiteSustituto(nuevoId) {
   const carrito = JSON.parse(JSON.stringify(state.carrito));
   const comboLinea = carrito.find(
@@ -2095,13 +2186,14 @@ function htmlIconoCarro() {
 
 function htmlTarjetaOferta(s) {
   const esCombo = typeof esServicioCombo === "function" && esServicioCombo(s);
+  const comboCubiertoPorMayor = esCombo ? comboRedundanteConCarrito(s) : null;
   const incluidoEnCombo = !esCombo && servicioIncluidoEnComboEnCarrito(s.id);
   const enCarro = servicioCuentaComoEnTicket(s);
   const qtyTicket =
     enCarro && servicioRequiereCantidad(s)
       ? cantidadEnCarritoOferta(s.id)
       : 0;
-  const ocultarAdd = incluidoEnCombo;
+  const ocultarAdd = incluidoEnCombo || comboCubiertoPorMayor;
   const agotado = typeof servicioSinStock === "function" && servicioSinStock(s);
   const avisoStock = !esCombo && !agotado && typeof etiquetaStock === "function" ? etiquetaStock(s) : "";
   const p = esCombo ? precioVistaCombo(s) : precioPagado(s, idsComboPara(s.id));
@@ -2123,6 +2215,11 @@ function htmlTarjetaOferta(s) {
             ${agotado && !enCarro ? `<span class="tag tag-agotado">Agotado</span>` : ""}
             ${avisoStock ? `<span class="tag tag-stock">${avisoStock}</span>` : ""}
             ${enCarro ? `<span class="tag tag-carrito">En ticket${qtyTicket > 1 ? ` ×${qtyTicket}` : ""}</span>` : ""}
+            ${
+              comboCubiertoPorMayor
+                ? `<span class="tag tag-combo-inc">Incluido en ${escapeHtml(comboCubiertoPorMayor.nombre)}</span>`
+                : ""
+            }
             ${!enCarro && !ocultarAdd && !agotado && hayDesc ? `<span class="tag tag-dto">− ${clp(p.ahorro)}</span>` : ""}
           </div>
         </div>
@@ -3602,6 +3699,7 @@ function agregarOfertaDirecto(id, cantidad) {
   }
   const esCombo = s && typeof esServicioCombo === "function" && esServicioCombo(s);
   if (esCombo) {
+    if (!prepararCombosAntesDeAgregar(s)) return;
     if (comboEnCarrito(s)) {
       persistir();
       renderTotales(true);
