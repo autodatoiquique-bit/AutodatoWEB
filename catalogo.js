@@ -405,10 +405,34 @@ function sintetizarAlcanceColumnaDesdeVariantes(variantes) {
   };
 }
 
+function normalizarModeloParaCompararCatalogo(modelo) {
+  return String(modelo || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/\s+/g, " ");
+}
+
+/** Misma lógica que `pricing-engine.js` → `modelosCoinciden`. */
+function modelosCoincidenCatalogo(modeloVehiculo, modeloCatalogo) {
+  const a = normalizarModeloParaCompararCatalogo(modeloVehiculo);
+  const b = normalizarModeloParaCompararCatalogo(modeloCatalogo);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.startsWith(`${b} `) || b.startsWith(`${a} `)) return true;
+  const tokA = a.split(/\s+/).filter(Boolean);
+  const tokB = b.split(/\s+/).filter(Boolean);
+  if (tokB.length === 1 && tokA[0] === tokB[0]) return true;
+  if (tokA.length === 1 && tokA[0] === tokB[0]) return true;
+  if (tokA.length >= 2 && tokB.length >= 2 && tokA[0] === tokB[0] && tokA[1] === tokB[1]) return true;
+  return false;
+}
+
 function varianteCoincideVehiculo(v, vr) {
   if (!v || !vr || !vr.marca || !vr.modelo) return false;
   if (String(v.marca).toLowerCase() !== String(vr.marca).toLowerCase()) return false;
-  if (String(v.modelo).toLowerCase() !== String(vr.modelo).toLowerCase()) return false;
+  if (!modelosCoincidenCatalogo(v.modelo, vr.modelo)) return false;
   if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, vr)) return false;
   return combustibleCoincide(v.combustible, vr.combustible);
 }
@@ -459,7 +483,7 @@ function vehiculoEnColumna(v, col) {
     return col.variantes.some((vr) => varianteCoincideVehiculo(v, vr));
   }
   if (String(v.marca).toLowerCase() !== String(col.marca).toLowerCase()) return false;
-  if (String(v.modelo).toLowerCase() !== String(col.modelo).toLowerCase()) return false;
+  if (!modelosCoincidenCatalogo(v.modelo, col.modelo)) return false;
   if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, col)) return false;
   return combustibleCoincide(v.combustible, col.combustible);
 }
@@ -867,7 +891,7 @@ function servicioAplicaAVehiculo(s, vehiculo) {
   if (!destinos.length) return true;
   return destinos.some((v) => {
     if (v.marca !== vehiculo.marca) return false;
-    if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
+    if (v.modelo !== "*" && !modelosCoincidenCatalogo(vehiculo.modelo, v.modelo)) return false;
     if (!anioEnRango(vehiculo.ano, v)) return false;
     return combustibleCoincide(v.combustible, vehiculo.combustible);
   });
@@ -2033,7 +2057,7 @@ function slideAplicaAVehiculo(slide, vehiculo) {
   if (!destinos.length || !vehiculo || !vehiculo.marca || !vehiculo.modelo) return false;
   return destinos.some((v) => {
     if (v.marca !== vehiculo.marca) return false;
-    if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
+    if (v.modelo !== "*" && !modelosCoincidenCatalogo(vehiculo.modelo, v.modelo)) return false;
     if (!anioEnRango(vehiculo.ano, v)) return false;
     return combustibleCoincide(v.combustible, vehiculo.combustible);
   });

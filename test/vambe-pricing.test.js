@@ -1065,6 +1065,41 @@ describe("Vambe pricing", () => {
     }
   });
 
+  test("vehicle-menu acepta variante de modelo (Tucson LX20 → columna Tucson)", async () => {
+    const prevFetch = global.fetch;
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        columnas: [
+          {
+            marca: "Hyundai",
+            modelo: "Tucson",
+            ano_desde: 2010,
+            ano_hasta: 2016,
+            combustible: "diesel",
+            servicios: ["a1", "a2", "a3"],
+            ocultos: [],
+            portadas: [],
+            orden_tarjetas: ["s:a1", "s:a3"],
+          },
+        ],
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.vehicleMenuVambe({
+      scope: "hyundai_kia",
+      channel: "vambe",
+      brand: "Hyundai",
+      model: "Tucson LX20",
+      year: 2011,
+      fuel: "diesel",
+    });
+    assert.equal(out.ok, true, out.error_code || out.message);
+    assert.equal(out.column && out.column.model, "Tucson");
+    assert.ok(out.services.length >= 1);
+    global.fetch = prevFetch;
+    reloadAsistente();
+  });
+
   test("vehicle-menu quote-flat con service_code del menú", async () => {
     cotizacionesMem.clear();
     quoteSeq = 0;

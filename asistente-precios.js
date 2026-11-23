@@ -1363,7 +1363,8 @@ function fotoPerfilVehiculoVambe(v) {
     if (vr && vr.foto) return vr.foto;
   }
   if (col && col.foto) return col.foto;
-  const fm = fotoModeloVambe(v.marca, v.modelo);
+  const modeloFoto = col && col.modelo ? col.modelo : v.modelo;
+  const fm = fotoModeloVambe(v.marca, modeloFoto);
   return fm || null;
 }
 

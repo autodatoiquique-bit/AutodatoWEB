@@ -30,6 +30,34 @@
     return "ambos";
   }
 
+  /** Normaliza modelo para comparar (sin acentos, espacios colapsados). */
+  function normalizarModeloParaComparar(modelo) {
+    return String(modelo || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .replace(/\s+/g, " ");
+  }
+
+  /**
+   * Coincidencia flexible: el catálogo suele usar nombre corto (ej. "Tucson")
+   * y el cliente o el asistente puede decir variante (ej. "Tucson LX20").
+   */
+  function modelosCoinciden(modeloVehiculo, modeloCatalogo) {
+    const a = normalizarModeloParaComparar(modeloVehiculo);
+    const b = normalizarModeloParaComparar(modeloCatalogo);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.startsWith(`${b} `) || b.startsWith(`${a} `)) return true;
+    const tokA = a.split(/\s+/).filter(Boolean);
+    const tokB = b.split(/\s+/).filter(Boolean);
+    if (tokB.length === 1 && tokA[0] === tokB[0]) return true;
+    if (tokA.length === 1 && tokA[0] === tokB[0]) return true;
+    if (tokA.length >= 2 && tokB.length >= 2 && tokA[0] === tokB[0] && tokA[1] === tokB[1]) return true;
+    return false;
+  }
+
   function tieneOferta(item) {
     if (!item) return false;
     if (item.tiene_oferta === false) return false;
@@ -117,13 +145,13 @@
       if (col.multimarca && Array.isArray(col.variantes) && col.variantes.length) {
         return col.variantes.some((vr) => {
           if (String(v.marca).toLowerCase() !== String(vr.marca).toLowerCase()) return false;
-          if (String(v.modelo).toLowerCase() !== String(vr.modelo).toLowerCase()) return false;
+          if (!modelosCoinciden(v.modelo, vr.modelo)) return false;
           if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, vr)) return false;
           return combustibleCoincide(v.combustible, vr.combustible);
         });
       }
       if (String(v.marca).toLowerCase() !== String(col.marca).toLowerCase()) return false;
-      if (String(v.modelo).toLowerCase() !== String(col.modelo).toLowerCase()) return false;
+      if (!modelosCoinciden(v.modelo, col.modelo)) return false;
       if (v.ano != null && v.ano !== "" && !anioEnRango(v.ano, col)) return false;
       return combustibleCoincide(v.combustible, col.combustible);
     }
@@ -180,8 +208,8 @@
       const destinos = normalizarVehiculos(s.vehiculos);
       if (!destinos.length) return { aplica: true, motivo: "", via: "generico", col: null, matching_destinos: [] };
       const matching_destinos = destinos.filter((v) => {
-        if (v.marca !== vehiculo.marca) return false;
-        if (v.modelo !== "*" && v.modelo !== vehiculo.modelo) return false;
+        if (String(v.marca).toLowerCase() !== String(vehiculo.marca).toLowerCase()) return false;
+        if (v.modelo !== "*" && !modelosCoinciden(vehiculo.modelo, v.modelo)) return false;
         if (!anioEnRango(vehiculo.ano, v)) return false;
         return combustibleCoincide(v.combustible, vehiculo.combustible);
       });
@@ -331,8 +359,7 @@
     function promocionAplicaVehiculoPromo(p, vehiculo) {
       if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) return false;
       if (p.marca && String(p.marca).toLowerCase() !== String(vehiculo.marca).toLowerCase()) return false;
-      if (p.modelo && p.modelo !== "*" && String(p.modelo).toLowerCase() !== String(vehiculo.modelo).toLowerCase())
-        return false;
+      if (p.modelo && p.modelo !== "*" && !modelosCoinciden(vehiculo.modelo, p.modelo)) return false;
       if (!anioEnRango(vehiculo.ano, { ano_desde: p.ano_desde, ano_hasta: p.ano_hasta })) return false;
       if (p.combustible && p.combustible !== "ambos" && !combustibleCoincide(p.combustible, vehiculo.combustible))
         return false;
@@ -600,6 +627,8 @@
     PRICING_ENGINE,
     createPricingRuntime,
     normalizarCombustible,
+    normalizarModeloParaComparar,
+    modelosCoinciden,
     tieneOferta,
     precioOfertaDe,
   };
