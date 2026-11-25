@@ -1973,15 +1973,7 @@ function prepararCombosAntesDeAgregar(s) {
     alert(`Este combo ya está cubierto por «${cubre.nombre}», que ya llevas en el ticket.`);
     return false;
   }
-  const parcial = comboSolapamientoParcialConCarrito(s);
-  if (parcial) {
-    const etiquetas = etiquetasSolapeCombo(parcial.inter);
-    const lista = etiquetas.length ? etiquetas.join(", ") : "algunos trabajos";
-    const msg =
-      `«${s.nombre}» y «${parcial.otro.nombre}» comparten: ${lista}.\n\n` +
-      `Puedes llevar ambos combos; esos trabajos se realizan una sola vez y no se cobran dos veces. ¿Agregar al ticket?`;
-    if (!confirm(msg)) return false;
-  }
+  /* Solape parcial entre combos: se permiten ambos; el total no duplica trabajos repetidos (regalo/$0 o precio de pack). */
   const reemplaza = lineasComboReemplazadasPor(s);
   if (reemplaza.length) {
     const lista = reemplaza
