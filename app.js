@@ -1904,6 +1904,47 @@ function lineasComboReemplazadasPor(s) {
   });
 }
 
+function etiquetaServicioSolapeCombo(id) {
+  const k = String(id || "");
+  if (k === COMBO_SLOT_ACEITE_MOTOR) return "Cambio de aceite de motor";
+  const svc = typeof oferta === "function" ? oferta(k) : null;
+  return (svc && svc.nombre) || k;
+}
+
+function etiquetasSolapeCombo(ids) {
+  return (ids || []).map(etiquetaServicioSolapeCombo).filter(Boolean);
+}
+
+/** Trabajos incluidos en más de un combo del ticket (para aviso al cliente). */
+function trabajosDuplicadosEntreCombosEnCarrito() {
+  const lineas = lineasComboEnCarrito();
+  if (lineas.length < 2) return [];
+  const conteos = new Map();
+  lineas.forEach((linea) => {
+    const combo = oferta(linea.id);
+    if (!combo || !esServicioCombo(combo)) return;
+    idsMiembrosComboEfectivos(combo, linea).forEach((id) => {
+      const svc = oferta(id);
+      const k = esAceiteMotorServicio(svc) ? COMBO_SLOT_ACEITE_MOTOR : String(id);
+      conteos.set(k, (conteos.get(k) || 0) + 1);
+    });
+  });
+  const dup = [];
+  conteos.forEach((n, k) => {
+    if (n < 2) return;
+    dup.push(etiquetaServicioSolapeCombo(k));
+  });
+  return dup;
+}
+
+function htmlAvisoCombosSolapados() {
+  const dup = trabajosDuplicadosEntreCombosEnCarrito();
+  if (!dup.length) return "";
+  return `<p class="aviso-ticket aviso-combo-solape">Llevas varios combos con trabajos repetidos (${escapeHtml(
+    dup.join(" · ")
+  )}). Se hace una sola vez y <strong>no se cobra dos veces</strong>.</p>`;
+}
+
 /** Combos que comparten servicios pero ninguno contiene al otro (inválido sumar ambos). */
 function comboSolapamientoParcialConCarrito(s) {
   if (!s || !esServicioCombo(s)) return null;
@@ -1934,10 +1975,12 @@ function prepararCombosAntesDeAgregar(s) {
   }
   const parcial = comboSolapamientoParcialConCarrito(s);
   if (parcial) {
-    alert(
-      `«${s.nombre}» y «${parcial.otro.nombre}» repiten trabajos en el mismo ticket. Solo puedes llevar uno de los dos combos.`,
-    );
-    return false;
+    const etiquetas = etiquetasSolapeCombo(parcial.inter);
+    const lista = etiquetas.length ? etiquetas.join(", ") : "algunos trabajos";
+    const msg =
+      `«${s.nombre}» y «${parcial.otro.nombre}» comparten: ${lista}.\n\n` +
+      `Puedes llevar ambos combos; esos trabajos se realizan una sola vez y no se cobran dos veces. ¿Agregar al ticket?`;
+    if (!confirm(msg)) return false;
   }
   const reemplaza = lineasComboReemplazadasPor(s);
   if (reemplaza.length) {
@@ -3315,6 +3358,7 @@ function htmlPanelDatosAgenda() {
         <h2>${tituloAgenda}</h2>
       </div>
       ${htmlAvisoTicketCorto()}
+      ${htmlAvisoCombosSolapados()}
       <p class="lead">${
         soloFlota
           ? "Precios netos (+ IVA). Sin pago aquí: generas ticket de entrada."
