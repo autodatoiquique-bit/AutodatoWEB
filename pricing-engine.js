@@ -178,7 +178,8 @@
       return candidatos[0];
     }
 
-    function evalCompatibilidadServicioVehiculo(s, vehiculo) {
+    function evalCompatibilidadServicioVehiculo(s, vehiculo, opts) {
+      const politica = opts && opts.politica === "tablero" ? "tablero" : "compatibilidad";
       if (!vehiculo || !vehiculo.marca || !vehiculo.modelo) {
         return { aplica: false, motivo: "Falta marca o modelo del vehículo", via: null, col: null, matching_destinos: [] };
       }
@@ -188,8 +189,39 @@
       if (!s || s.activo === false) {
         return { aplica: false, motivo: "Servicio inactivo", via: null, col: null, matching_destinos: [] };
       }
-      const col = columnaDeVehiculo(vehiculo);
       const id = String(s.id || "");
+      if (politica === "tablero") {
+        const colTab = columnaDeVehiculo(vehiculo);
+        if (!colTab) {
+          return {
+            aplica: false,
+            motivo: "No hay columna de tablero para este vehículo",
+            via: null,
+            col: null,
+            matching_destinos: [],
+          };
+        }
+        if (itemOcultoEnColumna(colTab, "servicio", id)) {
+          return {
+            aplica: false,
+            motivo: "No disponible para este vehículo en el taller",
+            via: "columna",
+            col: colTab,
+            matching_destinos: [],
+          };
+        }
+        if (!idsDeColumna(colTab, "servicios").includes(id)) {
+          return {
+            aplica: false,
+            motivo: "Este servicio no está en la columna del tablero para este modelo",
+            via: "columna",
+            col: colTab,
+            matching_destinos: [],
+          };
+        }
+        return { aplica: true, motivo: "", via: "columna", col: colTab, matching_destinos: [] };
+      }
+      const col = columnaDeVehiculo(vehiculo);
       if (col) {
         if (itemOcultoEnColumna(col, "servicio", id)) {
           return { aplica: false, motivo: "No disponible para este vehículo en el taller", via: "columna", col, matching_destinos: [] };
@@ -225,8 +257,8 @@
       };
     }
 
-    function servicioAplicaAVehiculo(s, vehiculo) {
-      const r = evalCompatibilidadServicioVehiculo(s, vehiculo);
+    function servicioAplicaAVehiculo(s, vehiculo, opts) {
+      const r = evalCompatibilidadServicioVehiculo(s, vehiculo, opts);
       return { aplica: r.aplica, motivo: r.motivo };
     }
 

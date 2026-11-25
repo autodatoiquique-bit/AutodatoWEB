@@ -211,7 +211,7 @@ Ejemplo **`validate`:**
 
 ### `POST /api/vambe/catalog/compatible-services`
 
-Solo lectura: lista **candidatos** de servicios del catálogo que coinciden con una **familia** estable y son **compatibles** con el vehículo, usando el mismo motor que la cotización (`servicioAplicaAVehiculo` / columnas de tablero / lista de compatibilidad). **No** crea filas en `cotizaciones` ni tickets. El precio mostrado usa `precioPagado` (lista, combinación, oferta fija y promoción temporal cuando aplique al servicio solo).
+Solo lectura: lista **candidatos** de una **familia** estable que están en la **columna del tablero** del vehículo (`_tablero_columnas`). **No** usa los «modelos compatibles» del servicio ni el texto de la ficha para ampliar el listado. Sin columna de tablero → `NO_BOARD_COLUMN`. La cotización por `service_code` sigue validando compatibilidad con el motor habitual. **No** crea filas en `cotizaciones` ni tickets. El precio mostrado usa `precioPagado` (lista, combinación, oferta fija y promoción temporal cuando aplique al servicio solo).
 
 **Autenticación:** igual que los demás endpoints Vambe.
 
@@ -316,7 +316,7 @@ Presente en cotizaciones exitosas (`quote-flat`), `vehicle-menu`, `compatible-se
 
 ### `POST /api/vambe/catalog/vehicle-menu`
 
-Menú completo por vehículo (columna del tablero). Misma autenticación y vehículo plano que `quote-flat`.
+Menú completo por vehículo. Misma autenticación y vehículo plano que `quote-flat`. **Solo** servicios y portadas de la columna del tablero (`_tablero_columnas`); no amplía con «modelos compatibles» del servicio.
 
 Cada elemento de `services[]` incluye:
 

@@ -263,6 +263,7 @@ function mockSupabaseQuotesFetch(baseFetch) {
 
 function reloadAsistente() {
   delete require.cache[require.resolve(path.join(__dirname, "..", "asistente-precios.js"))];
+  delete require.cache[require.resolve(path.join(__dirname, "..", "pricing-engine.js"))];
   return require("../asistente-precios.js");
 }
 
@@ -1173,7 +1174,7 @@ describe("Vambe pricing", () => {
     const out = await ap.compatibleServicesVambe({
       scope: "hyundai_kia",
       brand: "Kia",
-      model: "Santa Fe",
+      model: "Sorento",
       year: 2015,
       fuel: "diesel",
       service_family: "cambio_aceite",
@@ -1296,7 +1297,50 @@ describe("Vambe pricing", () => {
       service_family: "cambio_aceite",
     });
     assert.equal(out.ok, false);
-    assert.equal(out.error_code, "NO_COMPATIBLE_SERVICE_FOR_FAMILY");
+    assert.equal(out.error_code, "NO_BOARD_COLUMN");
+    global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
+    reloadAsistente();
+  });
+
+  test("compatible-services ignora modelos compatibles fuera de la columna del tablero", async () => {
+    global.fetch = mockSupabaseQuotesFetch(
+      mockCatalogFetch({
+        serviciosRows: [
+          {
+            id: "a1",
+            tipo: "oferta",
+            nombre: "Aceite Santa Fe",
+            precio: 100000,
+            activo: true,
+            service_families: '["cambio_aceite"]',
+          },
+          {
+            id: "a_jp",
+            tipo: "oferta",
+            nombre: "Filtro combustible japoneses",
+            precio: 79990,
+            activo: true,
+            service_families: '["cambio_aceite"]',
+            vehiculos: [{ marca: "Hyundai", modelo: "Santa Fe", ano_desde: 2010, ano_hasta: 2026, combustible: "diesel" }],
+          },
+        ],
+        serviciosEnColumna: ["a1"],
+        a_jp: { numero_serie: 31 },
+      })
+    );
+    const ap = reloadAsistente();
+    const out = await ap.compatibleServicesVambe({
+      scope: "hyundai_kia",
+      brand: "Hyundai",
+      model: "Santa Fe",
+      year: 2015,
+      fuel: "diesel",
+      service_family: "cambio_aceite",
+    });
+    assert.equal(out.ok, true);
+    const codes = (out.candidates || []).map((c) => c.service_code);
+    assert.equal(codes.includes("0001"), true);
+    assert.equal(codes.includes("0031"), false);
     global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
     reloadAsistente();
   });
@@ -1366,7 +1410,7 @@ describe("Vambe pricing", () => {
     assert.ok(c1 && c1.oil_liters === 4);
   });
 
-  test("compatible-services oil_liters desde compatibilidad lista (sin columna tablero)", async () => {
+  test("compatible-services sin columna tablero devuelve NO_BOARD_COLUMN", async () => {
     global.fetch = mockSupabaseQuotesFetch(
       mockCatalogFetch({
         columnas: [],
@@ -1404,8 +1448,8 @@ describe("Vambe pricing", () => {
       fuel: "diesel",
       service_family: "cambio_aceite",
     });
-    assert.equal(out.ok, true);
-    assert.equal(out.candidates[0].oil_liters, 5);
+    assert.equal(out.ok, false);
+    assert.equal(out.error_code, "NO_BOARD_COLUMN");
     global.fetch = mockSupabaseQuotesFetch(mockCatalogFetch());
     reloadAsistente();
   });

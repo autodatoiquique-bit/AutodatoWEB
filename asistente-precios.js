@@ -69,8 +69,17 @@ function normalizarCombustible(v) {
   return pricingEngineLib.normalizarCombustible(v);
 }
 
-function evalCompatibilidadServicioVehiculo(s, vehiculo) {
-  return pe.evalCompatibilidadServicioVehiculo(s, vehiculo);
+/** Listados Vambe (menú / familias): solo tarjetas de la columna del tablero; ignora «modelos compatibles» del servicio. */
+const POLITICA_COMPAT_TABLERO = { politica: "tablero" };
+
+function evalCompatibilidadServicioVehiculo(s, vehiculo, opts) {
+  return pe.evalCompatibilidadServicioVehiculo(s, vehiculo, opts);
+}
+
+function idsServiciosTableroVehiculo(vehiculo) {
+  const col = pe.columnaDeVehiculo(vehiculo);
+  if (!col) return null;
+  return new Set(pe.idsDeColumna(col, "servicios").map(String));
 }
 
 function servicioAplicaAVehiculo(s, vehiculo) {
@@ -1912,13 +1921,29 @@ async function compatibleServicesVambe(body) {
     };
   }
 
+  const idsTablero = idsServiciosTableroVehiculo(vehiculo);
+  if (!idsTablero) {
+    const { eligible: eligTab } = vehiculoEligible(vehiculo);
+    return {
+      ok: false,
+      eligible: eligTab,
+      error_code: "NO_BOARD_COLUMN",
+      message: "No hay columna de tablero para este vehículo.",
+      catalog_version: catalogVersionHash,
+      scope: scope || null,
+      service_family,
+      candidates: [],
+    };
+  }
+
   const scored = [];
   (catalogo || []).forEach((s) => {
+    if (!idsTablero.has(String(s.id))) return;
     if (!servicioElegibleDescubrimientoVambe(s)) return;
     const fams = servicioFamiliesEfectivas(s);
     if (!fams.includes(service_family)) return;
     if (service_family === "cambio_aceite" && pareceServicioRefrigeranteVambe(s)) return;
-    const ev = evalCompatibilidadServicioVehiculo(s, vehiculo);
+    const ev = evalCompatibilidadServicioVehiculo(s, vehiculo, POLITICA_COMPAT_TABLERO);
     if (!ev.aplica) return;
     const { price_list, price_with_promotions, promotion_summary } = precioPreviewDescubrimiento(s, vehiculo);
     const combination_promotions = combinationPromotionsDescubrimiento(s, vehiculo);
@@ -2314,7 +2339,7 @@ async function vehicleMenuVambe(body) {
     const s = servicioPorId(p.id);
     if (!s || s.activo === false) return;
     if (!idsDeColumnaMenu(colWork, "servicios").includes(p.id)) return;
-    const ev = evalCompatibilidadServicioVehiculo(s, vehiculo);
+    const ev = evalCompatibilidadServicioVehiculo(s, vehiculo, POLITICA_COMPAT_TABLERO);
     if (!ev.aplica) return;
 
     rank += 1;

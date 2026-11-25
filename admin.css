@@ -2879,7 +2879,8 @@ body.admin-imprimir-qr-aprobado .aprobado-qr-hoja {
 .servicio-preview .servicio-preview-media .portada-lienzo {
   position: absolute;
   inset: 0;
-  bottom: auto;
+  width: 100%;
+  height: 100%;
 }
 .servicio-preview .servicio-preview-copy {
   position: static;

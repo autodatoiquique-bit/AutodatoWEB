@@ -2263,21 +2263,22 @@ function htmlTarjetaOferta(s) {
 }
 
 function serviciosParaVehiculo(lista, canal) {
-  let candidatos = Array.isArray(lista) ? lista.slice() : [];
   if (vehiculoOk()) {
     const col = columnaDeVehiculo(state.vehiculo);
     if (col && typeof idsDeColumna === "function" && typeof servicioPorId === "function") {
-      const ids = new Set(candidatos.map((s) => String(s.id)));
-      idsDeColumna(col, "servicios").forEach((sid) => {
-        if (ids.has(String(sid))) return;
-        const s = servicioPorId(sid);
-        if (!s || s.activo === false) return;
-        if (canal && typeof servicioEnCanal === "function" && !servicioEnCanal(s, canal)) return;
-        candidatos.push(s);
-        ids.add(String(sid));
-      });
+      if (typeof sincronizarOrdenTarjetasCol === "function") sincronizarOrdenTarjetasCol(col);
+      const filtrados = idsDeColumna(col, "servicios")
+        .map((sid) => servicioPorId(sid))
+        .filter((s) => {
+          if (!s || s.activo === false) return false;
+          if (canal && typeof servicioEnCanal === "function" && !servicioEnCanal(s, canal)) return false;
+          return true;
+        });
+      if (typeof ordenarServiciosColumna === "function") return ordenarServiciosColumna(col, filtrados);
+      return filtrados;
     }
   }
+  let candidatos = Array.isArray(lista) ? lista.slice() : [];
   const filtrados = candidatos.filter((s) => {
     if (!servicioAplicaAVehiculo(s, state.vehiculo)) return false;
     if (canal && typeof servicioEnCanal === "function" && !servicioEnCanal(s, canal)) return false;

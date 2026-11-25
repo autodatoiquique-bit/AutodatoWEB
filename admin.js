@@ -2606,7 +2606,7 @@ function htmlVehiculosEditor(s, hint, opts) {
   return `
     <fieldset class="canales veh-box">
       <legend>Modelos compatibles</legend>
-      <p class="hint">${hint || "La columna del tablero manda: si el servicio está en la columna de un auto, se muestra para ese modelo aunque no lo marques aquí."}</p>
+      <p class="hint">${hint || "Solo referencia interna y cotización fuera del tablero. En la web y en Vambe, el listado por modelo usa únicamente la columna del tablero: marcar Santa Fe aquí no muestra el servicio en Santa Fe si la tarjeta no está en esa columna."}</p>
       <div id="e-veh-filas" ${modo === "todos" || modo === "marca" ? "hidden" : ""}>
         ${visibles.map((v, i) => htmlFilaCompat(v, i)).join("")}
       </div>
